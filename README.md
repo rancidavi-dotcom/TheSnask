@@ -8,7 +8,7 @@
 
 ## 🚀 Instalação Rápida (Linux)
 
-Instale o SNask v0.2.3 com um único comando:
+Instale/atualize o SNask com um único comando:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
@@ -41,7 +41,7 @@ class main
 
 ### Compilar e Rodar
 ```bash
-snask run hello.snask
+curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
 ```
 
 ## 📚 Documentação Oficial
