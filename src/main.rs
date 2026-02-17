@@ -21,6 +21,7 @@ use crate::llvm_generator::LLVMGenerator;
 use inkwell::context::Context;
 use crate::ast::{Program, StmtKind};
 use crate::modules::load_module;
+use indicatif::{ProgressBar, ProgressStyle};
 
 #[derive(ClapParser)]
 #[command(author, version, about, long_about = None)]
@@ -189,19 +190,37 @@ fn resolve_entry_file(cli_file: Option<String>) -> Result<String, String> {
 
 fn build_entry(cli_file: Option<String>, output_name: Option<String>) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(ProgressStyle::with_template("{spinner} {msg}").unwrap());
+    spinner.enable_steady_tick(std::time::Duration::from_millis(90));
 
     // Se estiver em um projeto SPS, resolve deps e gera lock antes de build.
     if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
+        spinner.set_message(format!("SPS: snask.toml (entry: {})", m.package.entry));
         // pin pelo lock (se existir) antes de resolver
+        spinner.set_message("SPS: verificando snask.lock".to_string());
         sps_pin_from_lock(&cwd, &m)?;
+        spinner.set_message("SPS: resolvendo dependências".to_string());
         sps_resolve_deps_and_lock(&cwd, &m)?;
         let opt = m.opt_level_for(true);
         let file_path = cli_file.unwrap_or_else(|| m.package.entry.clone());
-        return build_file_with_opt(&file_path, output_name, opt);
+        spinner.set_message(format!("Compilando {} (O{})", file_path, opt));
+        let res = build_file_with_opt(&file_path, output_name, opt);
+        match &res {
+            Ok(_) => spinner.finish_with_message("Build finalizado"),
+            Err(_) => spinner.finish_and_clear(),
+        }
+        return res;
     }
 
     let file_path = resolve_entry_file(cli_file)?;
-    build_file(&file_path, output_name)
+    spinner.set_message(format!("Compilando {}", file_path));
+    let res = build_file(&file_path, output_name);
+    match &res {
+        Ok(_) => spinner.finish_with_message("Build finalizado"),
+        Err(_) => spinner.finish_and_clear(),
+    }
+    res
 }
 
 fn build_file(file_path: &str, output_name: Option<String>) -> Result<(), String> {
@@ -209,8 +228,19 @@ fn build_file(file_path: &str, output_name: Option<String>) -> Result<(), String
 }
 
 fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: u8) -> Result<(), String> {
+    let pb = ProgressBar::new(6);
+    pb.set_style(
+        ProgressStyle::with_template("{bar:40.cyan/blue} {pos}/{len} {msg}")
+            .unwrap()
+            .progress_chars("=>-"),
+    );
+    pb.set_message("Lendo arquivo");
     let source = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
+    pb.inc(1);
+
+    pb.set_message("Parser (tokens/AST)");
     let mut program = Parser::new(&source)?.parse_program().map_err(|e| format!("Erro no parser: {}", e))?;
+    pb.inc(1);
 
     // Validação de Class Main Obrigatória apenas no programa principal
     let has_main = program.iter().any(|stmt| {
@@ -222,32 +252,41 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
     });
 
     if !has_main {
+        pb.finish_and_clear();
         return Err("Erro: Todo programa SNask deve conter uma 'class main'.".to_string());
     }
 
+    pb.set_message("Resolvendo imports");
     let mut resolved_program = Vec::new();
     let mut resolved_modules = std::collections::HashSet::new();
     resolved_modules.insert(file_path.to_string());
     resolve_imports(&mut program, &mut resolved_program, &mut resolved_modules)?;
+    pb.inc(1);
 
+    pb.set_message("Análise semântica");
     let mut analyzer = SemanticAnalyzer::new();
     analyzer.analyze(&resolved_program);
     if !analyzer.errors.is_empty() {
+        pb.finish_and_clear();
         let mut out = String::from("Análise semântica encontrou erros:\n");
         for e in &analyzer.errors {
             out.push_str(&format!("- {}\n", format_semantic_error(e)));
         }
         return Err(out);
     }
+    pb.inc(1);
 
+    pb.set_message("Gerando LLVM IR");
     let context = Context::create();
     let mut generator = LLVMGenerator::new(&context, file_path);
     let ir = generator.generate(resolved_program)?;
+    pb.inc(1);
 
     let ir_file = "temp_snask.ll";
     let obj_file = "temp_snask.o";
     fs::write(ir_file, ir).map_err(|e| e.to_string())?;
 
+    pb.set_message(format!("Compilando (llc-18 -O{})", opt_level));
     let opt_flag = format!("-O{}", opt_level);
     Command::new("llc-18")
         .arg(opt_flag)
@@ -259,6 +298,7 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
         .status()
         .map_err(|e| e.to_string())?;
 
+    pb.set_message("Linkando (clang-18)");
     let runtime_path = format!("{}/.snask/lib/runtime.o", std::env::var("HOME").unwrap());
     let final_output = output_name.unwrap_or_else(|| file_path.replace(".snask", ""));
 
@@ -276,6 +316,8 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
 
     if !status.success() { return Err("Falha na linkagem final.".to_string()); }
     fs::remove_file(ir_file).ok(); fs::remove_file(obj_file).ok();
+    pb.inc(1);
+    pb.finish_with_message("OK");
     Ok(())
 }
 
