@@ -16,9 +16,15 @@ pub struct Package {
     description: String,
 }
 
+impl Package {
+    pub fn version(&self) -> &str { &self.version }
+    pub fn url(&self) -> &str { &self.url }
+    pub fn description(&self) -> &str { &self.description }
+}
+
 #[derive(Deserialize, Debug)]
 pub struct Registry {
-    packages: HashMap<String, Package>,
+    pub packages: HashMap<String, Package>,
 }
 
 pub fn get_packages_dir() -> PathBuf {

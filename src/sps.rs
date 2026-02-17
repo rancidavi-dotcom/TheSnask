@@ -117,6 +117,12 @@ pub fn lockfile_path(dir: &Path) -> PathBuf {
     dir.join("snask.lock")
 }
 
+pub fn read_lockfile(dir: &Path) -> Result<Lockfile, String> {
+    let p = lockfile_path(dir);
+    let s = fs::read_to_string(&p).map_err(|e| format!("SPS: falha ao ler {}: {}", p.display(), e))?;
+    toml::from_str(&s).map_err(|e| format!("SPS: erro ao parsear snask.lock: {}", e))
+}
+
 pub fn write_lockfile(dir: &Path, manifest: &SpsManifest, deps: BTreeMap<String, LockedDep>) -> Result<(), String> {
     let lf = Lockfile {
         package: LockPackage { name: manifest.package.name.clone(), version: manifest.package.version.clone() },

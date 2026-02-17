@@ -81,6 +81,10 @@ fn main() {
             };
             let file_path = match crate::sps::load_manifest_from(&cwd) {
                 Ok((m, _p)) => {
+                    if let Err(e) = sps_pin_from_lock(&cwd, &m) {
+                        eprintln!("Erro durante a compilação: {}", e);
+                        return;
+                    }
                     if let Err(e) = sps_resolve_deps_and_lock(&cwd, &m) {
                         eprintln!("Erro durante a compilação: {}", e);
                         return;
@@ -188,6 +192,8 @@ fn build_entry(cli_file: Option<String>, output_name: Option<String>) -> Result<
 
     // Se estiver em um projeto SPS, resolve deps e gera lock antes de build.
     if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
+        // pin pelo lock (se existir) antes de resolver
+        sps_pin_from_lock(&cwd, &m)?;
         sps_resolve_deps_and_lock(&cwd, &m)?;
         let opt = m.opt_level_for(true);
         let file_path = cli_file.unwrap_or_else(|| m.package.entry.clone());
@@ -335,6 +341,19 @@ fn sps_resolve_deps_and_lock(dir: &std::path::Path, manifest: &crate::sps::SpsMa
     let registry = crate::packages::fetch_registry()?;
     let mut locked = std::collections::BTreeMap::new();
     for (name, _req) in &manifest.dependencies {
+        // constraints v1: "*" ou versão exata
+        if let Some(pkg) = registry.packages.get(name) {
+            let req = manifest.dependencies.get(name).map(|s| s.as_str()).unwrap_or("*");
+            if req != "*" && req != pkg.version() {
+                return Err(format!(
+                    "SPS: constraint de versão não satisfeita para '{}': pedido '{}', registry '{}'",
+                    name,
+                    req,
+                    pkg.version()
+                ));
+            }
+        }
+
         if !crate::packages::is_package_installed(name) {
             let (ver, sha, _path) = crate::packages::install_package_with_registry(name, &registry)?;
             locked.insert(name.clone(), crate::sps::LockedDep { version: ver, sha256: sha });
@@ -345,6 +364,58 @@ fn sps_resolve_deps_and_lock(dir: &std::path::Path, manifest: &crate::sps::SpsMa
         }
     }
     crate::sps::write_lockfile(dir, manifest, locked)?;
+    Ok(())
+}
+
+fn sps_pin_from_lock(dir: &std::path::Path, manifest: &crate::sps::SpsManifest) -> Result<(), String> {
+    // Se existir snask.lock, garante que os pacotes instalados batem com sha/version do lock.
+    // Se divergir: reinstala do registry (MVP).
+    let lock_path = crate::sps::lockfile_path(dir);
+    if !lock_path.exists() {
+        return Ok(());
+    }
+    let lock = crate::sps::read_lockfile(dir)?;
+    let registry = crate::packages::fetch_registry()?;
+
+    for (name, dep) in &lock.dependencies {
+        // se manifest não contém mais, ignora (lock pode estar velho)
+        if !manifest.dependencies.contains_key(name) {
+            continue;
+        }
+
+        // checa constraint antes (manifest manda)
+        if let Some(pkg) = registry.packages.get(name) {
+            let req = manifest.dependencies.get(name).map(|s| s.as_str()).unwrap_or("*");
+            if req != "*" && req != pkg.version() {
+                return Err(format!(
+                    "SPS: constraint de versão não satisfeita para '{}': pedido '{}', registry '{}'",
+                    name,
+                    req,
+                    pkg.version()
+                ));
+            }
+        }
+
+        let need_install = if !crate::packages::is_package_installed(name) {
+            true
+        } else {
+            let sha = crate::packages::read_installed_package_sha256(name)?;
+            sha != dep.sha256
+        };
+        if need_install {
+            let (ver, sha, _path) = crate::packages::install_package_with_registry(name, &registry)?;
+            if ver != dep.version || sha != dep.sha256 {
+                return Err(format!(
+                    "SPS: lockfile pede {}@{} sha256={}, mas registry instalou {} sha256={}. Atualize seu lock (`snask build`) ou ajuste dependências.",
+                    name,
+                    dep.version,
+                    dep.sha256,
+                    ver,
+                    sha
+                ));
+            }
+        }
+    }
     Ok(())
 }
 

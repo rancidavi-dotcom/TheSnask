@@ -1,0 +1,22 @@
+import "blaze";
+import "json";
+
+fun res_json(status, obj)
+    let r = json::new_object();
+    json::set(r, "status", status);
+    json::set(r, "content_type", "application/json; charset=utf-8");
+    json::set(r, "body", json::pretty(obj));
+    return r;
+
+fun health_handler(method, path, query, body, cookie)
+    let o = json::new_object();
+    json::set(o, "ok", true);
+    json::set(o, "service", "sps_api");
+    return res_json(200, o);
+
+class main
+    fun start()
+        let routes = blaze::new();
+        blaze::handler_method(routes, "GET", "/health", "health_handler");
+        blaze::run(3000, routes);
+
