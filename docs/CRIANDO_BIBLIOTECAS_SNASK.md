@@ -30,7 +30,21 @@ o compilador:
 
 ## 2) Estrutura mínima de uma biblioteca
 
-Crie um arquivo `math_extra.snask`:
+No fluxo atual, uma biblioteca tem **3 arquivos obrigatórios** no diretório de trabalho:
+
+- `NOME.snask` (código)
+- `package.json` (metadados: nome, versão, descrição)
+- `README.md` (documentação)
+
+Crie uma lib com o template oficial:
+
+```bash
+snask lib init math_extra --version 0.1.0 --description "Funções matemáticas extras"
+```
+
+Isso gera `math_extra.snask`, `package.json` e `README.md`.
+
+Exemplo de código (arquivo `math_extra.snask`):
 
 ```snask
 fun dobro(x)
@@ -122,7 +136,8 @@ snask lib init minha_lib --version 0.1.0 --description "Minha lib de exemplo"
 
 Isso gera no diretório atual:
 - `minha_lib.snask`
-- `minha_lib_README.md`
+- `package.json`
+- `README.md`
 
 ### Publicar no registry (SnaskPackages)
 
@@ -136,13 +151,14 @@ snask search json
 Depois publique:
 
 ```bash
-snask lib publish minha_lib --version 0.1.0 --description "Minha lib de exemplo" --push
+snask lib publish minha_lib --push
 ```
 
 O publish:
 - copia `minha_lib.snask` para `~/.snask/registry/packages/minha_lib.snask`
 - cria/atualiza `~/.snask/registry/index/m/minha_lib.json`
 - faz `git commit` e (se `--push`) `git push origin main`
+- e também salva o “pacote fonte” versionado em `~/.snask/registry/packages_src/<nome>/<versao>/`
 
 ### Publicar sem permissão no repo (Fork + Pull Request)
 
@@ -152,8 +168,7 @@ Se você não tem permissão de escrita no `rancidavi-dotcom/SnaskPackages`, fa�
 2) Publique em uma branch do seu fork:
 
 ```bash
-snask lib publish minha_lib --version 0.1.0 --description "Minha lib" \
-  --pr --fork "https://github.com/SEUUSER/SnaskPackages"
+snask lib publish minha_lib --pr --fork "https://github.com/SEUUSER/SnaskPackages"
 ```
 
 Isso:

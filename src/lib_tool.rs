@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use serde::Deserialize;
 
 fn snask_home_dir() -> Result<PathBuf, String> {
     dirs::home_dir()
@@ -57,6 +58,13 @@ pub struct NewLibOpts {
     pub version: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct PackageJson {
+    name: String,
+    version: String,
+    description: String,
+}
+
 pub fn lib_init(opts: NewLibOpts) -> Result<(), String> {
     let name = opts.name.trim();
     if name.is_empty() {
@@ -66,9 +74,14 @@ pub fn lib_init(opts: NewLibOpts) -> Result<(), String> {
         return Err("Nome inválido: use apenas a-z, 0-9 e '_' (minúsculo).".to_string());
     }
 
-    let file = format!("{}.snask", name);
-    if Path::new(&file).exists() {
-        return Err(format!("Arquivo '{}' já existe no diretório atual.", file));
+    let snask_file = format!("{}.snask", name);
+    let json_file = "package.json";
+    let md_file = "README.md";
+    if Path::new(&snask_file).exists() || Path::new(json_file).exists() || Path::new(md_file).exists() {
+        return Err(format!(
+            "Já existe um dos arquivos no diretório atual: '{}', '{}' ou '{}'.",
+            snask_file, json_file, md_file
+        ));
     }
 
     let content = format!(
@@ -77,27 +90,33 @@ pub fn lib_init(opts: NewLibOpts) -> Result<(), String> {
         version = opts.version,
         desc = opts.description.replace('\"', "\\\"")
     );
-    fs::write(&file, content).map_err(|e| format!("Falha ao criar '{}': {}", file, e))?;
+    fs::write(&snask_file, content).map_err(|e| format!("Falha ao criar '{}': {}", snask_file, e))?;
 
-    let readme = format!(
-        "# {name}\n\n- Versão: `{version}`\n- Descrição: {desc}\n\n## Uso\n\n```snask\nimport \"{name}\"\n\nclass main\n    fun start()\n        print({name}::hello(\"dev\"));\n```\n",
+    let pkg_json = format!(
+        "{{\n  \"name\": \"{name}\",\n  \"version\": \"{version}\",\n  \"description\": \"{desc}\"\n}}\n",
         name = name,
         version = opts.version,
+        desc = opts.description.replace('\"', "\\\"")
+    );
+    fs::write(json_file, pkg_json).map_err(|e| format!("Falha ao criar '{}': {}", json_file, e))?;
+
+    let readme = format!(
+        "# {name}\n\n{desc}\n\n## Instalação\n\n```bash\nsnask install {name}\n```\n\n## Uso\n\n```snask\nimport \"{name}\"\n\nclass main\n    fun start()\n        print({name}::hello(\"dev\"));\n```\n",
+        name = name,
         desc = opts.description
     );
-    fs::write(format!("{}_README.md", name), readme)
-        .map_err(|e| format!("Falha ao criar README: {}", e))?;
+    fs::write(md_file, readme).map_err(|e| format!("Falha ao criar '{}': {}", md_file, e))?;
 
-    println!("✅ Criado: {} e {}_README.md", file, name);
-    println!("📦 Próximo passo: `snask lib publish {}` (publica no SnaskPackages).", name);
+    println!("✅ Criado: {}, {}, {}", snask_file, json_file, md_file);
+    println!("📦 Próximo passo: `snask lib publish {}`.", name);
     Ok(())
 }
 
 #[derive(Debug, Clone)]
 pub struct PublishOpts {
     pub name: String,
-    pub version: String,
-    pub description: String,
+    pub version: Option<String>,
+    pub description: Option<String>,
     pub message: Option<String>,
     pub push: bool,
     pub pr: bool,
@@ -105,15 +124,31 @@ pub struct PublishOpts {
     pub branch: Option<String>,
 }
 
+fn read_required_package_files(lib_name: &str) -> Result<(PackageJson, String, PathBuf), String> {
+    let snask_path = PathBuf::from(format!("{}.snask", lib_name));
+    if !snask_path.exists() {
+        return Err(format!("Arquivo obrigatório não encontrado: '{}'.", snask_path.display()));
+    }
+    let json_bytes = fs::read("package.json").map_err(|e| format!("Arquivo obrigatório não encontrado: package.json ({})", e))?;
+    let pkg: PackageJson = serde_json::from_slice(&json_bytes).map_err(|e| format!("package.json inválido: {}", e))?;
+    if pkg.name.trim() != lib_name {
+        return Err(format!("package.json name='{}' não bate com a lib '{}'.", pkg.name, lib_name));
+    }
+    let md = fs::read_to_string("README.md").map_err(|e| format!("Arquivo obrigatório não encontrado: README.md ({})", e))?;
+    if md.trim().is_empty() {
+        return Err("README.md está vazio.".to_string());
+    }
+    Ok((pkg, md, snask_path))
+}
+
 pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
     let name = opts.name.trim();
     if name.is_empty() {
         return Err("Nome inválido.".to_string());
     }
-    let local_file = PathBuf::from(format!("{}.snask", name));
-    if !local_file.exists() {
-        return Err(format!("Não achei '{}' no diretório atual.", local_file.display()));
-    }
+    let (pkg, _readme_md, local_file) = read_required_package_files(name)?;
+    let version = opts.version.clone().unwrap_or_else(|| pkg.version.clone());
+    let description = opts.description.clone().unwrap_or_else(|| pkg.description.clone());
 
     let repo = ensure_registry_repo()?;
 
@@ -134,7 +169,7 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
     }
 
     // Se for PR, cria uma branch e envia para o fork
-    let target_branch = opts.branch.clone().unwrap_or_else(|| format!("pkg/{}-v{}", name, opts.version));
+    let target_branch = opts.branch.clone().unwrap_or_else(|| format!("pkg/{}-v{}", name, version));
     if opts.pr {
         // Garante que estamos na main antes de criar branch
         run_git(&["checkout", "main"], &repo)?;
@@ -142,29 +177,47 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
     }
 
     let packages_dir = repo.join("packages");
+    let packages_src = repo.join("packages_src").join(name).join(&version);
     let index_dir = repo.join("index").join(name.chars().next().unwrap().to_ascii_lowercase().to_string());
     fs::create_dir_all(&packages_dir).map_err(|e| format!("Falha ao criar {}: {}", packages_dir.display(), e))?;
+    fs::create_dir_all(&packages_src).map_err(|e| format!("Falha ao criar {}: {}", packages_src.display(), e))?;
     fs::create_dir_all(&index_dir).map_err(|e| format!("Falha ao criar {}: {}", index_dir.display(), e))?;
 
     // Copia o arquivo da lib para o repo do registry
     let dest_pkg = packages_dir.join(format!("{}.snask", name));
     fs::copy(&local_file, &dest_pkg).map_err(|e| format!("Falha ao copiar para {}: {}", dest_pkg.display(), e))?;
 
+    // Fonte versionada (com package.json e README.md obrigatórios)
+    fs::copy(&local_file, packages_src.join(format!("{}.snask", name)))
+        .map_err(|e| format!("Falha ao copiar fonte: {}", e))?;
+    fs::copy("package.json", packages_src.join("package.json"))
+        .map_err(|e| format!("Falha ao copiar package.json: {}", e))?;
+    fs::copy("README.md", packages_src.join("README.md"))
+        .map_err(|e| format!("Falha ao copiar README.md: {}", e))?;
+
     // Escreve metadados do índice (formato simples v1)
-    let desc = opts.description.replace('\"', "\\\"");
+    let desc = description.replace('\"', "\\\"");
     let url = format!("{}.snask", name);
     let index_path = index_dir.join(format!("{}.json", name));
     let index_json = format!(
         "{{\n  \"version\": \"{version}\",\n  \"url\": \"{url}\",\n  \"description\": \"{desc}\"\n}}\n",
-        version = opts.version,
+        version = version,
         url = url,
         desc = desc
     );
     fs::write(&index_path, index_json).map_err(|e| format!("Falha ao escrever {}: {}", index_path.display(), e))?;
 
     // Stage + commit
-    run_git(&["add", dest_pkg.to_string_lossy().as_ref(), index_path.to_string_lossy().as_ref()], &repo)?;
-    let msg = opts.message.unwrap_or_else(|| format!("pkg: publish {} v{}", name, opts.version));
+    run_git(
+        &[
+            "add",
+            dest_pkg.to_string_lossy().as_ref(),
+            index_path.to_string_lossy().as_ref(),
+            packages_src.to_string_lossy().as_ref(),
+        ],
+        &repo,
+    )?;
+    let msg = opts.message.unwrap_or_else(|| format!("pkg: publish {} v{}", name, version));
     run_git(&["commit", "-m", &msg], &repo).map_err(|e| {
         // se nada mudou, commit falha; dá uma msg melhor
         if e.contains("nothing to commit") {

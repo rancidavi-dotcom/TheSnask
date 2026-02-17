@@ -40,7 +40,6 @@ enum Commands {
     Add { name: String, version: Option<String> },
     Remove { name: String },
     Setup { #[arg(long)] target: Option<String> },
-    Store,
     Install { name: String },
     Uninstall { name: Option<String> },
     Update { name: Option<String> },
@@ -66,10 +65,12 @@ enum LibCommands {
     /// Publica a biblioteca atual no registry (SnaskPackages via ~/.snask/registry)
     Publish {
         name: String,
-        #[arg(long, default_value = "0.1.0")]
-        version: String,
-        #[arg(long, default_value = "Minha biblioteca Snask.")]
-        description: String,
+        /// Se omitido, usa o package.json
+        #[arg(long)]
+        version: Option<String>,
+        /// Se omitido, usa o package.json
+        #[arg(long)]
+        description: Option<String>,
         /// Mensagem do commit
         #[arg(long)]
         message: Option<String>,
@@ -176,11 +177,6 @@ fn main() {
                 eprintln!("Erro durante o setup: {}", e);
             }
         },
-        Commands::Store => {
-            if let Err(e) = run_store_gui() {
-                eprintln!("Erro ao abrir Snask Store: {}", e);
-            }
-        },
         Commands::Install { name } => {
             if let Err(e) = packages::install_package(name) {
                 eprintln!("Erro ao instalar pacote: {}", e);
@@ -251,24 +247,6 @@ fn main() {
             }
         }
     }
-}
-
-fn run_store_gui() -> Result<(), String> {
-    let dev_path = std::path::PathBuf::from("tools/snask_store/snask_store.py");
-    if dev_path.exists() {
-        let status = Command::new("python3").arg(dev_path).status().map_err(|e| format!("Falha ao executar python3: {}", e))?;
-        if !status.success() { return Err(format!("Snask Store saiu com status {}", status)); }
-        return Ok(());
-    }
-
-    let home = std::env::var("HOME").map_err(|_| "Variável HOME não encontrada.".to_string())?;
-    let installed = std::path::PathBuf::from(home).join(".snask").join("tools").join("snask_store").join("snask_store.py");
-    if !installed.exists() {
-        return Err(format!("Store GUI não encontrado em '{}' (dev) nem em '{}' (instalado).", "tools/snask_store/snask_store.py", installed.display()));
-    }
-    let status = Command::new("python3").arg(installed).status().map_err(|e| format!("Falha ao executar python3: {}", e))?;
-    if !status.success() { return Err(format!("Snask Store saiu com status {}", status)); }
-    Ok(())
 }
 
 fn resolve_entry_file(cli_file: Option<String>) -> Result<String, String> {
