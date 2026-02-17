@@ -224,27 +224,27 @@ impl SemanticAnalyzer {
         self.define_builtin("http_get", vec![Type::String], Type::Dict, false);
         self.define_builtin("http_post", vec![Type::String, Type::String], Type::Void, false);
 
-        // JSON
-        self.define_builtin("json_parse", vec![Type::String], Type::Any, false);
-        self.define_builtin("json_stringify", vec![Type::Any], Type::String, false);
-        self.define_builtin("json_stringify_pretty", vec![Type::Any], Type::String, false);
-        self.define_builtin("json_get", vec![Type::Any, Type::String], Type::Any, false);
-        self.define_builtin("json_has", vec![Type::Any, Type::String], Type::Bool, false);
-        self.define_builtin("json_len", vec![Type::Any], Type::Float, false);
-        self.define_builtin("json_index", vec![Type::Any, Type::Float], Type::Any, false);
-        self.define_builtin("json_set", vec![Type::Any, Type::String, Type::Any], Type::Bool, false);
-        self.define_builtin("json_keys", vec![Type::Any], Type::Any, false);
+        // JSON — via bibliotecas
+        self.define_builtin_with_alias("json_parse", vec![Type::String], Type::Any, false);
+        self.define_builtin_with_alias("json_stringify", vec![Type::Any], Type::String, false);
+        self.define_builtin_with_alias("json_stringify_pretty", vec![Type::Any], Type::String, false);
+        self.define_builtin_with_alias("json_get", vec![Type::Any, Type::String], Type::Any, false);
+        self.define_builtin_with_alias("json_has", vec![Type::Any, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("json_len", vec![Type::Any], Type::Float, false);
+        self.define_builtin_with_alias("json_index", vec![Type::Any, Type::Float], Type::Any, false);
+        self.define_builtin_with_alias("json_set", vec![Type::Any, Type::String, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("json_keys", vec![Type::Any], Type::Any, false);
 
-        // Sjson
-        self.define_builtin("sjson_new_object", vec![], Type::Any, false);
-        self.define_builtin("sjson_new_array", vec![], Type::Any, false);
-        self.define_builtin("sjson_type", vec![Type::Any], Type::String, false);
-        self.define_builtin("sjson_arr_len", vec![Type::Any], Type::Float, false);
-        self.define_builtin("sjson_arr_get", vec![Type::Any, Type::Float], Type::Any, false);
-        self.define_builtin("sjson_arr_set", vec![Type::Any, Type::Float, Type::Any], Type::Bool, false);
-        self.define_builtin("sjson_arr_push", vec![Type::Any, Type::Any], Type::Bool, false);
-        self.define_builtin("sjson_path_get", vec![Type::Any, Type::String], Type::Any, false);
-        self.define_builtin("json_parse_ex", vec![Type::String], Type::Any, false);
+        // Sjson — via bibliotecas
+        self.define_builtin_with_alias("sjson_new_object", vec![], Type::Any, false);
+        self.define_builtin_with_alias("sjson_new_array", vec![], Type::Any, false);
+        self.define_builtin_with_alias("sjson_type", vec![Type::Any], Type::String, false);
+        self.define_builtin_with_alias("sjson_arr_len", vec![Type::Any], Type::Float, false);
+        self.define_builtin_with_alias("sjson_arr_get", vec![Type::Any, Type::Float], Type::Any, false);
+        self.define_builtin_with_alias("sjson_arr_set", vec![Type::Any, Type::Float, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("sjson_arr_push", vec![Type::Any, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("sjson_path_get", vec![Type::Any, Type::String], Type::Any, false);
+        self.define_builtin_with_alias("json_parse_ex", vec![Type::String], Type::Any, false);
 
         // System
         self.define_builtin("time", vec![], Type::Float, false);
@@ -256,12 +256,12 @@ impl SemanticAnalyzer {
         self.define_builtin("cwd", vec![], Type::String, false);
         self.define_builtin("platform", vec![], Type::String, false);
         self.define_builtin("arch", vec![], Type::String, false);
-        self.define_builtin("os_cwd", vec![], Type::String, false);
-        self.define_builtin("os_platform", vec![], Type::String, false);
-        self.define_builtin("os_arch", vec![], Type::String, false);
-        self.define_builtin("os_getenv", vec![Type::String], Type::String, false);
-        self.define_builtin("os_setenv", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("os_random_hex", vec![Type::Float], Type::String, false);
+        self.define_builtin_with_alias("os_cwd", vec![], Type::String, false);
+        self.define_builtin_with_alias("os_platform", vec![], Type::String, false);
+        self.define_builtin_with_alias("os_arch", vec![], Type::String, false);
+        self.define_builtin_with_alias("os_getenv", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("os_setenv", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("os_random_hex", vec![Type::Float], Type::String, false);
 
         // Math - Novas funÃ§Ãµes
         self.define_builtin("mod", vec![Type::Float, Type::Float], Type::Float, false);
@@ -272,114 +272,114 @@ impl SemanticAnalyzer {
         self.define_builtin("deg_to_rad", vec![Type::Float], Type::Float, false);
         self.define_builtin("rad_to_deg", vec![Type::Float], Type::Float, false);
 
-        // File System (LLVM Native)
-        self.define_builtin("sfs_read", vec![Type::String], Type::String, false);
-        self.define_builtin("sfs_write", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("sfs_append", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("sfs_exists", vec![Type::String], Type::Bool, false);
-        self.define_builtin("sfs_delete", vec![Type::String], Type::Bool, false);
-        self.define_builtin("sfs_copy", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("sfs_move", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("sfs_mkdir", vec![Type::String], Type::Bool, false);
-        self.define_builtin("sfs_is_file", vec![Type::String], Type::Bool, false);
-        self.define_builtin("sfs_is_dir", vec![Type::String], Type::Bool, false);
-        self.define_builtin("sfs_listdir", vec![Type::String], Type::Any, false);
-        self.define_builtin("sfs_size", vec![Type::String], Type::Float, false);
-        self.define_builtin("sfs_mtime", vec![Type::String], Type::Float, false);
-        self.define_builtin("sfs_rmdir", vec![Type::String], Type::Bool, false);
+        // File System (LLVM Native) — acessadas via bibliotecas
+        self.define_builtin_with_alias("sfs_read", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("sfs_write", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sfs_append", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sfs_exists", vec![Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sfs_delete", vec![Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sfs_copy", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sfs_move", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sfs_mkdir", vec![Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sfs_is_file", vec![Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sfs_is_dir", vec![Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sfs_listdir", vec![Type::String], Type::Any, false);
+        self.define_builtin_with_alias("sfs_size", vec![Type::String], Type::Float, false);
+        self.define_builtin_with_alias("sfs_mtime", vec![Type::String], Type::Float, false);
+        self.define_builtin_with_alias("sfs_rmdir", vec![Type::String], Type::Bool, false);
 
-        // Path helpers (LLVM Native)
-        self.define_builtin("path_basename", vec![Type::String], Type::String, false);
-        self.define_builtin("path_dirname", vec![Type::String], Type::String, false);
-        self.define_builtin("path_extname", vec![Type::String], Type::String, false);
-        self.define_builtin("path_join", vec![Type::String, Type::String], Type::String, false);
+        // Path helpers (LLVM Native) — via bibliotecas
+        self.define_builtin_with_alias("path_basename", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("path_dirname", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("path_extname", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("path_join", vec![Type::String, Type::String], Type::String, false);
 
-        // HTTP (LLVM Native)
-        self.define_builtin("s_http_get", vec![Type::String], Type::String, false);
-        self.define_builtin("s_http_post", vec![Type::String, Type::String], Type::String, false);
-        self.define_builtin("s_http_put", vec![Type::String, Type::String], Type::String, false);
-        self.define_builtin("s_http_delete", vec![Type::String], Type::String, false);
-        self.define_builtin("s_http_patch", vec![Type::String, Type::String], Type::String, false);
+        // HTTP (LLVM Native) — via bibliotecas
+        self.define_builtin_with_alias("s_http_get", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("s_http_post", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin_with_alias("s_http_put", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin_with_alias("s_http_delete", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("s_http_patch", vec![Type::String, Type::String], Type::String, false);
 
-        // Blaze Core
-        self.define_builtin("blaze_run", vec![Type::Float, Type::Any], Type::Bool, false);
-        self.define_builtin("blaze_qs_get", vec![Type::String, Type::String], Type::String, false);
-        self.define_builtin("blaze_cookie_get", vec![Type::String, Type::String], Type::String, false);
+        // Blaze Core — via bibliotecas
+        self.define_builtin_with_alias("blaze_run", vec![Type::Float, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("blaze_qs_get", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin_with_alias("blaze_cookie_get", vec![Type::String, Type::String], Type::String, false);
 
-        // Auth natives (blaze_auth)
-        self.define_builtin("auth_random_hex", vec![Type::Float], Type::String, false);
-        self.define_builtin("auth_now", vec![], Type::Float, false);
-        self.define_builtin("auth_const_time_eq", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("auth_hash_password", vec![Type::String], Type::String, false);
-        self.define_builtin("auth_verify_password", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("auth_session_id", vec![], Type::String, false);
-        self.define_builtin("auth_csrf_token", vec![], Type::String, false);
-        self.define_builtin("auth_cookie_kv", vec![Type::String, Type::String], Type::String, false);
-        self.define_builtin("auth_cookie_session", vec![Type::String], Type::String, false);
-        self.define_builtin("auth_cookie_delete", vec![Type::String], Type::String, false);
-        self.define_builtin("auth_bearer_header", vec![Type::String], Type::String, false);
-        self.define_builtin("auth_ok", vec![], Type::Bool, false);
-        self.define_builtin("auth_fail", vec![], Type::Bool, false);
-        self.define_builtin("auth_version", vec![], Type::String, false);
+        // Auth natives (blaze_auth) — via bibliotecas
+        self.define_builtin_with_alias("auth_random_hex", vec![Type::Float], Type::String, false);
+        self.define_builtin_with_alias("auth_now", vec![], Type::Float, false);
+        self.define_builtin_with_alias("auth_const_time_eq", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("auth_hash_password", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("auth_verify_password", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("auth_session_id", vec![], Type::String, false);
+        self.define_builtin_with_alias("auth_csrf_token", vec![], Type::String, false);
+        self.define_builtin_with_alias("auth_cookie_kv", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin_with_alias("auth_cookie_session", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("auth_cookie_delete", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("auth_bearer_header", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("auth_ok", vec![], Type::Bool, false);
+        self.define_builtin_with_alias("auth_fail", vec![], Type::Bool, false);
+        self.define_builtin_with_alias("auth_version", vec![], Type::String, false);
 
-        // GUI (GTK) - MVP (handles are strings)
-        self.define_builtin("gui_init", vec![], Type::Bool, false);
-        self.define_builtin("gui_run", vec![], Type::Void, false);
-        self.define_builtin("gui_quit", vec![], Type::Void, false);
-        self.define_builtin("gui_window", vec![Type::String, Type::Float, Type::Float], Type::String, false);
-        self.define_builtin("gui_set_title", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("gui_set_resizable", vec![Type::String, Type::Bool], Type::Bool, false);
-        self.define_builtin("gui_autosize", vec![Type::String], Type::Bool, false);
-        self.define_builtin("gui_vbox", vec![], Type::String, false);
-        self.define_builtin("gui_hbox", vec![], Type::String, false);
-        self.define_builtin("gui_scrolled", vec![], Type::String, false);
-        self.define_builtin("gui_listbox", vec![], Type::String, false);
-        self.define_builtin("gui_list_add_text", vec![Type::String, Type::String], Type::String, false);
-        self.define_builtin("gui_on_select_ctx", vec![Type::String, Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("gui_set_child", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("gui_add", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("gui_add_expand", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("gui_label", vec![Type::String], Type::String, false);
-        self.define_builtin("gui_entry", vec![], Type::String, false);
-        self.define_builtin("gui_set_placeholder", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("gui_set_editable", vec![Type::String, Type::Bool], Type::Bool, false);
-        self.define_builtin("gui_button", vec![Type::String], Type::String, false);
-        self.define_builtin("gui_set_enabled", vec![Type::String, Type::Bool], Type::Bool, false);
-        self.define_builtin("gui_set_visible", vec![Type::String, Type::Bool], Type::Bool, false);
-        self.define_builtin("gui_show_all", vec![Type::String], Type::Void, false);
-        self.define_builtin("gui_set_text", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("gui_get_text", vec![Type::String], Type::String, false);
-        self.define_builtin("gui_on_click", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("gui_on_click_ctx", vec![Type::String, Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("gui_separator_h", vec![], Type::String, false);
-        self.define_builtin("gui_separator_v", vec![], Type::String, false);
-        self.define_builtin("gui_msg_info", vec![Type::String, Type::String], Type::Void, false);
-        self.define_builtin("gui_msg_error", vec![Type::String, Type::String], Type::Void, false);
+        // GUI (GTK) - MVP (handles are strings) — via bibliotecas
+        self.define_builtin_with_alias("gui_init", vec![], Type::Bool, false);
+        self.define_builtin_with_alias("gui_run", vec![], Type::Void, false);
+        self.define_builtin_with_alias("gui_quit", vec![], Type::Void, false);
+        self.define_builtin_with_alias("gui_window", vec![Type::String, Type::Float, Type::Float], Type::String, false);
+        self.define_builtin_with_alias("gui_set_title", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_set_resizable", vec![Type::String, Type::Bool], Type::Bool, false);
+        self.define_builtin_with_alias("gui_autosize", vec![Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_vbox", vec![], Type::String, false);
+        self.define_builtin_with_alias("gui_hbox", vec![], Type::String, false);
+        self.define_builtin_with_alias("gui_scrolled", vec![], Type::String, false);
+        self.define_builtin_with_alias("gui_listbox", vec![], Type::String, false);
+        self.define_builtin_with_alias("gui_list_add_text", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin_with_alias("gui_on_select_ctx", vec![Type::String, Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_set_child", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_add", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_add_expand", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_label", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("gui_entry", vec![], Type::String, false);
+        self.define_builtin_with_alias("gui_set_placeholder", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_set_editable", vec![Type::String, Type::Bool], Type::Bool, false);
+        self.define_builtin_with_alias("gui_button", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("gui_set_enabled", vec![Type::String, Type::Bool], Type::Bool, false);
+        self.define_builtin_with_alias("gui_set_visible", vec![Type::String, Type::Bool], Type::Bool, false);
+        self.define_builtin_with_alias("gui_show_all", vec![Type::String], Type::Void, false);
+        self.define_builtin_with_alias("gui_set_text", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_get_text", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("gui_on_click", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_on_click_ctx", vec![Type::String, Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_separator_h", vec![], Type::String, false);
+        self.define_builtin_with_alias("gui_separator_v", vec![], Type::String, false);
+        self.define_builtin_with_alias("gui_msg_info", vec![Type::String, Type::String], Type::Void, false);
+        self.define_builtin_with_alias("gui_msg_error", vec![Type::String, Type::String], Type::Void, false);
 
         self.define_builtin("str_to_num", vec![Type::String], Type::Float, false);
         self.define_builtin("num_to_str", vec![Type::Float], Type::String, false);
         self.define_builtin("calc_eval", vec![Type::String], Type::Float, false);
 
-        // SQLite (MVP)
-        self.define_builtin("sqlite_open", vec![Type::String], Type::String, false);
-        self.define_builtin("sqlite_close", vec![Type::String], Type::Bool, false);
-        self.define_builtin("sqlite_exec", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("sqlite_query", vec![Type::String, Type::String], Type::Any, false);
-        self.define_builtin("sqlite_prepare", vec![Type::String, Type::String], Type::String, false);
-        self.define_builtin("sqlite_finalize", vec![Type::String], Type::Bool, false);
-        self.define_builtin("sqlite_reset", vec![Type::String], Type::Bool, false);
-        self.define_builtin("sqlite_bind_text", vec![Type::String, Type::Float, Type::String], Type::Bool, false);
-        self.define_builtin("sqlite_bind_num", vec![Type::String, Type::Float, Type::Float], Type::Bool, false);
-        self.define_builtin("sqlite_bind_null", vec![Type::String, Type::Float], Type::Bool, false);
-        self.define_builtin("sqlite_step", vec![Type::String], Type::Bool, false);
-        self.define_builtin("sqlite_column", vec![Type::String, Type::Float], Type::Any, false);
-        self.define_builtin("sqlite_column_count", vec![Type::String], Type::Float, false);
-        self.define_builtin("sqlite_column_name", vec![Type::String, Type::Float], Type::String, false);
+        // SQLite (MVP) — via bibliotecas
+        self.define_builtin_with_alias("sqlite_open", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("sqlite_close", vec![Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sqlite_exec", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sqlite_query", vec![Type::String, Type::String], Type::Any, false);
+        self.define_builtin_with_alias("sqlite_prepare", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin_with_alias("sqlite_finalize", vec![Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sqlite_reset", vec![Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sqlite_bind_text", vec![Type::String, Type::Float, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sqlite_bind_num", vec![Type::String, Type::Float, Type::Float], Type::Bool, false);
+        self.define_builtin_with_alias("sqlite_bind_null", vec![Type::String, Type::Float], Type::Bool, false);
+        self.define_builtin_with_alias("sqlite_step", vec![Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("sqlite_column", vec![Type::String, Type::Float], Type::Any, false);
+        self.define_builtin_with_alias("sqlite_column_count", vec![Type::String], Type::Float, false);
+        self.define_builtin_with_alias("sqlite_column_name", vec![Type::String, Type::Float], Type::String, false);
 
-        // Multithreading (pthread)
-        self.define_builtin("thread_spawn", vec![Type::String, Type::String], Type::String, false);
-        self.define_builtin("thread_join", vec![Type::String], Type::Bool, false);
-        self.define_builtin("thread_detach", vec![Type::String], Type::Bool, false);
+        // Multithreading (pthread) — via bibliotecas
+        self.define_builtin_with_alias("thread_spawn", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin_with_alias("thread_join", vec![Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("thread_detach", vec![Type::String], Type::Bool, false);
 
         // Sistema Operacional / Baixo Nível
         self.define_builtin("peek", vec![Type::Ptr], Type::Any, false);
@@ -405,6 +405,11 @@ impl SemanticAnalyzer {
             is_variadic,
         };
         self.symbol_table.define(symbol);
+    }
+
+    fn define_builtin_with_alias(&mut self, name: &str, params: Vec<Type>, return_type: Type, is_variadic: bool) {
+        self.define_builtin(name, params.clone(), return_type.clone(), is_variadic);
+        self.define_builtin(&format!("__{}", name), params, return_type, is_variadic);
     }
 
     fn define_constant(&mut self, name: &str, const_type: Type) {
