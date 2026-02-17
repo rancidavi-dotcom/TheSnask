@@ -1400,6 +1400,30 @@ void gui_window(SnaskValue* out, SnaskValue* title, SnaskValue* w, SnaskValue* h
     out->num = 0;
 }
 
+void gui_set_title(SnaskValue* out, SnaskValue* win_h, SnaskValue* title) {
+    if ((int)win_h->tag != SNASK_STR || (int)title->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* win = (GtkWidget*)gui_handle_to_ptr((const char*)win_h->ptr);
+    if (!win || !GTK_IS_WINDOW(win)) { out->tag = (double)SNASK_NIL; return; }
+    gtk_window_set_title(GTK_WINDOW(win), (const char*)title->ptr);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void gui_set_resizable(SnaskValue* out, SnaskValue* win_h, SnaskValue* resizable) {
+    if ((int)win_h->tag != SNASK_STR || (int)resizable->tag != SNASK_BOOL) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* win = (GtkWidget*)gui_handle_to_ptr((const char*)win_h->ptr);
+    if (!win || !GTK_IS_WINDOW(win)) { out->tag = (double)SNASK_NIL; return; }
+    gtk_window_set_resizable(GTK_WINDOW(win), resizable->num != 0.0);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void gui_autosize(SnaskValue* out, SnaskValue* win_h) {
+    if ((int)win_h->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* win = (GtkWidget*)gui_handle_to_ptr((const char*)win_h->ptr);
+    if (!win || !GTK_IS_WINDOW(win)) { out->tag = (double)SNASK_NIL; return; }
+    gtk_window_resize(GTK_WINDOW(win), 1, 1);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
 void gui_vbox(SnaskValue* out) {
     GtkWidget* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
     out->tag = (double)SNASK_STR;
@@ -1436,6 +1460,17 @@ void gui_add(SnaskValue* out, SnaskValue* box_h, SnaskValue* child_h) {
     out->ptr = NULL;
 }
 
+void gui_add_expand(SnaskValue* out, SnaskValue* box_h, SnaskValue* child_h) {
+    if ((int)box_h->tag != SNASK_STR || (int)child_h->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* box = (GtkWidget*)gui_handle_to_ptr((const char*)box_h->ptr);
+    GtkWidget* child = (GtkWidget*)gui_handle_to_ptr((const char*)child_h->ptr);
+    if (!box || !child) { out->tag = (double)SNASK_NIL; return; }
+    gtk_box_pack_start(GTK_BOX(box), child, TRUE, TRUE, 0);
+    out->tag = (double)SNASK_BOOL;
+    out->num = 1.0;
+    out->ptr = NULL;
+}
+
 void gui_label(SnaskValue* out, SnaskValue* text) {
     if ((int)text->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
     GtkWidget* w = gtk_label_new((const char*)text->ptr);
@@ -1451,12 +1486,44 @@ void gui_entry(SnaskValue* out) {
     out->num = 0;
 }
 
+void gui_set_placeholder(SnaskValue* out, SnaskValue* entry_h, SnaskValue* text) {
+    if ((int)entry_h->tag != SNASK_STR || (int)text->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)entry_h->ptr);
+    if (!w || !GTK_IS_ENTRY(w)) { out->tag = (double)SNASK_NIL; return; }
+    gtk_entry_set_placeholder_text(GTK_ENTRY(w), (const char*)text->ptr);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void gui_set_editable(SnaskValue* out, SnaskValue* entry_h, SnaskValue* editable) {
+    if ((int)entry_h->tag != SNASK_STR || (int)editable->tag != SNASK_BOOL) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)entry_h->ptr);
+    if (!w || !GTK_IS_ENTRY(w)) { out->tag = (double)SNASK_NIL; return; }
+    gtk_editable_set_editable(GTK_EDITABLE(w), editable->num != 0.0);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
 void gui_button(SnaskValue* out, SnaskValue* text) {
     if ((int)text->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
     GtkWidget* b = gtk_button_new_with_label((const char*)text->ptr);
     out->tag = (double)SNASK_STR;
     out->ptr = gui_ptr_to_handle(b);
     out->num = 0;
+}
+
+void gui_set_enabled(SnaskValue* out, SnaskValue* widget_h, SnaskValue* enabled) {
+    if ((int)widget_h->tag != SNASK_STR || (int)enabled->tag != SNASK_BOOL) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)widget_h->ptr);
+    if (!w) { out->tag = (double)SNASK_NIL; return; }
+    gtk_widget_set_sensitive(w, enabled->num != 0.0);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void gui_set_visible(SnaskValue* out, SnaskValue* widget_h, SnaskValue* visible) {
+    if ((int)widget_h->tag != SNASK_STR || (int)visible->tag != SNASK_BOOL) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)widget_h->ptr);
+    if (!w) { out->tag = (double)SNASK_NIL; return; }
+    gtk_widget_set_visible(w, visible->num != 0.0);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
 }
 
 void gui_show_all(SnaskValue* out, SnaskValue* widget_h) {
@@ -1515,24 +1582,69 @@ void gui_on_click_ctx(SnaskValue* out, SnaskValue* widget_h, SnaskValue* handler
     out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
 }
 
+void gui_separator_h(SnaskValue* out) {
+    GtkWidget* s = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(s);
+    out->num = 0;
+}
+
+void gui_separator_v(SnaskValue* out) {
+    GtkWidget* s = gtk_separator_new(GTK_ORIENTATION_VERTICAL);
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(s);
+    out->num = 0;
+}
+
+static void gui_msg_dialog(GtkMessageType t, const char* title, const char* msg) {
+    GtkWidget* dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, t, GTK_BUTTONS_OK, "%s", msg ? msg : "");
+    if (title) gtk_window_set_title(GTK_WINDOW(dialog), title);
+    gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+}
+
+void gui_msg_info(SnaskValue* out, SnaskValue* title, SnaskValue* msg) {
+    if ((int)title->tag != SNASK_STR || (int)msg->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    gui_msg_dialog(GTK_MESSAGE_INFO, (const char*)title->ptr, (const char*)msg->ptr);
+    out->tag = (double)SNASK_NIL;
+}
+
+void gui_msg_error(SnaskValue* out, SnaskValue* title, SnaskValue* msg) {
+    if ((int)title->tag != SNASK_STR || (int)msg->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    gui_msg_dialog(GTK_MESSAGE_ERROR, (const char*)title->ptr, (const char*)msg->ptr);
+    out->tag = (double)SNASK_NIL;
+}
+
 #else
 
 void gui_init(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_quit(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_run(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_window(SnaskValue* out, SnaskValue* _t, SnaskValue* _w, SnaskValue* _h) { (void)_t; (void)_w; (void)_h; out->tag = (double)SNASK_NIL; }
+void gui_set_title(SnaskValue* out, SnaskValue* _w, SnaskValue* _t) { (void)_w; (void)_t; out->tag = (double)SNASK_NIL; }
+void gui_set_resizable(SnaskValue* out, SnaskValue* _w, SnaskValue* _b) { (void)_w; (void)_b; out->tag = (double)SNASK_NIL; }
+void gui_autosize(SnaskValue* out, SnaskValue* _w) { (void)_w; out->tag = (double)SNASK_NIL; }
 void gui_vbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_hbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_set_child(SnaskValue* out, SnaskValue* _p, SnaskValue* _c) { (void)_p; (void)_c; out->tag = (double)SNASK_NIL; }
 void gui_add(SnaskValue* out, SnaskValue* _b, SnaskValue* _c) { (void)_b; (void)_c; out->tag = (double)SNASK_NIL; }
+void gui_add_expand(SnaskValue* out, SnaskValue* _b, SnaskValue* _c) { (void)_b; (void)_c; out->tag = (double)SNASK_NIL; }
 void gui_label(SnaskValue* out, SnaskValue* _t) { (void)_t; out->tag = (double)SNASK_NIL; }
 void gui_entry(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_set_placeholder(SnaskValue* out, SnaskValue* _e, SnaskValue* _t) { (void)_e; (void)_t; out->tag = (double)SNASK_NIL; }
+void gui_set_editable(SnaskValue* out, SnaskValue* _e, SnaskValue* _b) { (void)_e; (void)_b; out->tag = (double)SNASK_NIL; }
 void gui_button(SnaskValue* out, SnaskValue* _t) { (void)_t; out->tag = (double)SNASK_NIL; }
+void gui_set_enabled(SnaskValue* out, SnaskValue* _w, SnaskValue* _b) { (void)_w; (void)_b; out->tag = (double)SNASK_NIL; }
+void gui_set_visible(SnaskValue* out, SnaskValue* _w, SnaskValue* _b) { (void)_w; (void)_b; out->tag = (double)SNASK_NIL; }
 void gui_show_all(SnaskValue* out, SnaskValue* _w) { (void)_w; out->tag = (double)SNASK_NIL; }
 void gui_set_text(SnaskValue* out, SnaskValue* _w, SnaskValue* _t) { (void)_w; (void)_t; out->tag = (double)SNASK_NIL; }
 void gui_get_text(SnaskValue* out, SnaskValue* _w) { (void)_w; out->tag = (double)SNASK_NIL; }
 void gui_on_click(SnaskValue* out, SnaskValue* _w, SnaskValue* _h) { (void)_w; (void)_h; out->tag = (double)SNASK_NIL; }
 void gui_on_click_ctx(SnaskValue* out, SnaskValue* _w, SnaskValue* _h, SnaskValue* _c) { (void)_w; (void)_h; (void)_c; out->tag = (double)SNASK_NIL; }
+void gui_separator_h(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_separator_v(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_msg_info(SnaskValue* out, SnaskValue* _t, SnaskValue* _m) { (void)_t; (void)_m; out->tag = (double)SNASK_NIL; }
+void gui_msg_error(SnaskValue* out, SnaskValue* _t, SnaskValue* _m) { (void)_t; (void)_m; out->tag = (double)SNASK_NIL; }
 
 #endif
 
