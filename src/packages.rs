@@ -4,6 +4,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use sha2::{Digest, Sha256};
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // Opção B (git): o registry é um repositório git local em ~/.snask/registry (clone/pull do SnaskPackages).
 // Isso permite evoluir de um único registry.json para um índice por pacote (index/**/<pkg>.json) sem depender de um servidor.
@@ -171,6 +172,14 @@ pub fn install_package_with_registry(name: &str, registry: &Registry) -> Result<
         package.url.clone()
     };
     let download_url = if url.starts_with("http") { url.clone() } else { format!("{}{}", BASE_PKG_URL, url) };
+
+    // GitHub raw pode ficar em cache; adiciona um cache-buster simples.
+    let download_url = if download_url.contains("raw.githubusercontent.com") && !download_url.contains('?') {
+        let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+        format!("{}?t={}", download_url, ts)
+    } else {
+        download_url
+    };
 
     let pkg_response = reqwest::blocking::get(&download_url)
         .map_err(|e| format!("Falha ao baixar pacote: {}", e))?;
