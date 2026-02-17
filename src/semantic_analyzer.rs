@@ -93,6 +93,11 @@ pub struct SemanticAnalyzer {
 }
 
 fn is_library_native(name: &str) -> bool {
+    // Funções de módulos importados são renomeadas para "mod::func".
+    // Não bloqueamos isso aqui; o bloqueio é somente para nativas globais (gui_*, sqlite_*, etc.).
+    if name.contains("::") {
+        return false;
+    }
     name.starts_with("sqlite_")
         || name.starts_with("gui_")
         || name.starts_with("blaze_")
