@@ -177,6 +177,24 @@ def uninstall_package(pkg: Package) -> None:
 def update_package(pkg: Package) -> None:
     install_package(pkg)
 
+def run_cmd(args: List[str], cwd: Optional[str] = None, timeout_s: int = 60 * 15) -> Tuple[int, str]:
+    try:
+        p = subprocess.run(
+            args,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout_s,
+        )
+        return p.returncode, (p.stdout or "")
+    except subprocess.TimeoutExpired:
+        return 124, "timeout"
+    except FileNotFoundError:
+        return 127, f"command not found: {args[0]}"
+    except Exception as e:
+        return 1, str(e)
+
 
 def fmt_pkg_details(pkg: Package) -> str:
     installed = "sim" if pkg.is_installed() else "não"
@@ -353,8 +371,8 @@ def main() -> int:
             self.set_titlebar(hb)
 
             self.refresh_btn = Gtk.Button.new_from_icon_name("view-refresh-symbolic", Gtk.IconSize.BUTTON)
-            self.refresh_btn.set_tooltip_text("Atualizar registry")
-            self.refresh_btn.connect("clicked", self.on_refresh)
+            self.refresh_btn.set_tooltip_text("Atualizar tudo (Snask + bibliotecas + registry)")
+            self.refresh_btn.connect("clicked", self.on_update_all)
             hb.pack_start(self.refresh_btn)
 
             self.spinner = Gtk.Spinner()
@@ -375,10 +393,17 @@ def main() -> int:
             self.status_lbl.get_style_context().add_class("snask-subtle")
             status_bar.pack_start(self.status_lbl, True, True, 0)
 
-            # Main: scroll feed (Play Store-like)
+            # Main: tabs
+            notebook = Gtk.Notebook()
+            root.pack_start(notebook, True, True, 0)
+
+            # Tab 1: Pacotes (scroll feed - Play Store-like)
+            packages_tab = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            notebook.append_page(packages_tab, Gtk.Label(label="Pacotes"))
+
             sc = Gtk.ScrolledWindow()
             sc.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-            root.pack_start(sc, True, True, 0)
+            packages_tab.pack_start(sc, True, True, 0)
 
             self.flow = Gtk.FlowBox()
             self.flow.set_selection_mode(Gtk.SelectionMode.NONE)
@@ -404,6 +429,164 @@ def main() -> int:
 
             grid_wrap.pack_start(self.flow, True, True, 0)
 
+            # Tab 2: Dev (criar/publicar libs)
+            dev_tab = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            dev_tab.set_border_width(12)
+            notebook.append_page(dev_tab, Gtk.Label(label="Dev"))
+
+            dev_title = Gtk.Label(label="Criar e publicar bibliotecas Snask")
+            dev_title.set_xalign(0.0)
+            dev_title.get_style_context().add_class("snask-hero")
+            dev_tab.pack_start(dev_title, False, False, 0)
+
+            form = Gtk.Grid()
+            form.set_row_spacing(8)
+            form.set_column_spacing(10)
+            dev_tab.pack_start(form, False, False, 0)
+
+            lbl_dir = Gtk.Label(label="Diretório:")
+            lbl_dir.set_xalign(0.0)
+            form.attach(lbl_dir, 0, 0, 1, 1)
+            self.dev_dir = Gtk.Entry()
+            self.dev_dir.set_text(os.path.join(home_dir(), "SnaskLibs"))
+            form.attach(self.dev_dir, 1, 0, 1, 1)
+            btn_pick = Gtk.Button(label="Escolher…")
+            form.attach(btn_pick, 2, 0, 1, 1)
+
+            def pick_dir(_w) -> None:
+                dlg = Gtk.FileChooserDialog(
+                    title="Selecione um diretório",
+                    parent=self,
+                    action=Gtk.FileChooserAction.SELECT_FOLDER,
+                    buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK),
+                )
+                dlg.set_current_folder(self.dev_dir.get_text() or home_dir())
+                resp = dlg.run()
+                if resp == Gtk.ResponseType.OK:
+                    self.dev_dir.set_text(dlg.get_filename() or "")
+                dlg.destroy()
+
+            btn_pick.connect("clicked", pick_dir)
+
+            lbl_name = Gtk.Label(label="Nome:")
+            lbl_name.set_xalign(0.0)
+            form.attach(lbl_name, 0, 1, 1, 1)
+            self.dev_name = Gtk.Entry()
+            self.dev_name.set_placeholder_text("minha_lib")
+            form.attach(self.dev_name, 1, 1, 2, 1)
+
+            lbl_ver = Gtk.Label(label="Versão:")
+            lbl_ver.set_xalign(0.0)
+            form.attach(lbl_ver, 0, 2, 1, 1)
+            self.dev_ver = Gtk.Entry()
+            self.dev_ver.set_text("0.1.0")
+            form.attach(self.dev_ver, 1, 2, 2, 1)
+
+            lbl_desc = Gtk.Label(label="Descrição:")
+            lbl_desc.set_xalign(0.0)
+            form.attach(lbl_desc, 0, 3, 1, 1)
+            self.dev_desc = Gtk.Entry()
+            self.dev_desc.set_placeholder_text("Uma biblioteca Snask…")
+            form.attach(self.dev_desc, 1, 3, 2, 1)
+
+            actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            dev_tab.pack_start(actions, False, False, 0)
+
+            self.dev_btn_create = Gtk.Button(label="Criar template")
+            self.dev_btn_publish = Gtk.Button(label="Publicar no GitHub")
+            self.dev_push = Gtk.CheckButton(label="git push automaticamente")
+            self.dev_push.set_active(True)
+            actions.pack_start(self.dev_btn_create, False, False, 0)
+            actions.pack_start(self.dev_btn_publish, False, False, 0)
+            actions.pack_start(self.dev_push, False, False, 0)
+
+            self.dev_log = Gtk.TextView()
+            self.dev_log.set_editable(False)
+            self.dev_log.set_cursor_visible(False)
+            self.dev_log.get_style_context().add_class("snask-subtle")
+            dev_sc = Gtk.ScrolledWindow()
+            dev_sc.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+            dev_sc.set_size_request(-1, 220)
+            dev_sc.add(self.dev_log)
+            dev_tab.pack_start(dev_sc, True, True, 0)
+
+            def log_append(text: str) -> None:
+                buf = self.dev_log.get_buffer()
+                end = buf.get_end_iter()
+                buf.insert(end, text)
+
+            def dev_validate() -> Tuple[str, str, str, str]:
+                d = (self.dev_dir.get_text() or "").strip()
+                n = (self.dev_name.get_text() or "").strip()
+                v = (self.dev_ver.get_text() or "").strip()
+                ds = (self.dev_desc.get_text() or "").strip()
+                return d, n, v, ds
+
+            def dev_create(_w) -> None:
+                d, n, v, ds = dev_validate()
+                if not d or not n:
+                    self.status_lbl.set_text("Dev: preencha diretório e nome.")
+                    return
+                os.makedirs(d, exist_ok=True)
+                self.status_lbl.set_text(f"Dev: criando {n}…")
+                self.spinner.start()
+                self.dev_btn_create.set_sensitive(False)
+                self.dev_btn_publish.set_sensitive(False)
+                log_append(f"$ snask lib init {n} --version {v} --description \"{ds}\"\n")
+
+                def work():
+                    return run_cmd(["snask", "lib", "init", n, "--version", v, "--description", ds], cwd=d)
+
+                def done(result):
+                    code, out = result
+                    log_append(out + ("" if out.endswith("\n") else "\n"))
+                    self.spinner.stop()
+                    self.dev_btn_create.set_sensitive(True)
+                    self.dev_btn_publish.set_sensitive(True)
+                    if code == 0:
+                        self.status_lbl.set_text(f"Dev: template criado ({n}.snask).")
+                    else:
+                        self.status_lbl.set_text(f"Dev: erro ao criar (code={code}).")
+
+                self.run_bg(work, done)
+
+            def dev_publish(_w) -> None:
+                d, n, v, ds = dev_validate()
+                if not d or not n:
+                    self.status_lbl.set_text("Dev: preencha diretório e nome.")
+                    return
+                if not os.path.exists(os.path.join(d, f"{n}.snask")):
+                    self.status_lbl.set_text(f"Dev: não achei {n}.snask em {d}.")
+                    return
+                self.status_lbl.set_text(f"Dev: publicando {n}…")
+                self.spinner.start()
+                self.dev_btn_create.set_sensitive(False)
+                self.dev_btn_publish.set_sensitive(False)
+                args = ["snask", "lib", "publish", n, "--version", v, "--description", ds]
+                if self.dev_push.get_active():
+                    args.append("--push")
+                log_append("$ " + " ".join(args) + "\n")
+
+                def work():
+                    return run_cmd(args, cwd=d)
+
+                def done(result):
+                    code, out = result
+                    log_append(out + ("" if out.endswith("\n") else "\n"))
+                    self.spinner.stop()
+                    self.dev_btn_create.set_sensitive(True)
+                    self.dev_btn_publish.set_sensitive(True)
+                    if code == 0:
+                        self.status_lbl.set_text(f"Dev: publicado {n}.")
+                        self.load_registry_async()
+                    else:
+                        self.status_lbl.set_text(f"Dev: erro ao publicar (code={code}).")
+
+                self.run_bg(work, done)
+
+            self.dev_btn_create.connect("clicked", dev_create)
+            self.dev_btn_publish.connect("clicked", dev_publish)
+
             self.cards: List[PkgCard] = []
 
             self.load_registry_async()
@@ -416,11 +599,48 @@ def main() -> int:
         def on_search_changed(self, _w) -> None:
             self.apply_filter()
 
-        def on_refresh(self, _w) -> None:
-            self.load_registry_async()
+        def on_update_all(self, _w) -> None:
+            # Atualiza o Snask (binário) e depois atualiza todas as libs instaladas.
+            self.status_lbl.set_text("Atualizando Snask + bibliotecas…")
+            self.refresh_btn.set_sensitive(False)
+            self.spinner.start()
+
+            def work():
+                logs = []
+                print("[store] update: snask update (sistema)…")
+                code, out = run_cmd(["snask", "update"])
+                logs.append(("snask update", code, out))
+
+                installed = []
+                try:
+                    ensure_packages_dir()
+                    for fn in os.listdir(packages_dir()):
+                        if fn.endswith(".snask"):
+                            installed.append(os.path.splitext(fn)[0])
+                except Exception:
+                    installed = []
+
+                for name in sorted(set(installed)):
+                    print(f"[store] update: snask update {name}…")
+                    c2, o2 = run_cmd(["snask", "update", name])
+                    logs.append((f"snask update {name}", c2, o2))
+                return logs
+
+            def done(logs):
+                self.refresh_btn.set_sensitive(True)
+                self.spinner.stop()
+                failed = [cmd for (cmd, code, _out) in logs if code != 0]
+                if failed:
+                    self.status_lbl.set_text(f"Atualização concluída com falhas: {len(failed)} (veja terminal).")
+                else:
+                    self.status_lbl.set_text("Atualização concluída (Snask + bibliotecas).")
+                self.refresh_rows()
+                self.load_registry_async()
+
+            self.run_bg(work, done)
 
         def load_registry_async(self) -> None:
-            self.status_lbl.set_text("Baixando registry.json…")
+            self.status_lbl.set_text("Sincronizando registry…")
             self.refresh_btn.set_sensitive(False)
             self.spinner.start()
 
