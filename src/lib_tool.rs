@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use serde::Deserialize;
+use serde_json::Value as JsonValue;
 
 fn snask_home_dir() -> Result<PathBuf, String> {
     dirs::home_dir()
@@ -221,6 +222,29 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
     );
     fs::write(&index_path, index_json).map_err(|e| format!("Falha ao escrever {}: {}", index_path.display(), e))?;
 
+    // Compatibilidade: também atualiza registry.json legado, para ferramentas antigas que ainda leem um arquivo único.
+    let legacy_registry_path = repo.join("registry.json");
+    let mut legacy_obj: JsonValue = if legacy_registry_path.exists() {
+        let bytes = fs::read(&legacy_registry_path)
+            .map_err(|e| format!("Falha ao ler {}: {}", legacy_registry_path.display(), e))?;
+        serde_json::from_slice(&bytes)
+            .map_err(|e| format!("registry.json inválido (legacy): {}", e))?
+    } else {
+        serde_json::json!({ "packages": {} })
+    };
+
+    if !legacy_obj.get("packages").map(|v| v.is_object()).unwrap_or(false) {
+        legacy_obj["packages"] = serde_json::json!({});
+    }
+    legacy_obj["packages"][name] = serde_json::json!({
+        "version": version,
+        "url": format!("{name}.snask"),
+        "description": description,
+    });
+    let legacy_pretty = serde_json::to_string_pretty(&legacy_obj).map_err(|e| e.to_string())? + "\n";
+    fs::write(&legacy_registry_path, legacy_pretty)
+        .map_err(|e| format!("Falha ao escrever {}: {}", legacy_registry_path.display(), e))?;
+
     // Stage + commit
     run_git(
         &[
@@ -228,6 +252,7 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
             dest_pkg.to_string_lossy().as_ref(),
             index_path.to_string_lossy().as_ref(),
             packages_src.to_string_lossy().as_ref(),
+            legacy_registry_path.to_string_lossy().as_ref(),
         ],
         &repo,
     )?;
