@@ -299,6 +299,32 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("json_parse_ex".to_string(), self.module.add_function("json_parse_ex", fn_1, None));
         self.functions.insert("s_get_member".to_string(), self.module.add_function("s_get_member", fn_2, None));
         self.functions.insert("s_set_member".to_string(), self.module.add_function("s_set_member", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+
+        // Aliases "__" para nativas que devem ser acessadas via bibliotecas.
+        // O compilador reescreve chamadas dentro de módulos importados para usar "__<nome>".
+        for n in [
+            // Filesystem / Path / OS / HTTP
+            "sfs_read","sfs_write","sfs_append","sfs_delete","sfs_exists","sfs_copy","sfs_move","sfs_mkdir","sfs_is_file","sfs_is_dir","sfs_listdir","sfs_size","sfs_mtime","sfs_rmdir",
+            "path_basename","path_dirname","path_extname","path_join",
+            "os_cwd","os_platform","os_arch","os_getenv","os_setenv","os_random_hex",
+            "s_http_get","s_http_post","s_http_put","s_http_delete","s_http_patch",
+            // Frameworks / GUI / DB / Threads
+            "blaze_run","blaze_qs_get","blaze_cookie_get",
+            "auth_random_hex","auth_now","auth_const_time_eq","auth_hash_password","auth_verify_password","auth_session_id","auth_csrf_token","auth_cookie_kv","auth_cookie_session","auth_cookie_delete","auth_bearer_header","auth_ok","auth_fail","auth_version",
+            "gui_init","gui_run","gui_quit","gui_window","gui_set_title","gui_set_resizable","gui_autosize","gui_vbox","gui_hbox","gui_scrolled","gui_listbox","gui_list_add_text","gui_on_select_ctx","gui_set_child","gui_add","gui_add_expand","gui_label","gui_entry","gui_set_placeholder","gui_set_editable","gui_button","gui_set_enabled","gui_set_visible","gui_show_all","gui_set_text","gui_get_text","gui_on_click","gui_on_click_ctx","gui_separator_h","gui_separator_v","gui_msg_info","gui_msg_error",
+            "sqlite_open","sqlite_close","sqlite_exec","sqlite_query","sqlite_prepare","sqlite_finalize","sqlite_reset","sqlite_bind_text","sqlite_bind_num","sqlite_bind_null","sqlite_step","sqlite_column","sqlite_column_count","sqlite_column_name",
+            "thread_spawn","thread_join","thread_detach",
+            // JSON / SJSON
+            "json_stringify","json_stringify_pretty","json_parse","json_get","json_has","json_len","json_index","json_set","json_keys","json_parse_ex",
+            "sjson_new_object","sjson_new_array","sjson_type","sjson_arr_len","sjson_arr_get","sjson_arr_set","sjson_arr_push","sjson_path_get",
+        ] {
+            if let Some(f) = self.module.get_function(n) {
+                let alias = format!("__{}", n);
+                if self.module.get_function(&alias).is_none() {
+                    self.module.add_function(&alias, f.get_type(), None);
+                }
+            }
+        }
     }
 
     fn sanitize_name(&self, name: &str) -> String {

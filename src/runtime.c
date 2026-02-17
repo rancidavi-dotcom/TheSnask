@@ -2845,3 +2845,148 @@ void s_set_member(SnaskValue* v_obj, SnaskValue* index_val, SnaskValue* value) {
     int index = (int)index_val->num;
     if (index >= 0 && index < obj->count) obj->values[index] = *value;
 }
+
+// ------------------------------------------------------------
+// Aliases "__" para nativas (acesso via bibliotecas)
+// O compilador reescreve chamadas dentro de módulos importados para "__<nome>".
+// ------------------------------------------------------------
+
+#define SNASK_ALIAS0(name) void __##name(SnaskValue* out) { name(out); }
+#define SNASK_ALIAS1(name) void __##name(SnaskValue* out, SnaskValue* a) { name(out, a); }
+#define SNASK_ALIAS2(name) void __##name(SnaskValue* out, SnaskValue* a, SnaskValue* b) { name(out, a, b); }
+#define SNASK_ALIAS3(name) void __##name(SnaskValue* out, SnaskValue* a, SnaskValue* b, SnaskValue* c) { name(out, a, b, c); }
+
+// SFS / Path / OS / HTTP
+SNASK_ALIAS1(sfs_read)
+SNASK_ALIAS2(sfs_write)
+SNASK_ALIAS2(sfs_append)
+SNASK_ALIAS1(sfs_delete)
+SNASK_ALIAS1(sfs_exists)
+SNASK_ALIAS2(sfs_copy)
+SNASK_ALIAS2(sfs_move)
+SNASK_ALIAS1(sfs_mkdir)
+SNASK_ALIAS1(sfs_is_file)
+SNASK_ALIAS1(sfs_is_dir)
+SNASK_ALIAS1(sfs_listdir)
+SNASK_ALIAS1(sfs_size)
+SNASK_ALIAS1(sfs_mtime)
+SNASK_ALIAS1(sfs_rmdir)
+
+SNASK_ALIAS1(path_basename)
+SNASK_ALIAS1(path_dirname)
+SNASK_ALIAS1(path_extname)
+SNASK_ALIAS2(path_join)
+
+SNASK_ALIAS0(os_cwd)
+SNASK_ALIAS0(os_platform)
+SNASK_ALIAS0(os_arch)
+SNASK_ALIAS1(os_getenv)
+SNASK_ALIAS2(os_setenv)
+SNASK_ALIAS1(os_random_hex)
+
+SNASK_ALIAS1(s_http_get)
+SNASK_ALIAS2(s_http_post)
+SNASK_ALIAS2(s_http_put)
+SNASK_ALIAS1(s_http_delete)
+SNASK_ALIAS2(s_http_patch)
+
+// Blaze / Auth
+SNASK_ALIAS2(blaze_run)
+SNASK_ALIAS2(blaze_qs_get)
+SNASK_ALIAS2(blaze_cookie_get)
+
+SNASK_ALIAS1(auth_random_hex)
+SNASK_ALIAS0(auth_now)
+SNASK_ALIAS2(auth_const_time_eq)
+SNASK_ALIAS1(auth_hash_password)
+SNASK_ALIAS2(auth_verify_password)
+SNASK_ALIAS0(auth_session_id)
+SNASK_ALIAS0(auth_csrf_token)
+SNASK_ALIAS2(auth_cookie_kv)
+SNASK_ALIAS1(auth_cookie_session)
+SNASK_ALIAS1(auth_cookie_delete)
+SNASK_ALIAS1(auth_bearer_header)
+SNASK_ALIAS0(auth_ok)
+SNASK_ALIAS0(auth_fail)
+SNASK_ALIAS0(auth_version)
+
+// GUI
+SNASK_ALIAS0(gui_init)
+SNASK_ALIAS0(gui_run)
+SNASK_ALIAS0(gui_quit)
+SNASK_ALIAS3(gui_window)
+SNASK_ALIAS2(gui_set_title)
+SNASK_ALIAS2(gui_set_resizable)
+SNASK_ALIAS1(gui_autosize)
+SNASK_ALIAS0(gui_vbox)
+SNASK_ALIAS0(gui_hbox)
+SNASK_ALIAS0(gui_scrolled)
+SNASK_ALIAS0(gui_listbox)
+SNASK_ALIAS2(gui_list_add_text)
+SNASK_ALIAS3(gui_on_select_ctx)
+SNASK_ALIAS2(gui_set_child)
+SNASK_ALIAS2(gui_add)
+SNASK_ALIAS2(gui_add_expand)
+SNASK_ALIAS1(gui_label)
+SNASK_ALIAS0(gui_entry)
+SNASK_ALIAS2(gui_set_placeholder)
+SNASK_ALIAS2(gui_set_editable)
+SNASK_ALIAS1(gui_button)
+SNASK_ALIAS2(gui_set_enabled)
+SNASK_ALIAS2(gui_set_visible)
+SNASK_ALIAS1(gui_show_all)
+SNASK_ALIAS2(gui_set_text)
+SNASK_ALIAS1(gui_get_text)
+SNASK_ALIAS2(gui_on_click)
+SNASK_ALIAS3(gui_on_click_ctx)
+SNASK_ALIAS0(gui_separator_h)
+SNASK_ALIAS0(gui_separator_v)
+SNASK_ALIAS2(gui_msg_info)
+SNASK_ALIAS2(gui_msg_error)
+
+// SQLite
+SNASK_ALIAS1(sqlite_open)
+SNASK_ALIAS1(sqlite_close)
+SNASK_ALIAS2(sqlite_exec)
+SNASK_ALIAS2(sqlite_query)
+SNASK_ALIAS2(sqlite_prepare)
+SNASK_ALIAS1(sqlite_finalize)
+SNASK_ALIAS1(sqlite_reset)
+SNASK_ALIAS3(sqlite_bind_text)
+SNASK_ALIAS3(sqlite_bind_num)
+SNASK_ALIAS2(sqlite_bind_null)
+SNASK_ALIAS1(sqlite_step)
+SNASK_ALIAS2(sqlite_column)
+SNASK_ALIAS1(sqlite_column_count)
+SNASK_ALIAS2(sqlite_column_name)
+
+// Threads
+SNASK_ALIAS2(thread_spawn)
+SNASK_ALIAS1(thread_join)
+SNASK_ALIAS1(thread_detach)
+
+// JSON / SJSON
+SNASK_ALIAS1(json_stringify)
+SNASK_ALIAS1(json_stringify_pretty)
+SNASK_ALIAS1(json_parse)
+SNASK_ALIAS2(json_get)
+SNASK_ALIAS2(json_has)
+SNASK_ALIAS1(json_len)
+SNASK_ALIAS2(json_index)
+SNASK_ALIAS3(json_set)
+SNASK_ALIAS1(json_keys)
+SNASK_ALIAS1(json_parse_ex)
+
+SNASK_ALIAS0(sjson_new_object)
+SNASK_ALIAS0(sjson_new_array)
+SNASK_ALIAS1(sjson_type)
+SNASK_ALIAS1(sjson_arr_len)
+SNASK_ALIAS2(sjson_arr_get)
+SNASK_ALIAS3(sjson_arr_set)
+SNASK_ALIAS2(sjson_arr_push)
+SNASK_ALIAS2(sjson_path_get)
+
+#undef SNASK_ALIAS0
+#undef SNASK_ALIAS1
+#undef SNASK_ALIAS2
+#undef SNASK_ALIAS3

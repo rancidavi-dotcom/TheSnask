@@ -83,12 +83,45 @@ pub enum SemanticError {
     InvalidIndexType(Type),
     PropertyNotFound(String),
     NotCallable(Type),
+    RestrictedNativeFunction { name: String, help: String },
 }
 
 pub struct SemanticAnalyzer {
     pub symbol_table: SemanticSymbolTable,
     current_function_return_type: Option<Type>,
     pub errors: Vec<SemanticError>,
+}
+
+fn is_library_native(name: &str) -> bool {
+    name.starts_with("sqlite_")
+        || name.starts_with("gui_")
+        || name.starts_with("blaze_")
+        || name.starts_with("auth_")
+        || name.starts_with("sfs_")
+        || name.starts_with("path_")
+        || name.starts_with("os_")
+        || name.starts_with("s_http_")
+        || name.starts_with("thread_")
+        || name.starts_with("json_")
+        || name.starts_with("sjson_")
+}
+
+fn library_native_help(name: &str) -> String {
+    let lib = if name.starts_with("sqlite_") { "sqlite" }
+    else if name.starts_with("gui_") { "gui" }
+    else if name.starts_with("blaze_") { "blaze" }
+    else if name.starts_with("auth_") { "blaze_auth" }
+    else if name.starts_with("sfs_") || name.starts_with("path_") { "sfs" }
+    else if name.starts_with("os_") { "os" }
+    else if name.starts_with("s_http_") { "requests" }
+    else if name.starts_with("thread_") { "os" }
+    else if name.starts_with("json_") || name.starts_with("sjson_") { "json" }
+    else { "uma biblioteca" };
+
+    format!(
+        "Essa função nativa é reservada para bibliotecas.\n\nComo resolver:\n- Use `import \"{lib}\"` e chame as funções via namespace (ex: `{lib}::...`).\n",
+        lib = lib
+    )
 }
 
 impl SemanticAnalyzer {
@@ -751,6 +784,17 @@ impl SemanticAnalyzer {
                 }
             }
             ExprKind::FunctionCall { callee, args } => {
+                // Evita acesso direto a nativas que pertencem a bibliotecas (sqlite/gui/blaze/etc.).
+                // O compilador reescreve módulos importados para chamar "__<nome>" automaticamente.
+                if let ExprKind::Variable(name) = &callee.kind {
+                    if !name.starts_with("__") && is_library_native(name) {
+                        return Err(SemanticError::RestrictedNativeFunction {
+                            name: name.clone(),
+                            help: library_native_help(name),
+                        });
+                    }
+                }
+
                 let callee_type = self.type_check_expression(callee)?;
 
                 if let Some(callee_name) = match &callee.kind {
