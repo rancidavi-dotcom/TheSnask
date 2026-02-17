@@ -1,27 +1,30 @@
 import "gui";
+import "gui_layout";
+import "gui_widgets";
+import "gui_app";
 
-mut g_count = 0;
 mut g_lbl = "";
 mut g_entry = "";
+mut g_count = 0;
 
 class main
     fun start()
-        if gui::init() == false
+        if gui_app::init() == false
             print("GUI não iniciou (sem display?).");
             return nil;
 
-        let win = gui::window("Hello Snask (GUI)", 420, 220);
-        gui::set_resizable(win, true);
+        let win = gui_app::window("Hello Snask (GUI)", 520, 300, true);
 
+        // root
         let root = gui::vbox();
         gui::set_child(win, root);
+
+        gui_layout::section(root, "Demo: gui_app + gui_layout + gui_widgets");
 
         g_lbl = gui::label("Contador: 0");
         gui::add(root, g_lbl);
 
-        g_entry = gui::entry();
-        gui::set_placeholder(g_entry, "Digite uma mensagem...");
-        gui::add(root, g_entry);
+        g_entry = gui_widgets::labeled_entry(root, "Mensagem:", "Digite algo...");
 
         let row = gui::hbox();
         gui::add(root, row);
@@ -38,8 +41,8 @@ class main
         gui::on_click(btn_quit, "on_quit");
         gui::add_expand(row, btn_quit);
 
-        gui::show_all(win);
-        gui::run();
+        gui_app::show(win);
+        gui_app::run();
 
 fun on_inc(_widget)
     g_count = g_count + 1;
@@ -47,9 +50,6 @@ fun on_inc(_widget)
 
 fun on_show(_widget)
     let msg = gui::get_text(g_entry);
-    if is_nil(msg)
-        gui::msg_error("Erro", "Mensagem vazia/nil");
-        return nil;
     gui::msg_info("Mensagem", msg);
 
 fun on_quit(_widget)
