@@ -4,7 +4,6 @@ pub mod symbol_table;
 pub mod semantic_analyzer;
 pub mod types;
 pub mod parser;
-pub mod interpreter;
 pub mod modules;
 pub mod stdlib;
 pub mod span;
@@ -32,9 +31,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Build { file: String, #[arg(short, long)] output: Option<String> },
+    Run { file: String },
+    Setup,
     Install { name: String },
-    Uninstall { name: String },
-    Update { name: String },
+    Uninstall { name: Option<String> },
+    Update { name: Option<String> },
     List,
     Search { query: String },
 }
@@ -48,20 +49,52 @@ fn main() {
                 Err(e) => eprintln!("Erro durante a compilação: {}", e),
             }
         },
+        Commands::Run { file } => {
+            match build_file(file, None) {
+                Ok(_) => {
+                    let binary = file.replace(".snask", "");
+                    let binary_path = if binary.starts_with("/") || binary.starts_with("./") { binary } else { format!("./{}", binary) };
+                    let status = Command::new(&binary_path).status();
+                    if let Err(e) = status {
+                        eprintln!("Erro ao executar o binário: {}", e);
+                    }
+                },
+                Err(e) => eprintln!("Erro durante a compilação: {}", e),
+            }
+        },
+        Commands::Setup => {
+            if let Err(e) = run_setup() {
+                eprintln!("Erro durante o setup: {}", e);
+            }
+        },
         Commands::Install { name } => {
             if let Err(e) = packages::install_package(name) {
                 eprintln!("Erro ao instalar pacote: {}", e);
             }
         },
         Commands::Uninstall { name } => {
-            if let Err(e) = packages::uninstall_package(name) {
-                eprintln!("Erro ao desinstalar pacote: {}", e);
+            if let Some(pkg_name) = name {
+                if let Err(e) = packages::uninstall_package(&pkg_name) {
+                    eprintln!("Erro ao desinstalar pacote: {}", e);
+                }
+            } else {
+                println!("⚠️  Atenção: Você está prestes a desinstalar o SNask globalmente.");
+                if let Err(e) = run_uninstall() {
+                    eprintln!("Erro durante a desinstalação: {}", e);
+                }
             }
         },
         Commands::Update { name } => {
-            println!("🔄 Atualizando pacote '{}'...", name);
-            if let Err(e) = packages::install_package(name) {
-                eprintln!("Erro ao atualizar pacote: {}", e);
+            if let Some(pkg_name) = name {
+                println!("🔄 Atualizando pacote '{}'...", pkg_name);
+                if let Err(e) = packages::install_package(pkg_name) {
+                    eprintln!("Erro ao atualizar pacote: {}", e);
+                }
+            } else {
+                println!("🚀 Iniciando auto-update do SNask...");
+                if let Err(e) = self_update() {
+                    eprintln!("Erro ao atualizar o SNask: {}", e);
+                }
             }
         },
         Commands::List => {
@@ -80,6 +113,19 @@ fn main() {
 fn build_file(file_path: &str, output_name: Option<String>) -> Result<(), String> {
     let source = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
     let mut program = Parser::new(&source)?.parse_program().map_err(|e| format!("Erro no parser: {}", e))?;
+
+    // Validação de Class Main Obrigatória apenas no programa principal
+    let has_main = program.iter().any(|stmt| {
+        if let StmtKind::ClassDeclaration(class) = &stmt.kind {
+            class.name == "main"
+        } else {
+            false
+        }
+    });
+
+    if !has_main {
+        return Err("Erro: Todo programa SNask deve conter uma 'class main'.".to_string());
+    }
 
     let mut resolved_program = Vec::new();
     let mut resolved_modules = std::collections::HashSet::new();
@@ -103,10 +149,101 @@ fn build_file(file_path: &str, output_name: Option<String>) -> Result<(), String
     let runtime_path = format!("{}/.snask/lib/runtime.o", std::env::var("HOME").unwrap());
     let final_output = output_name.unwrap_or_else(|| file_path.replace(".snask", ""));
 
-    let status = Command::new("clang-18").arg(obj_file).arg(runtime_path).arg("-o").arg(&final_output).arg("-lm").status().map_err(|e| e.to_string())?;
+    let status = Command::new("clang-18")
+        .arg(obj_file)
+        .arg(runtime_path)
+        .arg("-o")
+        .arg(&final_output)
+        .arg("-lm")
+        // Necessário para blaze (dlsym handlers) e para expor símbolos do binário
+        .arg("-ldl")
+        .arg("-Wl,--export-dynamic")
+        .status()
+        .map_err(|e| e.to_string())?;
 
     if !status.success() { return Err("Falha na linkagem final.".to_string()); }
     fs::remove_file(ir_file).ok(); fs::remove_file(obj_file).ok();
+    Ok(())
+}
+
+fn self_update() -> Result<(), String> {
+    println!("📦 Baixando as últimas novidades do SNask (git pull)...");
+    let status = Command::new("git").arg("pull").status().map_err(|e| e.to_string())?;
+    if !status.success() { return Err("Falha ao puxar do Git.".to_string()); }
+
+    println!("⚙️  Recompilando o compilador (cargo build --release)...");
+    let status = Command::new("cargo").arg("build").arg("--release").status().map_err(|e| e.to_string())?;
+    if !status.success() { return Err("Falha ao compilar.".to_string()); }
+
+    println!("✅ SNask atualizado com sucesso para a versão 0.2.2!");
+    Ok(())
+}
+
+fn run_setup() -> Result<(), String> {
+    println!("🚀 Iniciando configuração do SNask v0.2.2...");
+    
+    let home = std::env::var("HOME").map_err(|_| "Variável HOME não encontrada.".to_string())?;
+    let snask_dir = format!("{}/.snask", home);
+    let snask_lib = format!("{}/lib", snask_dir);
+    let snask_bin = format!("{}/bin", snask_dir);
+    
+    println!("📁 Criando diretórios em {}...", snask_dir);
+    fs::create_dir_all(&snask_lib).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&snask_bin).map_err(|e| e.to_string())?;
+
+    println!("⚙️  Compilando o Runtime Nativo (C)...");
+    let status = Command::new("gcc")
+        .arg("-c")
+        .arg("src/runtime.c")
+        .arg("-o")
+        .arg(format!("{}/runtime.o", snask_lib))
+        .status()
+        .map_err(|e| e.to_string())?;
+
+    if !status.success() {
+        return Err("Falha ao compilar o runtime.c. Verifique se o gcc está instalado.".to_string());
+    }
+
+    println!("🚚 Instalando binário em {}...", snask_bin);
+    let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    fs::copy(current_exe, format!("{}/snask", snask_bin)).map_err(|e| e.to_string())?;
+
+    println!("🌐 Configurando o PATH...");
+    let shell_configs = vec![format!("{}/.bashrc", home), format!("{}/.zshrc", home)];
+    let path_line = format!("\n# SNask Language\nexport PATH=\"{}:$PATH\"\n", snask_bin);
+    
+    for config_path in shell_configs {
+        if std::path::Path::new(&config_path).exists() {
+            let content = fs::read_to_string(&config_path).unwrap_or_default();
+            if !content.contains("SNask Language") {
+                use std::io::Write;
+                let mut file = fs::OpenOptions::new().append(true).open(&config_path).map_err(|e| e.to_string())?;
+                file.write_all(path_line.as_bytes()).map_err(|e| e.to_string())?;
+                println!("✅ PATH adicionado ao arquivo {}", config_path);
+            }
+        }
+    }
+
+    println!("✅ SNask v0.2.2 configurado com sucesso!");
+    println!("Dica: Reinicie seu terminal ou rode 'source ~/.bashrc' para começar a usar o comando 'snask' de qualquer lugar.");
+    
+    Ok(())
+}
+
+fn run_uninstall() -> Result<(), String> {
+    println!("🗑️  Desinstalando SNask v0.2.2...");
+    
+    let home = std::env::var("HOME").map_err(|_| "Variável HOME não encontrada.".to_string())?;
+    let snask_dir = format!("{}/.snask", home);
+    
+    if std::path::Path::new(&snask_dir).exists() {
+        fs::remove_dir_all(&snask_dir).map_err(|e| e.to_string())?;
+        println!("✅ Diretório {} removido.", snask_dir);
+    }
+
+    println!("✅ SNask desinstalado com sucesso!");
+    println!("Nota: Para remover completamente o PATH, verifique seu .bashrc ou .zshrc e remova as linhas do SNask manualmente.");
+    
     Ok(())
 }
 

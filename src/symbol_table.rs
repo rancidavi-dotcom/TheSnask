@@ -57,16 +57,13 @@ impl SymbolTable {
     }
 
     // Look up a mutable symbol, starting from the current scope and going outwards
-    pub fn get_mut(&mut self, name: &str) -> Option<&mut Symbol> {
-        for scope in self.scopes.iter_mut().rev() {
-            if let Some(symbol) = scope.get_mut(name) {
-                return Some(symbol);
+        pub fn get_mut(&mut self, name: &str) -> Option<&mut Symbol> {
+            for scope in self.scopes.iter_mut().rev() {
+                if let Some(symbol) = scope.get_mut(name) {
+                    return Some(symbol);
+                }
             }
+            None
         }
-        None
     }
-
-    pub fn define_native_function(&mut self, name: &str, func: fn(Vec<Value>, &mut crate::interpreter::Interpreter) -> Result<Value, String>) {
-        self.define(name.to_string(), Value::NativeFunction(func), false, false);
-    }
-}
+    

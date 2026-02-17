@@ -1,5 +1,4 @@
 use crate::ast::FuncDecl;
-use crate::interpreter::Interpreter;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -13,7 +12,6 @@ pub enum Value {
     Dict(HashMap<Value, Value>),
     Nil,
     Function(FuncDecl),
-    NativeFunction(fn(Vec<Value>, &mut Interpreter) -> Result<Value, String>),
 }
 
 impl Hash for Value {
@@ -32,7 +30,6 @@ impl Hash for Value {
             Value::Dict(_) => { "Dict".hash(state); },
             Value::Nil => "Nil".hash(state),
             Value::Function(f) => f.name.hash(state),
-            Value::NativeFunction(f) => (*f as usize).hash(state),
         }
     }
 }
@@ -67,7 +64,6 @@ impl fmt::Display for Value {
             },
             Value::Nil => write!(f, "nil"),
             Value::Function(func) => write!(f, "<fun {}>", func.name),
-            Value::NativeFunction(_) => write!(f, "<native fun>"),
         }
     }
 }
@@ -85,7 +81,6 @@ impl Value {
             Value::Nil => false,
             // Functions are generally considered truthy if they exist
             Value::Function(_) => true,
-            Value::NativeFunction(_) => true,
         }
     }
 }

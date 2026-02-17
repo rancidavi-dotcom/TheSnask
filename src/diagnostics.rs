@@ -1,4 +1,4 @@
-use crate::span::{Span, Position};
+use crate::span::Span;
 use std::fmt;
 
 /// Nível de severidade do diagnóstico

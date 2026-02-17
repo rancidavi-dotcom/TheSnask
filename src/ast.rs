@@ -126,6 +126,13 @@ pub struct FuncDecl {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct ClassDecl {
+    pub name: String,
+    pub properties: Vec<VarDecl>,
+    pub methods: Vec<FuncDecl>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct IfBlock {
     pub condition: Expr,
     pub body: Vec<Stmt>,
@@ -198,6 +205,7 @@ pub enum StmtKind {
         var_type: Type,
     },
     FuncDeclaration(FuncDecl),
+    ClassDeclaration(ClassDecl),
     FuncCall(Expr),
     Return(Expr),
     Conditional(ConditionalStmt),

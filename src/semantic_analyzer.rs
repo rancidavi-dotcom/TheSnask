@@ -1,4 +1,4 @@
-﻿use crate::ast::{Program, Stmt, StmtKind, Expr, ExprKind, VarDecl, BinaryOp, UnaryOp, LiteralValue, ConditionalStmt, LoopStmt, ListDecl, DictDecl, ListPush, DictSet};
+﻿use crate::ast::{Program, Stmt, StmtKind, Expr, ExprKind, VarDecl, BinaryOp, UnaryOp, LiteralValue, ConditionalStmt, LoopStmt};
 use crate::types::Type;
 use std::collections::HashMap;
 
@@ -171,6 +171,11 @@ impl SemanticAnalyzer {
         self.define_builtin("flatten", vec![Type::List], Type::List, false);
         // TODO: map, filter, reduce (need function type support in args)
 
+        // Type checks
+        self.define_builtin("is_nil", vec![Type::Any], Type::Bool, false);
+        self.define_builtin("is_str", vec![Type::Any], Type::Bool, false);
+        self.define_builtin("is_obj", vec![Type::Any], Type::Bool, false);
+
         // IO
         self.define_builtin("read_file", vec![Type::String], Type::String, false);
         self.define_builtin("write_file", vec![Type::String, Type::String], Type::Void, false);
@@ -190,6 +195,11 @@ impl SemanticAnalyzer {
         self.define_builtin("json_parse", vec![Type::String], Type::Any, false);
         self.define_builtin("json_stringify", vec![Type::Any], Type::String, false);
         self.define_builtin("json_stringify_pretty", vec![Type::Any], Type::String, false);
+        self.define_builtin("json_get", vec![Type::Any, Type::String], Type::Any, false);
+        self.define_builtin("json_has", vec![Type::Any, Type::String], Type::Bool, false);
+        self.define_builtin("json_len", vec![Type::Any], Type::Float, false);
+        self.define_builtin("json_index", vec![Type::Any, Type::Float], Type::Any, false);
+        self.define_builtin("json_set", vec![Type::Any, Type::String, Type::Any], Type::Bool, false);
 
         // System
         self.define_builtin("time", vec![], Type::Float, false);
@@ -201,6 +211,12 @@ impl SemanticAnalyzer {
         self.define_builtin("cwd", vec![], Type::String, false);
         self.define_builtin("platform", vec![], Type::String, false);
         self.define_builtin("arch", vec![], Type::String, false);
+        self.define_builtin("os_cwd", vec![], Type::String, false);
+        self.define_builtin("os_platform", vec![], Type::String, false);
+        self.define_builtin("os_arch", vec![], Type::String, false);
+        self.define_builtin("os_getenv", vec![Type::String], Type::String, false);
+        self.define_builtin("os_setenv", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin("os_random_hex", vec![Type::Float], Type::String, false);
 
         // Math - Novas funÃ§Ãµes
         self.define_builtin("mod", vec![Type::Float, Type::Float], Type::Float, false);
@@ -214,8 +230,24 @@ impl SemanticAnalyzer {
         // File System (LLVM Native)
         self.define_builtin("sfs_read", vec![Type::String], Type::String, false);
         self.define_builtin("sfs_write", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin("sfs_append", vec![Type::String, Type::String], Type::Bool, false);
         self.define_builtin("sfs_exists", vec![Type::String], Type::Bool, false);
         self.define_builtin("sfs_delete", vec![Type::String], Type::Bool, false);
+        self.define_builtin("sfs_copy", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin("sfs_move", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin("sfs_mkdir", vec![Type::String], Type::Bool, false);
+        self.define_builtin("sfs_is_file", vec![Type::String], Type::Bool, false);
+        self.define_builtin("sfs_is_dir", vec![Type::String], Type::Bool, false);
+        self.define_builtin("sfs_listdir", vec![Type::String], Type::Any, false);
+        self.define_builtin("sfs_size", vec![Type::String], Type::Float, false);
+        self.define_builtin("sfs_mtime", vec![Type::String], Type::Float, false);
+        self.define_builtin("sfs_rmdir", vec![Type::String], Type::Bool, false);
+
+        // Path helpers (LLVM Native)
+        self.define_builtin("path_basename", vec![Type::String], Type::String, false);
+        self.define_builtin("path_dirname", vec![Type::String], Type::String, false);
+        self.define_builtin("path_extname", vec![Type::String], Type::String, false);
+        self.define_builtin("path_join", vec![Type::String, Type::String], Type::String, false);
 
         // HTTP (LLVM Native)
         self.define_builtin("s_http_get", vec![Type::String], Type::String, false);
@@ -225,8 +257,25 @@ impl SemanticAnalyzer {
         self.define_builtin("s_http_patch", vec![Type::String, Type::String], Type::String, false);
 
         // Blaze Core
-        self.define_builtin("sblaze_run", vec![Type::Float], Type::Bool, false);
-        self.define_builtin("sblaze_reg_get", vec![Type::String, Type::Any], Type::Bool, false);
+        self.define_builtin("blaze_run", vec![Type::Float, Type::Any], Type::Bool, false);
+        self.define_builtin("blaze_qs_get", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin("blaze_cookie_get", vec![Type::String, Type::String], Type::String, false);
+
+        // Auth natives (blaze_auth)
+        self.define_builtin("auth_random_hex", vec![Type::Float], Type::String, false);
+        self.define_builtin("auth_now", vec![], Type::Float, false);
+        self.define_builtin("auth_const_time_eq", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin("auth_hash_password", vec![Type::String], Type::String, false);
+        self.define_builtin("auth_verify_password", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin("auth_session_id", vec![], Type::String, false);
+        self.define_builtin("auth_csrf_token", vec![], Type::String, false);
+        self.define_builtin("auth_cookie_kv", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin("auth_cookie_session", vec![Type::String], Type::String, false);
+        self.define_builtin("auth_cookie_delete", vec![Type::String], Type::String, false);
+        self.define_builtin("auth_bearer_header", vec![Type::String], Type::String, false);
+        self.define_builtin("auth_ok", vec![], Type::Bool, false);
+        self.define_builtin("auth_fail", vec![], Type::Bool, false);
+        self.define_builtin("auth_version", vec![], Type::String, false);
 
         // Sistema Operacional / Baixo Nível
         self.define_builtin("peek", vec![Type::Ptr], Type::Any, false);
@@ -426,6 +475,9 @@ impl SemanticAnalyzer {
             StmtKind::Import(_path) => {
                 // Import statements are handled at runtime
                 // No semantic analysis needed here
+            }
+            StmtKind::ClassDeclaration(_) => {
+                // TODO: Implement class analysis
             }
         }
     }

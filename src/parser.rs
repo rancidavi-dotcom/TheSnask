@@ -18,6 +18,8 @@ pub enum Token {
     Print(Location),
     Input(Location),
     Fun(Location),
+    Class(Location),
+    SelfKw(Location),
     Return(Location),
     If(Location),
     Elif(Location),
@@ -31,6 +33,11 @@ pub enum Token {
     True(Location),
     False(Location),
     Nil(Location),
+
+    // Identation
+    Indent(Location),
+    Dedent(Location),
+    Newline(Location),
 
     // Literals
     Identifier(String, Location),
@@ -77,6 +84,8 @@ impl Token {
             Token::Print(loc) |
             Token::Input(loc) |
             Token::Fun(loc) |
+            Token::Class(loc) |
+            Token::SelfKw(loc) |
             Token::Return(loc) |
             Token::If(loc) |
             Token::Elif(loc) |
@@ -90,6 +99,9 @@ impl Token {
             Token::True(loc) |
             Token::False(loc) |
             Token::Nil(loc) |
+            Token::Indent(loc) |
+            Token::Dedent(loc) |
+            Token::Newline(loc) |
             Token::Identifier(_, loc) |
             Token::Number(_, loc) |
             Token::String(_, loc) |
@@ -127,6 +139,8 @@ impl Token {
             Token::Print(_) => "'print'".to_string(),
             Token::Input(_) => "'input'".to_string(),
             Token::Fun(_) => "'fun'".to_string(),
+            Token::Class(_) => "'class'".to_string(),
+            Token::SelfKw(_) => "'self'".to_string(),
             Token::Return(_) => "'return'".to_string(),
             Token::If(_) => "'if'".to_string(),
             Token::Elif(_) => "'elif'".to_string(),
@@ -140,6 +154,9 @@ impl Token {
             Token::True(_) => "'true'".to_string(),
             Token::False(_) => "'false'".to_string(),
             Token::Nil(_) => "'nil'".to_string(),
+            Token::Indent(_) => "indentação".to_string(),
+            Token::Dedent(_) => "redução de indentação".to_string(),
+            Token::Newline(_) => "nova linha".to_string(),
             Token::Identifier(name, _) => format!("identificador '{}'", name),
             Token::Number(n, _) => format!("número '{}'", n),
             Token::String(s, _) => format!("string \"{}\"", s),
@@ -174,6 +191,9 @@ pub struct Tokenizer<'a> {
     chars: Peekable<Chars<'a>>,
     line: usize,
     column: usize,
+    indent_stack: Vec<usize>,
+    pending_tokens: Vec<Token>,
+    at_start_of_line: bool,
 }
 
 impl<'a> Tokenizer<'a> {
@@ -182,6 +202,9 @@ impl<'a> Tokenizer<'a> {
             chars: input.chars().peekable(),
             line: 1,
             column: 1,
+            indent_stack: vec![0],
+            pending_tokens: Vec::new(),
+            at_start_of_line: true,
         }
     }
 
@@ -191,6 +214,7 @@ impl<'a> Tokenizer<'a> {
             if c == '\n' {
                 self.line += 1;
                 self.column = 1;
+                self.at_start_of_line = true;
             } else {
                 self.column += 1;
             }
@@ -219,13 +243,83 @@ impl<'a> Tokenizer<'a> {
     }
 
     pub fn next_token(&mut self) -> Result<Token, String> {
-        self.skip_whitespace();
+        if !self.pending_tokens.is_empty() {
+            return Ok(self.pending_tokens.remove(0));
+        }
+
+        if self.at_start_of_line {
+            self.at_start_of_line = false;
+            let mut indent = 0;
+            let loc = self.current_location();
+            
+            while let Some(&c) = self.peek() {
+                if c == ' ' {
+                    indent += 1;
+                    self.advance();
+                } else if c == '\t' {
+                    indent += 4;
+                    self.advance();
+                } else if c == '\n' || c == '\r' {
+                    // Linha vazia, ignora identação e reinicia
+                    self.advance();
+                    self.at_start_of_line = true;
+                    return self.next_token();
+                } else if c == '/' {
+                    // Possível comentário, verifica
+                    self.advance();
+                    if self.match_char('/') {
+                        while self.peek() != Some(&'\n') && self.peek().is_some() {
+                            self.advance();
+                        }
+                        self.at_start_of_line = true;
+                        return self.next_token();
+                    } else {
+                        // Não era comentário, era uma divisão. 
+                        // Mas division não pode começar linha sem identação antes.
+                        // Na verdade, pode se indent == 0.
+                        // Vamos tratar como token normal abaixo, mas precisamos restaurar o '/'
+                        // Por simplicidade, assumimos que nenhuma linha começa com '/' sem ser comentário.
+                        return Err(format!("Linha não pode começar com '/' na linha {}, coluna {}", loc.line, loc.column));
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            if self.peek().is_none() {
+                return self.handle_eof();
+            }
+
+            let last_indent = *self.indent_stack.last().unwrap();
+            if indent > last_indent {
+                self.indent_stack.push(indent);
+                return Ok(Token::Indent(loc));
+            } else if indent < last_indent {
+                while indent < *self.indent_stack.last().unwrap() {
+                    self.indent_stack.pop();
+                    self.pending_tokens.push(Token::Dedent(loc.clone()));
+                }
+                if indent != *self.indent_stack.last().unwrap() {
+                    return Err(format!("Nível de identação inconsistente na linha {}, coluna {}", loc.line, loc.column));
+                }
+                if !self.pending_tokens.is_empty() {
+                    return Ok(self.pending_tokens.remove(0));
+                }
+            }
+        }
+
+        self.skip_inline_whitespace();
 
         let loc = self.current_location();
         let ch = match self.advance() {
             Some(c) => c,
-            None => return Ok(Token::Eof(loc)),
+            None => return self.handle_eof(),
         };
+
+        if ch == '\n' || ch == '\r' {
+            self.at_start_of_line = true;
+            return Ok(Token::Newline(loc));
+        }
 
         let token = if ch.is_alphabetic() || ch == '_' {
             self.read_identifier_or_keyword(ch, loc)
@@ -253,16 +347,7 @@ impl<'a> Tokenizer<'a> {
                 '+' => Token::Plus(loc),
                 '-' => Token::Minus(loc),
                 '*' => Token::Star(loc),
-                '/' => {
-                    if self.match_char('/') {
-                        while self.peek() != Some(&'\n') && self.peek().is_some() {
-                            self.advance();
-                        }
-                        return self.next_token(); // Recursively call to get the next token after comment
-                    } else {
-                        Token::Slash(loc)
-                    }
-                }
+                '/' => Token::Slash(loc),
                 '=' => {
                     if self.match_char('=') {
                         Token::EqualEqual(loc)
@@ -301,9 +386,18 @@ impl<'a> Tokenizer<'a> {
         Ok(token)
     }
 
-    fn skip_whitespace(&mut self) {
+    fn handle_eof(&mut self) -> Result<Token, String> {
+        let loc = self.current_location();
+        if self.indent_stack.len() > 1 {
+            self.indent_stack.pop();
+            return Ok(Token::Dedent(loc));
+        }
+        Ok(Token::Eof(loc))
+    }
+
+    fn skip_inline_whitespace(&mut self) {
         while let Some(&c) = self.peek() {
-            if c.is_whitespace() {
+            if c == ' ' || c == '\t' || c == '\r' {
                 self.advance();
             } else {
                 break;
@@ -328,6 +422,8 @@ impl<'a> Tokenizer<'a> {
             "print" => Token::Print(loc),
             "input" => Token::Input(loc),
             "fun" => Token::Fun(loc),
+            "class" => Token::Class(loc),
+            "self" => Token::SelfKw(loc),
             "return" => Token::Return(loc),
             "if" => Token::If(loc),
             "elif" => Token::Elif(loc),
@@ -383,7 +479,6 @@ enum Precedence {
     Unary,       // -
     Call,        // . ()
     Index,       // []
-    Primary,
 }
 
 pub struct Parser<'a> {
@@ -456,97 +551,15 @@ impl<'a> Parser<'a> {
     pub fn parse_program(&mut self) -> Result<Program, String> {
         let mut program = Vec::new();
         while !self.at_end() {
+            // Ignora novas linhas no topo do arquivo
+            if let Token::Newline(_) = self.current_token {
+                self.consume_token(&Token::Newline(Location{line:0, column:0}))?;
+                continue;
+            }
             program.push(self.parse_statement()?);
         }
+
         Ok(program)
-    }
-
-    fn desugar_interpolation(&self, s: &str, loc: Location) -> Result<Expr, String> {
-        let mut template = String::new();
-        let mut args = Vec::new();
-        let mut chars = s.chars().peekable();
-        
-        while let Some(c) = chars.next() {
-            if c == '{' {
-                if let Some(&next) = chars.peek() {
-                    if next == '{' {
-                        chars.next();
-                        template.push('{');
-                        continue;
-                    }
-                }
-                
-                let mut var_name = String::new();
-                let mut closed = false;
-                
-                while let Some(vc) = chars.next() {
-                    if vc == '}' {
-                        closed = true;
-                        break;
-                    }
-                    var_name.push(vc);
-                }
-                
-                if !closed {
-                    return Err(format!("String interpolada não fechada na linha {}, coluna {}", loc.line, loc.column));
-                }
-                
-                var_name = var_name.trim().to_string();
-                
-                if var_name.is_empty() {
-                    return Err(format!("Interpolação vazia '{{}}' não permitida na linha {}, coluna {}", loc.line, loc.column));
-                }
-                
-                template.push_str("{}");
-                
-                args.push(crate::ast::Expr {
-                    kind: crate::ast::ExprKind::Variable(var_name),
-                    loc: loc.clone(),
-                });
-                
-            } else if c == '}' {
-                if let Some(&next) = chars.peek() {
-                    if next == '}' {
-                        chars.next();
-                        template.push('}');
-                        continue;
-                    }
-                }
-                return Err(format!("'}}' solto em string interpolada na linha {}, coluna {}", loc.line, loc.column));
-            } else {
-                template.push(c);
-            }
-        }
-        
-        let mut call_args = Vec::new();
-        call_args.push(crate::ast::Expr {
-            kind: crate::ast::ExprKind::Literal(crate::ast::LiteralValue::String(template)),
-            loc: loc.clone(),
-        });
-        call_args.append(&mut args);
-        
-        Ok(crate::ast::Expr {
-            kind: crate::ast::ExprKind::FunctionCall {
-                callee: Box::new(crate::ast::Expr {
-                    kind: crate::ast::ExprKind::Variable("format".to_string()),
-                    loc: loc.clone(),
-                }),
-                args: call_args,
-            },
-            loc,
-        })
-    }
-
-    fn parse_assignment_statement(&mut self) -> Result<Stmt, String> {
-        let loc = self.current_token.get_location().clone();
-        let (name, _) = self.consume_identifier()?;
-        self.consume_token(&Token::Equal(Location{line:0,column:0}))?;
-        let value = self.parse_expression(Precedence::Assignment)?;
-
-        Ok(Stmt {
-            kind: StmtKind::VarAssignment(crate::ast::VarSet { name, value }),
-            loc,
-        })
     }
 
     fn parse_statement(&mut self) -> Result<Stmt, String> {
@@ -556,15 +569,17 @@ impl<'a> Parser<'a> {
                 let (name, _) = self.consume_identifier()?;
                 self.consume_token(&Token::Equal(Location{line:0,column:0}))?;
                 let value = self.parse_expression(Precedence::Assignment)?;
-                if let Token::Semicolon(_) = self.current_token {
-                    self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-                }
+                self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
                 let kind = StmtKind::VarAssignment(crate::ast::VarSet { name, value });
                 return Ok(Stmt { kind, loc });
             }
         }
 
         match self.current_token {
+            Token::Newline(_) => {
+                self.consume_token(&Token::Newline(Location{line:0, column:0}))?;
+                self.parse_statement()
+            }
             Token::Let(_) => self.parse_var_declaration(),
             Token::Mut(_) => self.parse_mut_declaration(),
             Token::Const(_) => self.parse_const_declaration(),
@@ -574,6 +589,7 @@ impl<'a> Parser<'a> {
             Token::While(_) => self.parse_while_statement(),
             Token::For(_) => self.parse_for_statement(),
             Token::Fun(_) => self.parse_fun_declaration(),
+            Token::Class(_) => self.parse_class_declaration(),
             Token::Return(_) => self.parse_return_statement(),
             Token::Import(_) => self.parse_import_statement(),
             _ => {
@@ -584,9 +600,7 @@ impl<'a> Parser<'a> {
                     ExprKind::FunctionCall { .. } => StmtKind::FuncCall(expr),
                     _ => StmtKind::Expression(expr),
                 };
-                if let Token::Semicolon(_) = self.current_token {
-                    self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-                }
+                self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
                 Ok(Stmt { kind, loc })
             }
         }
@@ -597,9 +611,8 @@ impl<'a> Parser<'a> {
         let (name, _) = self.consume_identifier()?;
         let var_type = self.parse_type_annotation()?
             .ok_or_else(|| "Esperado anotação de tipo (ex: ': str') após nome da variável para comando 'input'.".to_string())?;
-        if let Token::Semicolon(_) = self.current_token {
-            self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-        }
+        
+        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
         Ok(Stmt {
             kind: StmtKind::Input { name, var_type },
             loc,
@@ -615,9 +628,8 @@ impl<'a> Parser<'a> {
             },
             _ => return Err(format!("Esperado string literal após 'import', encontrado {}", self.current_token.friendly_name())),
         };
-        if let Token::Semicolon(_) = self.current_token {
-            self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-        }
+        
+        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
         Ok(Stmt {
             kind: StmtKind::Import(path),
             loc,
@@ -625,13 +637,67 @@ impl<'a> Parser<'a> {
     }
     
     fn parse_block(&mut self) -> Result<Vec<Stmt>, String> {
-        self.consume_token(&Token::LeftBrace(Location{line:0, column:0}))?;
+        // Se houver uma nova linha antes do bloco, consome.
+        if let Token::Newline(_) = self.current_token {
+            self.consume_token(&Token::Newline(Location{line:0, column:0}))?;
+        }
+        
+        self.consume_token(&Token::Indent(Location{line:0, column:0}))?;
         let mut stmts = Vec::new();
-        while !matches!(self.current_token, Token::RightBrace(_)) && !self.at_end() {
+        while !matches!(self.current_token, Token::Dedent(_)) && !self.at_end() {
+            // Ignora novas linhas vazias dentro do bloco
+            if let Token::Newline(_) = self.current_token {
+                self.consume_token(&Token::Newline(Location{line:0, column:0}))?;
+                continue;
+            }
             stmts.push(self.parse_statement()?);
         }
-        self.consume_token(&Token::RightBrace(Location{line:0, column:0}))?;
+        
+        if !self.at_end() {
+            self.consume_token(&Token::Dedent(Location{line:0, column:0}))?;
+        }
         Ok(stmts)
+    }
+
+    fn parse_class_declaration(&mut self) -> Result<Stmt, String> {
+        let loc = self.consume_token(&Token::Class(Location{line:0, column:0}))?.get_location().clone();
+        let (name, _) = self.consume_identifier()?;
+        
+        if let Token::Newline(_) = self.current_token {
+            self.consume_token(&Token::Newline(Location{line:0, column:0}))?;
+        }
+        self.consume_token(&Token::Indent(Location{line:0, column:0}))?;
+        
+        let mut properties = Vec::new();
+        let mut methods = Vec::new();
+        
+        while !matches!(self.current_token, Token::Dedent(_)) && !self.at_end() {
+             match self.current_token {
+                Token::Newline(_) => { self.consume_token(&Token::Newline(Location{line:0, column:0}))?; }
+                Token::Let(_) => {
+                    let stmt = self.parse_var_declaration()?;
+                    if let StmtKind::VarDeclaration(d) = stmt.kind { properties.push(d); }
+                }
+                Token::Mut(_) => {
+                    let stmt = self.parse_mut_declaration()?;
+                    if let StmtKind::MutDeclaration(d) = stmt.kind { properties.push(d.to_var_decl()); }
+                }
+                Token::Fun(_) => {
+                    let stmt = self.parse_fun_declaration()?;
+                    if let StmtKind::FuncDeclaration(d) = stmt.kind { methods.push(d); }
+                }
+                _ => return Err(format!("Token inesperado em classe: {} na linha {}, coluna {}", self.current_token.friendly_name(), self.current_token.get_location().line, self.current_token.get_location().column)),
+             }
+        }
+        
+        if !self.at_end() {
+            self.consume_token(&Token::Dedent(Location{line:0, column:0}))?;
+        }
+
+        Ok(Stmt {
+            kind: StmtKind::ClassDeclaration(crate::ast::ClassDecl { name, properties, methods }),
+            loc,
+        })
     }
 
     fn parse_if_statement(&mut self) -> Result<Stmt, String> {
@@ -719,9 +785,7 @@ impl<'a> Parser<'a> {
     fn parse_return_statement(&mut self) -> Result<Stmt, String> {
         let loc = self.consume_token(&Token::Return(Location { line: 0, column: 0 }))?.get_location().clone();
         let value = self.parse_expression(Precedence::Assignment)?;
-        if let Token::Semicolon(_) = self.current_token {
-            self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-        }
+        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
         Ok(Stmt {
             kind: StmtKind::Return(value),
             loc,
@@ -745,9 +809,7 @@ impl<'a> Parser<'a> {
         let var_type = self.parse_type_annotation()?;
         self.consume_token(&Token::Equal(Location{line:0, column:0}))?;
         let value = self.parse_expression(Precedence::Assignment)?;
-        if let Token::Semicolon(_) = self.current_token {
-            self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-        }
+        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
         Ok(Stmt {
             kind: StmtKind::VarDeclaration(VarDecl { name, var_type, value }),
             loc,
@@ -760,9 +822,7 @@ impl<'a> Parser<'a> {
         let var_type = self.parse_type_annotation()?;
         self.consume_token(&Token::Equal(Location{line:0, column:0}))?;
         let value = self.parse_expression(Precedence::Assignment)?;
-        if let Token::Semicolon(_) = self.current_token {
-            self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-        }
+        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
         Ok(Stmt {
             kind: StmtKind::MutDeclaration(MutDecl { name, var_type, value }),
             loc,
@@ -775,9 +835,7 @@ impl<'a> Parser<'a> {
         let var_type = self.parse_type_annotation()?;
         self.consume_token(&Token::Equal(Location{line:0, column:0}))?;
         let value = self.parse_expression(Precedence::Assignment)?;
-        if let Token::Semicolon(_) = self.current_token {
-            self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-        }
+        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
 
         Ok(Stmt {
             kind: StmtKind::ConstDeclaration(ConstDecl { name, var_type, value }),
@@ -799,9 +857,7 @@ impl<'a> Parser<'a> {
             }
         }
         self.consume_token(&Token::RightParen(Location{line:0, column:0}))?;
-        if let Token::Semicolon(_) = self.current_token {
-            self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-        }
+        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
         Ok(Stmt {
             kind: StmtKind::Print(expressions),
             loc,
@@ -891,6 +947,13 @@ impl<'a> Parser<'a> {
                 self.consume_identifier()?;
                 Ok(Expr {
                     kind: ExprKind::Variable(s),
+                    loc,
+                })
+            }
+            Token::SelfKw(_) => {
+                self.consume_token(&Token::SelfKw(loc.clone()))?;
+                Ok(Expr {
+                    kind: ExprKind::Variable("self".to_string()),
                     loc,
                 })
             }

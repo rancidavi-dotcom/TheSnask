@@ -1,53 +1,47 @@
 # 🐍 Snask: Compilador Nativo de Alto Desempenho
 
-[![Versão](https://img.shields.io/badge/Versão-v0.2.1-blue.svg)](https://github.com/rancidavi-dotcom/TheSnask)
+[![Versão](https://img.shields.io/badge/Versão-v0.2.2-blue.svg)](https://github.com/rancidavi-dotcom/TheSnask)
 [![Compilador](https://img.shields.io/badge/Backend-LLVM%2018-orange.svg)](https://llvm.org/)
 [![Construído com](https://img.shields.io/badge/Construído%20com-Rust-red.svg)](https://www.rust-lang.org/)
 
-**Snask** é uma linguagem de programação focada em **velocidade bruta** e **sintaxe intuitiva**. Através de um compilador baseado em **LLVM 18**, o Snask gera binários nativos otimizados, eliminando o overhead de interpretação e garantindo performance de nível C/C++.
+**Snask** é uma linguagem de programação focada em **velocidade bruta**, **identação obrigatória** e **POO Nativa**. Através de um compilador baseado em **LLVM 18**, o Snask gera binários nativos otimizados, eliminando o overhead de interpretação.
 
-## 🚀 Destaques da v0.2.1
+## 🚀 Instalação Rápida (Linux)
 
-A versão atual marca a estabilidade do ecossistema Snask, unindo o poder do Rust no frontend com a eficiência do LLVM no backend.
+Instale o SNask v0.2.2 com um único comando:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
+```
+
+## 🛠️ Destaques da v0.2.2
+
+A versão 0.2.2 traz o suporte real a Objetos e uma estrutura de código moderna e organizada.
 
 | Recurso | Descrição |
 | :--- | :--- |
-| **⚙️ LLVM Backend** | Geração de IR otimizado e linkagem nativa via Clang. |
-| **📦 Namespaces** | Módulos organizados com sintaxe `modulo::funcao()`. |
-| **🌐 Full Web** | Biblioteca `requests` nativa para GET, POST, PUT, DELETE e PATCH. |
-| **📂 SFS (File System)** | Manipulação de arquivos veloz integrada ao Runtime C. |
-| **🛡️ Memory Safe** | Structs alinhadas em 64-bit para comunicação estável entre LLVM e C. |
+| **🧬 POO Real** | Classes, métodos com `self` e instanciação dinâmica. |
+| **📐 Identação** | Blocos de código definidos por espaços (estilo Python). |
+| **⚙️ Pure Compiled** | Motor 100% LLVM, sem overhead de interpretador. |
+| **🚀 Auto-Update** | Comando `snask update` para manter a linguagem atualizada. |
+| **📂 Global PATH** | Instalador configura o sistema para uso global. |
 
-## 📦 Instalação e Build
+## 📦 Começando
 
-### Pré-requisitos
-- **Rust** (Cargo)
-- **LLVM 18** e **Clang 18** (Disponíveis via `apt install llvm-18 clang-18` no Ubuntu/Pop!_OS)
-
-### Compilando o Compilador Snask
-```bash
-git clone https://github.com/rancidavi-dotcom/TheSnask
-cd TheSnask
-cargo build --release
-```
-
-## 🛠️ Começando
-
-O Snask compila arquivos `.snask` diretamente para executáveis do sistema.
+Todo programa Snask deve ter uma `class main` com um método `start()`.
 
 ### Seu primeiro programa (`hello.snask`)
 ```snask
-import "requests"
-
-print("Iniciando Snask...");
-let res = requests::get("https://google.com");
-print("Tamanho da página:", s_len(res));
+class main
+    fun start()
+        print("Olá, Snask v0.2.2!");
+        let x = 10;
+        print("Resultado:", x * 5);
 ```
 
 ### Compilar e Rodar
 ```bash
-./target/release/snask build hello.snask
-./hello
+snask run hello.snask
 ```
 
 ## 📚 Documentação Oficial

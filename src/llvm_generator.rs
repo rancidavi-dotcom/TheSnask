@@ -20,40 +20,99 @@ pub struct LLVMGenerator<'ctx> {
     ptr_type: inkwell::types::PointerType<'ctx>,
     current_func: Option<FunctionValue<'ctx>>,
     local_vars: HashMap<String, PointerValue<'ctx>>,
+    classes: HashMap<String, crate::ast::ClassDecl>,
 }
 
 impl<'ctx> LLVMGenerator<'ctx> {
     pub fn new(context: &'ctx Context, module_name: &str) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
-        let i32_type = context.i32_type();
+        let _i32_type = context.i32_type();
         let f64_type = context.f64_type();
         let ptr_type = context.ptr_type(inkwell::AddressSpace::from(0));
         let value_type = context.struct_type(&[f64_type.into(), f64_type.into(), ptr_type.into()], false);
 
-        LLVMGenerator { context, module, builder, variables: HashMap::new(), functions: HashMap::new(), value_type, ptr_type, current_func: None, local_vars: HashMap::new() }
+        LLVMGenerator { context, module, builder, variables: HashMap::new(), functions: HashMap::new(), value_type, ptr_type, current_func: None, local_vars: HashMap::new(), classes: HashMap::new() }
     }
 
     pub fn generate(&mut self, program: Program) -> Result<String, String> {
         self.declare_runtime();
-        for stmt in &program { if let StmtKind::FuncDeclaration(func) = &stmt.kind { self.declare_function(func)?; } }
+        
+        // Declara funções globais e preenche mapa de classes
+        for stmt in &program { 
+            if let StmtKind::FuncDeclaration(func) = &stmt.kind { self.declare_function(func)?; } 
+            if let StmtKind::ClassDeclaration(class) = &stmt.kind {
+                let mut c = class.clone();
+                for method in &mut c.methods {
+                    // Adiciona 'self' como primeiro parâmetro se não existir
+                    if !method.params.iter().any(|p| p.0 == "self") {
+                        method.params.insert(0, ("self".to_string(), crate::types::Type::Any));
+                    }
+                    let mut m = method.clone();
+                    m.name = format!("{}::{}", c.name, m.name);
+                    self.declare_function(&m)?;
+                }
+                self.classes.insert(c.name.clone(), c);
+            }
+        }
+
         let i32_type = self.context.i32_type();
         let main_func = self.module.add_function("main", i32_type.fn_type(&[], false), None);
         let entry = self.context.append_basic_block(main_func, "entry");
         self.builder.position_at_end(entry);
         self.current_func = Some(main_func);
-        for stmt in &program { if !matches!(stmt.kind, StmtKind::FuncDeclaration(_)) { self.generate_statement(stmt.clone())?; } }
+
+        // Se houver uma class main com método start, chama ele!
+        let mut has_start = false;
+        for stmt in &program {
+            if let StmtKind::ClassDeclaration(class) = &stmt.kind {
+                if class.name == "main" {
+                    for method in &class.methods {
+                        if method.name == "start" {
+                            let f_name = format!("main::start");
+                            if let Some(f) = self.functions.get(&f_name) {
+                                let mut l_args = Vec::new();
+                                let r_a = self.builder.build_alloca(self.value_type, "ra").unwrap();
+                                l_args.push(r_a.into());
+                                self.builder.build_call(*f, &l_args, "call_start").unwrap();
+                                has_start = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if !has_start {
+            // Se não tiver main::start, executa top-level statements
+            for stmt in &program { 
+                if !matches!(stmt.kind, StmtKind::FuncDeclaration(_) | StmtKind::ClassDeclaration(_)) { 
+                    self.generate_statement(stmt.clone())?; 
+                } 
+            }
+        }
         
         if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
             self.builder.build_return(Some(&i32_type.const_int(0, false))).unwrap();
         }
 
-        for stmt in program { if let StmtKind::FuncDeclaration(func) = stmt.kind { self.generate_function_body(func)?; } }
+        // Gera o corpo das funções
+        for stmt in program { 
+            if let StmtKind::FuncDeclaration(func) = &stmt.kind { self.generate_function_body(func.clone())?; } 
+            if let StmtKind::ClassDeclaration(class) = &stmt.kind {
+                // Pega a versão atualizada da classe (com o self injetado)
+                let c = self.classes.get(&class.name).unwrap().clone();
+                for mut method in c.methods {
+                    method.name = format!("{}::{}", c.name, method.name);
+                    self.generate_function_body(method)?;
+                }
+            }
+        }
         Ok(self.module.print_to_string().to_string())
     }
 
     fn declare_runtime(&mut self) {
-        let i32_type = self.context.i32_type();
+        let _i32_type = self.context.i32_type();
         let void_type = self.context.void_type();
         
         // Novas funções de print
@@ -62,11 +121,20 @@ impl<'ctx> LLVMGenerator<'ctx> {
 
         let fn_1 = void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into()], false);
         let fn_2 = void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false);
+        let fn_3 = void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false);
+        let fn_alloc = void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false);
         
         self.functions.insert("sfs_read".to_string(), self.module.add_function("sfs_read", fn_1, None));
         self.functions.insert("sfs_write".to_string(), self.module.add_function("sfs_write", fn_2, None));
+        self.functions.insert("sfs_append".to_string(), self.module.add_function("sfs_append", fn_2, None));
         self.functions.insert("sfs_delete".to_string(), self.module.add_function("sfs_delete", fn_1, None));
         self.functions.insert("sfs_exists".to_string(), self.module.add_function("sfs_exists", fn_1, None));
+        self.functions.insert("sfs_copy".to_string(), self.module.add_function("sfs_copy", fn_2, None));
+        self.functions.insert("sfs_move".to_string(), self.module.add_function("sfs_move", fn_2, None));
+        self.functions.insert("sfs_mkdir".to_string(), self.module.add_function("sfs_mkdir", fn_1, None));
+        self.functions.insert("sfs_is_file".to_string(), self.module.add_function("sfs_is_file", fn_1, None));
+        self.functions.insert("sfs_is_dir".to_string(), self.module.add_function("sfs_is_dir", fn_1, None));
+        self.functions.insert("sfs_listdir".to_string(), self.module.add_function("sfs_listdir", fn_1, None));
         self.functions.insert("s_http_get".to_string(), self.module.add_function("s_http_get", fn_1, None));
         self.functions.insert("s_http_post".to_string(), self.module.add_function("s_http_post", fn_2, None));
         self.functions.insert("s_http_put".to_string(), self.module.add_function("s_http_put", fn_2, None));
@@ -80,6 +148,54 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("s_upper".to_string(), self.module.add_function("s_upper", fn_1, None));
         self.functions.insert("s_time".to_string(), self.module.add_function("s_time", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("s_sleep".to_string(), self.module.add_function("s_sleep", fn_1, None));
+        self.functions.insert("is_nil".to_string(), self.module.add_function("is_nil", fn_1, None));
+        self.functions.insert("is_str".to_string(), self.module.add_function("is_str", fn_1, None));
+        self.functions.insert("is_obj".to_string(), self.module.add_function("is_obj", fn_1, None));
+        self.functions.insert("os_cwd".to_string(), self.module.add_function("os_cwd", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("os_platform".to_string(), self.module.add_function("os_platform", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("os_arch".to_string(), self.module.add_function("os_arch", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("os_getenv".to_string(), self.module.add_function("os_getenv", fn_1, None));
+        self.functions.insert("os_setenv".to_string(), self.module.add_function("os_setenv", fn_2, None));
+        self.functions.insert("os_random_hex".to_string(), self.module.add_function("os_random_hex", fn_1, None));
+
+        self.functions.insert("sfs_size".to_string(), self.module.add_function("sfs_size", fn_1, None));
+        self.functions.insert("sfs_mtime".to_string(), self.module.add_function("sfs_mtime", fn_1, None));
+        self.functions.insert("sfs_rmdir".to_string(), self.module.add_function("sfs_rmdir", fn_1, None));
+
+        self.functions.insert("path_basename".to_string(), self.module.add_function("path_basename", fn_1, None));
+        self.functions.insert("path_dirname".to_string(), self.module.add_function("path_dirname", fn_1, None));
+        self.functions.insert("path_extname".to_string(), self.module.add_function("path_extname", fn_1, None));
+        self.functions.insert("path_join".to_string(), self.module.add_function("path_join", fn_2, None));
+        self.functions.insert("blaze_run".to_string(), self.module.add_function("blaze_run", fn_2, None));
+        self.functions.insert("blaze_qs_get".to_string(), self.module.add_function("blaze_qs_get", fn_2, None));
+        self.functions.insert("blaze_cookie_get".to_string(), self.module.add_function("blaze_cookie_get", fn_2, None));
+        self.functions.insert("auth_random_hex".to_string(), self.module.add_function("auth_random_hex", fn_1, None));
+        self.functions.insert("auth_now".to_string(), self.module.add_function("auth_now", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("auth_const_time_eq".to_string(), self.module.add_function("auth_const_time_eq", fn_2, None));
+        self.functions.insert("auth_hash_password".to_string(), self.module.add_function("auth_hash_password", fn_1, None));
+        self.functions.insert("auth_verify_password".to_string(), self.module.add_function("auth_verify_password", fn_2, None));
+        self.functions.insert("auth_session_id".to_string(), self.module.add_function("auth_session_id", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("auth_csrf_token".to_string(), self.module.add_function("auth_csrf_token", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("auth_cookie_kv".to_string(), self.module.add_function("auth_cookie_kv", fn_2, None));
+        self.functions.insert("auth_cookie_session".to_string(), self.module.add_function("auth_cookie_session", fn_1, None));
+        self.functions.insert("auth_cookie_delete".to_string(), self.module.add_function("auth_cookie_delete", fn_1, None));
+        self.functions.insert("auth_bearer_header".to_string(), self.module.add_function("auth_bearer_header", fn_1, None));
+        self.functions.insert("auth_ok".to_string(), self.module.add_function("auth_ok", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("auth_fail".to_string(), self.module.add_function("auth_fail", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("auth_version".to_string(), self.module.add_function("auth_version", void_type.fn_type(&[self.ptr_type.into()], false), None));
+
+        self.functions.insert("s_alloc_obj".to_string(), self.module.add_function("s_alloc_obj", fn_alloc, None));
+        self.functions.insert("s_json_stringify".to_string(), self.module.add_function("s_json_stringify", fn_1, None));
+        self.functions.insert("json_stringify".to_string(), self.module.add_function("json_stringify", fn_1, None));
+        self.functions.insert("json_stringify_pretty".to_string(), self.module.add_function("json_stringify_pretty", fn_1, None));
+        self.functions.insert("json_parse".to_string(), self.module.add_function("json_parse", fn_1, None));
+        self.functions.insert("json_get".to_string(), self.module.add_function("json_get", fn_2, None));
+        self.functions.insert("json_has".to_string(), self.module.add_function("json_has", fn_2, None));
+        self.functions.insert("json_len".to_string(), self.module.add_function("json_len", fn_1, None));
+        self.functions.insert("json_index".to_string(), self.module.add_function("json_index", fn_2, None));
+        self.functions.insert("json_set".to_string(), self.module.add_function("json_set", fn_3, None));
+        self.functions.insert("s_get_member".to_string(), self.module.add_function("s_get_member", fn_2, None));
+        self.functions.insert("s_set_member".to_string(), self.module.add_function("s_set_member", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
     }
 
     fn sanitize_name(&self, name: &str) -> String {
@@ -103,6 +219,8 @@ impl<'ctx> LLVMGenerator<'ctx> {
         let old_vars = self.variables.clone();
         self.local_vars.clear();
         let r_ptr = function.get_nth_param(0).unwrap().into_pointer_value();
+        
+        // Parâmetros começam no índice 1, porque o 0 é o RA (Return Address/Pointer)
         for (i, (name, _)) in func.params.iter().enumerate() {
             let p_ptr = function.get_nth_param((i + 1) as u32).unwrap().into_pointer_value();
             self.local_vars.insert(name.clone(), p_ptr);
@@ -205,6 +323,9 @@ impl<'ctx> LLVMGenerator<'ctx> {
             StmtKind::Expression(expr) => {
                 self.evaluate_expression(expr)?;
             }
+            StmtKind::ClassDeclaration(_) => {
+                // TODO: Implement LLVM class generation
+            }
             _ => {}
         }
         Ok(())
@@ -229,7 +350,21 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     s = self.builder.build_insert_value(s, g.as_pointer_value(), 2, "p").unwrap().into_struct_value();
                     Ok(s)
                 },
-                _ => Err("Lit not supported.".to_string()),
+                LiteralValue::Boolean(b) => {
+                    let mut s = self.value_type.get_undef();
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(2.0), 0, "t").unwrap().into_struct_value(); // 2 = BOOL
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(if b { 1.0 } else { 0.0 }), 1, "v").unwrap().into_struct_value();
+                    s = self.builder.build_insert_value(s, nil_p, 2, "p").unwrap().into_struct_value();
+                    Ok(s)
+                },
+                LiteralValue::Nil => {
+                    let mut s = self.value_type.get_undef();
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(0.0), 0, "t").unwrap().into_struct_value(); // 0 = NIL
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(0.0), 1, "v").unwrap().into_struct_value();
+                    s = self.builder.build_insert_value(s, nil_p, 2, "p").unwrap().into_struct_value();
+                    Ok(s)
+                },
+                _ => Err(format!("Lit not supported: {:?}", lit)),
             },
             ExprKind::Variable(name) => {
                 if let Some(p) = self.local_vars.get(&name).or_else(|| self.variables.get(&name)) { 
@@ -306,15 +441,157 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 s = self.builder.build_insert_value(s, res, 1, "v").unwrap().into_struct_value();
                 Ok(s)
             }
+            ExprKind::PropertyAccess { target, property } => {
+                let obj = self.evaluate_expression(*target)?;
+                // Por simplicidade, assumimos que o alvo é um objeto e procuramos o índice da propriedade.
+                // Em um compilador completo, precisaríamos saber o tipo real do objeto.
+                // Como não temos um sistema de tipos forte no backend ainda, vamos inferir ou fixar.
+                
+                // Vamos tentar achar a propriedade em qualquer classe (hack temporário)
+                let mut index = -1;
+                for class in self.classes.values() {
+                    if let Some(i) = class.properties.iter().position(|p| p.name == property) {
+                        index = i as i32;
+                        break;
+                    }
+                }
+
+                if index == -1 { return Err(format!("Propriedade '{}' não encontrada em nenhuma classe.", property)); }
+
+                let get_f = self.functions.get("s_get_member").unwrap();
+                let idx_val = self.context.f64_type().const_float(index as f64);
+                let mut idx_struct = self.value_type.get_undef();
+                idx_struct = self.builder.build_insert_value(idx_struct, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
+                idx_struct = self.builder.build_insert_value(idx_struct, idx_val, 1, "v").unwrap().into_struct_value();
+                
+                let obj_p = self.builder.build_alloca(self.value_type, "objp").unwrap();
+                self.builder.build_store(obj_p, obj).unwrap();
+                let idx_p = self.builder.build_alloca(self.value_type, "idxp").unwrap();
+                self.builder.build_store(idx_p, idx_struct).unwrap();
+                
+                let res_p = self.builder.build_alloca(self.value_type, "rp").unwrap();
+                self.builder.build_call(*get_f, &[res_p.into(), obj_p.into(), idx_p.into()], "get").unwrap();
+                
+                Ok(self.builder.build_load(self.value_type, res_p, "r").unwrap().into_struct_value())
+            }
             ExprKind::FunctionCall { callee, args } => {
-                if let ExprKind::Variable(name) = callee.kind {
-                    let s_name = self.sanitize_name(&name);
+                if let ExprKind::PropertyAccess { target, property } = &callee.kind {
+                    // É uma chamada de método! obj.metodo()
+                    let obj = self.evaluate_expression(*target.clone())?;
+                    
+                    // Procura o método em qualquer classe (hack temporário até termos tipos fortes)
+                    let mut method_full_name = String::new();
+                    for class in self.classes.values() {
+                        if class.methods.iter().any(|m| m.name == *property) {
+                            method_full_name = format!("{}::{}", class.name, property);
+                            break;
+                        }
+                    }
+
+                    if method_full_name.is_empty() { return Err(format!("Método '{}' não encontrado.", property)); }
+
+                    let f_name = format!("f_{}", self.sanitize_name(&method_full_name));
+                    let f = self.module.get_function(&f_name).ok_or_else(|| format!("Função {} não encontrada.", f_name))?;
+                    
+                    let mut l_args = Vec::new();
+                    let r_a = self.builder.build_alloca(self.value_type, "ra").unwrap();
+                    l_args.push(r_a.into());
+                    
+                    // Adiciona o 'self' como primeiro argumento
+                    let obj_p = self.builder.build_alloca(self.value_type, "selfp").unwrap();
+                    self.builder.build_store(obj_p, obj).unwrap();
+                    l_args.push(obj_p.into());
+
+                    // Adiciona os outros argumentos
+                    for arg in args {
+                        let v = self.evaluate_expression(arg.clone())?;
+                        let arg_a = self.builder.build_alloca(self.value_type, "a").unwrap();
+                        self.builder.build_store(arg_a, v).unwrap();
+                        l_args.push(arg_a.into());
+                    }
+
+                    self.builder.build_call(f, &l_args, "mc").unwrap();
+                    return Ok(self.builder.build_load(self.value_type, r_a, "r").unwrap().into_struct_value());
+                }
+
+                if let ExprKind::Variable(name) = &callee.kind {
+                    if let Some(class) = self.classes.get(name).cloned() {
+                        // É uma instanciação de classe!
+                        let alloc_f = self.functions.get("s_alloc_obj").unwrap();
+                        let size_val = self.context.f64_type().const_float(class.properties.len() as f64);
+                        let mut size_struct = self.value_type.get_undef();
+                        size_struct = self.builder.build_insert_value(size_struct, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
+                        size_struct = self.builder.build_insert_value(size_struct, size_val, 1, "v").unwrap().into_struct_value();
+                        
+                        let size_ptr = self.builder.build_alloca(self.value_type, "szp").unwrap();
+                        self.builder.build_store(size_ptr, size_struct).unwrap();
+                        
+                        let res_p = self.builder.build_alloca(self.value_type, "objp").unwrap();
+                        // Passa também a tabela de nomes das propriedades (char**), usada por JSON/stringify e introspecção.
+                        let names_arg = if class.properties.is_empty() {
+                            self.ptr_type.const_null()
+                        } else {
+                            let global_name = format!("__snask_class_names_{}", self.sanitize_name(&class.name));
+                            let names_global = if let Some(g) = self.module.get_global(&global_name) {
+                                g
+                            } else {
+                                let i8_ptr = self.context.i8_type().ptr_type(inkwell::AddressSpace::from(0));
+                                let arr_ty = i8_ptr.array_type(class.properties.len() as u32);
+                                let g = self.module.add_global(arr_ty, None, &global_name);
+                                let mut elems = Vec::new();
+                                for prop in &class.properties {
+                                    let sp = self.builder.build_global_string_ptr(&prop.name, "prop_name").unwrap();
+                                    elems.push(sp.as_pointer_value());
+                                }
+                                let init = i8_ptr.const_array(&elems);
+                                g.set_initializer(&init);
+                                g.set_constant(true);
+                                g
+                            };
+                            let arr_ty = names_global.get_value_type().into_array_type();
+                            let zero = self.context.i32_type().const_int(0, false);
+                            let names_ptr = unsafe {
+                                self.builder
+                                    .build_in_bounds_gep(arr_ty, names_global.as_pointer_value(), &[zero, zero], "names_ptr")
+                                    .unwrap()
+                            };
+                            self.builder
+                                .build_pointer_cast(names_ptr, self.ptr_type, "names_voidp")
+                                .unwrap()
+                        };
+
+                        self.builder
+                            .build_call(*alloc_f, &[res_p.into(), size_ptr.into(), names_arg.into()], "alloc")
+                            .unwrap();
+                        
+                        let obj = self.builder.build_load(self.value_type, res_p, "obj").unwrap().into_struct_value();
+                        
+                        // Inicializa propriedades com valores padrão
+                        for (i, prop) in class.properties.iter().enumerate() {
+                            let val = self.evaluate_expression(prop.value.clone())?;
+                            let set_f = self.functions.get("s_set_member").unwrap();
+                            let idx_val = self.context.f64_type().const_float(i as f64);
+                            let mut idx_struct = self.value_type.get_undef();
+                            idx_struct = self.builder.build_insert_value(idx_struct, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
+                            idx_struct = self.builder.build_insert_value(idx_struct, idx_val, 1, "v").unwrap().into_struct_value();
+                            
+                            let ip = self.builder.build_alloca(self.value_type, "ip").unwrap();
+                            let vp = self.builder.build_alloca(self.value_type, "vp").unwrap();
+                            self.builder.build_store(ip, idx_struct).unwrap();
+                            self.builder.build_store(vp, val).unwrap();
+                            self.builder.build_call(*set_f, &[res_p.into(), ip.into(), vp.into()], "set").unwrap();
+                        }
+                        
+                        return Ok(obj);
+                    }
+
+                    let s_name = self.sanitize_name(name);
                     let f_name = format!("f_{}", s_name);
                     // Ordem de busca: f_nome (usuário/lib), depois nome (nativas do runtime)
                     let f = self.module.get_function(&f_name)
                         .or_else(|| self.module.get_function(&s_name))
-                        .or_else(|| self.module.get_function(&name))
-                        .or_else(|| self.functions.get(&name).cloned())
+                        .or_else(|| self.module.get_function(name))
+                        .or_else(|| self.functions.get(name).cloned())
                         .ok_or_else(|| format!("Função {} não encontrada.", name))?;
                     let mut l_args = Vec::new();
                     let r_a = self.builder.build_alloca(self.value_type, "ra").unwrap();
@@ -325,7 +602,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         self.builder.build_store(arg_a, v).unwrap();
                         l_args.push(arg_a.into());
                     }
-                    let call_site = self.builder.build_call(f, &l_args, "c").unwrap();
+                    let _call_site = self.builder.build_call(f, &l_args, "c").unwrap();
                     return Ok(self.builder.build_load(self.value_type, r_a, "r").unwrap().into_struct_value());
                 } else { Err("Indirect not supported.".to_string()) }
             }
@@ -334,7 +611,6 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 let n = self.builder.build_extract_value(v, 1, "n").unwrap().into_float_value();
                 let res_n = match op {
                     crate::ast::UnaryOp::Negative => self.builder.build_float_mul(n, self.context.f64_type().const_float(-1.0), "neg").unwrap(),
-                    _ => n,
                 };
                 let mut s = self.value_type.get_undef();
                 s = self.builder.build_insert_value(s, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();

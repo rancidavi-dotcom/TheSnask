@@ -29,17 +29,15 @@ O Snask suporta todos os operadores de comparação (`>`, `<`, `==`, `>=`, `<=`)
 ```snask
 let nota = 8.5;
 
-if nota >= 7.0 {
+if nota >= 7.0
     print("Aprovado!");
-} else {
+else
     print("Reprovado.");
-}
 
 mut contador = 1;
-while contador <= 3 {
+while contador <= 3
     print("Passo:", contador);
     contador = contador + 1;
-}
 ```
 
 ---
@@ -48,16 +46,15 @@ while contador <= 3 {
 Funções no Snask são rápidas e suportam recursão.
 
 ```snask
-fun somar(a, b) {
+fun somar(a, b)
     return a + b;
-}
 
 print("Soma:", somar(10, 20));
 
-fun fatorial(n) {
-    if n <= 1 { return 1; }
+fun fatorial(n)
+    if n <= 1
+        return 1;
     return n * fatorial(n - 1);
-}
 
 print("Fatorial de 5:", fatorial(5));
 ```
@@ -71,10 +68,9 @@ Use as funções `sfs_` para manipular arquivos com o desempenho do C.
 let arquivo = "teste.txt";
 sfs_write(arquivo, "Escrito via Snask!");
 
-if sfs_exists(arquivo) {
+if sfs_exists(arquivo)
     let dados = sfs_read(arquivo);
     print("Conteúdo:", dados);
-}
 ```
 
 ---

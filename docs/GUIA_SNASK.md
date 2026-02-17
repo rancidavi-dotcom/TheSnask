@@ -1,123 +1,345 @@
-# 📘 Guia Definitivo da Linguagem Snask (v0.2.1)
+# 📘 Guia Completo do Snask (Trilha do Desenvolvedor) — v0.2.2
 
-**Bem-vindo ao Snask!** Este guia consolidado fornece tudo o que você precisa saber para dominar a linguagem, desde a instalação até o desenvolvimento de sistemas de alto desempenho utilizando o backend LLVM.
+Este documento é uma trilha completa para você dominar o Snask: **instalação → linguagem → módulos → web → autenticação → boas práticas**.
 
----
-
-## 📑 Índice
-
-1. [O que é Snask?](#1-o-que-é-snask)
-2. [Configuração e Build](#2-configuração-e-build)
-3. [Fundamentos da Linguagem](#3-fundamentos-da-linguagem)
-4. [Estruturas de Controle](#4-estruturas-de-controle)
-5. [Funções e Modularização](#5-funções-e-modularização)
-6. [Biblioteca Padrão e Runtime Nativo (C)](#7-biblioteca-padrão-e-runtime-nativo-c)
-7. [Arquitetura e Performance](#8-arquitetura-e-performance)
+- Tutorial rápido: `docs/APRENDA_SNASK.md`
+- Referência de módulos: `docs/BIBLIOTECAS_SNASK.md`
 
 ---
 
-## 1. O que é Snask?
+## 📑 Índice (Trilha)
 
-**Snask** é uma linguagem de programação focada em **performance extrema** e **simplicidade**. Utiliza um **compilador nativo baseado em LLVM 18**, combinando a facilidade de linguagens de script com a velocidade bruta do C/C++.
-
----
-
-## 2. Configuração e Build
-
-### Pré-requisitos
-- **Rust** (compilador Snask).
-- **LLVM 18** e **Clang 18** (backend de geração de código).
-
-### Build do Compilador
-```bash
-cargo build --release
-```
-
----
-
-## 3. Fundamentos da Linguagem
-
-### Variáveis
-| Palavra-chave | Propósito | Exemplo |
-| :--- | :--- | :--- |
-| `let` | **Imutável** (Otimizado). | `let nome = "Davi";` |
-| `mut` | **Mutável**. | `mut contador = 0;` |
-
-### Tipos de Dados
-- **Num**: Números de ponto flutuante 64-bit (IEEE 754).
-- **Str**: Cadeias de caracteres seguras.
-- **Bool**: `true` ou `false`.
-- **Nil**: Ausência de valor.
+1. [O que é Snask (e o que não é)](#1-o-que-é-snask-e-o-que-não-é)
+2. [Ferramentas: build, run, setup](#2-ferramentas-build-run-setup)
+3. [Primeiro programa](#3-primeiro-programa)
+4. [Sintaxe essencial](#4-sintaxe-essencial)
+5. [Tipos e valores (modelo atual)](#5-tipos-e-valores-modelo-atual)
+6. [Controle de fluxo](#6-controle-de-fluxo)
+7. [Funções (estilo e padrões)](#7-funções-estilo-e-padrões)
+8. [POO: classes, propriedades e métodos](#8-poo-classes-propriedades-e-métodos)
+9. [Módulos e bibliotecas (import e namespace)](#9-módulos-e-bibliotecas-import-e-namespace)
+10. [I/O e sistema: “equivalente ao stdio.h”](#10-io-e-sistema-equivalente-ao-stdioh)
+11. [JSON de verdade: parse/stringify + arquivos](#11-json-de-verdade-parsestringify--arquivos)
+12. [HTTP simples: requests](#12-http-simples-requests)
+13. [Web server: Blaze](#13-web-server-blaze)
+14. [Autenticação: Blaze Auth](#14-autenticação-blaze-auth)
+15. [Estrutura de projeto recomendada](#15-estrutura-de-projeto-recomendada)
+16. [Debug e troubleshooting](#16-debug-e-troubleshooting)
+17. [Limitações atuais e próximos passos](#17-limitações-atuais-e-próximos-passos)
 
 ---
 
-## 4. Estruturas de Controle
+## 1. O que é Snask (e o que não é)
 
-### Condicionais
+**Snask** é uma linguagem **compilada** focada em performance, com sintaxe por **indentação** e orientação a objetos. O compilador gera binários nativos via **LLVM 18**.
+
+O Snask **não** é:
+- um interpretador (você não “executa o .snask diretamente”)
+- um “C com headers” (você não inclui `stdio.h` no código Snask)
+
+O Snask **é**:
+- um compilador + um runtime nativo em C (`runtime.o`)
+- um ecossistema de **módulos `.snask`** (bibliotecas)
+
+---
+
+## 2. Ferramentas: build, run, setup
+
+Comandos principais do CLI:
+
+- `snask build arquivo.snask` → compila e gera um binário `./arquivo`
+- `snask run arquivo.snask` → atalho que faz **build + executa** `./arquivo`
+- `snask setup` → (re)gera `~/.snask/lib/runtime.o` e instala o CLI no `PATH`
+
+Pré-requisitos (Linux):
+- Rust (para compilar o compilador)
+- LLVM 18 + Clang 18 (para gerar/linkar binários)
+
+---
+
+## 3. Primeiro programa
+
+Todo programa Snask precisa ter:
+- `class main`
+- `fun start()`
+
+Exemplo (`hello.snask`):
 ```snask
-if nota >= 7.0 {
-    print("Aprovado!");
-} else {
-    print("Reprovado.");
-}
+class main
+    fun start()
+        print("Olá, Snask!");
+        let x = 10;
+        print("x * 5 =", x * 5);
 ```
 
-### Loops
+Compilar e rodar:
+```bash
+snask build hello.snask
+./hello
+```
+
+---
+
+## 4. Sintaxe essencial
+
+### 4.1 Indentação
+Blocos são definidos por indentação (estilo Python).
+
+### 4.2 Variáveis: `let` e `mut`
+- `let` cria variável imutável
+- `mut` cria variável mutável
+
+```snask
+let nome = "Davi";
+mut idade = 25;
+idade = idade + 1;
+```
+
+### 4.3 Comentários
+Use `//` para comentário de linha.
+
+---
+
+## 5. Tipos e valores (modelo atual)
+
+O runtime atual trabalha com estes valores principais:
+- `num` (número, representado como float internamente)
+- `str` (string)
+- `bool` (`true/false`)
+- `nil`
+- `obj` (objeto — usado para instâncias de `class` e também para objetos/arrays JSON parseados)
+
+Checagens úteis (nativas):
+- `is_nil(x)`
+- `is_str(x)`
+- `is_obj(x)`
+
+---
+
+## 6. Controle de fluxo
+
+### 6.1 `if` / `else`
+```snask
+if 10 > 5
+    print("maior");
+else
+    print("menor");
+```
+
+### 6.2 `while`
 ```snask
 mut i = 0;
-while i < 5 {
-    print("Contagem:", i);
+while i < 3
+    print("i:", i);
     i = i + 1;
-}
 ```
 
 ---
 
-## 5. Funções e Modularização
+## 7. Funções (estilo e padrões)
 
-### Definição
-Funções utilizam a palavra-chave `fun`. Elas são isoladas em namespaces internos (`f_`) para evitar conflitos com o sistema.
+Funções são declaradas com `fun` e podem retornar com `return`.
 
 ```snask
-fun somar(a, b) {
+fun somar(a, b)
     return a + b;
-}
-print(somar(10, 5));
 ```
 
-### Importação
-O Snask usa injeção direta de código para módulos.
+Padrões recomendados:
+- prefira funções pequenas e retornos explícitos
+- evite “estado global” em módulos
+
+---
+
+## 8. POO: classes, propriedades e métodos
+
+Uma `class` define propriedades (normalmente `let`) e métodos com `fun`.
+
 ```snask
-import "utils"
-saudar("Davi");
+class Pessoa
+    let nome = "Davi";
+    let idade = 25;
+
+class main
+    fun start()
+        let p = Pessoa();
+        print(p.nome, p.idade);
 ```
 
 ---
 
-## 6. Biblioteca Padrão e Runtime Nativo (C)
+## 9. Módulos e bibliotecas (import e namespace)
 
-O Snask utiliza um runtime em C altamente otimizado para I/O e memória.
+Importe módulos com:
+```snask
+import "json";
+import "os";
+```
 
-### Sistema de Arquivos (SFS)
-- `sfs_read(path)`: Lê arquivos.
-- `sfs_write(path, content)`: Escreve arquivos (com auto-flush).
-- `sfs_exists(path)`: Verifica existência.
+E use sempre o namespace:
+```snask
+let obj = json::new_object();
+os::write_json_pretty("data.json", obj);
+```
 
-### Utilidades
-- `s_time()`: Timestamp atual.
-- `s_sleep(ms)`: Pausa a execução.
-- `s_abs(n)`: Valor absoluto.
+O compilador procura módulos:
+1) localmente (`./nome.snask`)
+2) em `~/.snask/packages/nome.snask`
+
+---
+
+## 10. I/O e sistema: “equivalente ao stdio.h”
+
+O “equivalente ao `stdio.h`” no Snask é:
+
+- stdout: `print(...)`
+- arquivos: `sfs::*` ou `os::*`
+
+Exemplo usando `os`:
+```snask
+import "os";
+
+class main
+    fun start()
+        os::write_file("log.txt", "oi");
+        os::append_file("log.txt", "\\nmais");
+        print(os::read_file("log.txt"));
+```
 
 ---
 
-## 7. Arquitetura e Performance
+## 11. JSON de verdade: parse/stringify + arquivos
 
-O Snask v0.2.1 utiliza uma struct de valor alinhada em **64 bits**:
-- **Tag**: 8 bytes (double)
-- **Data**: 8 bytes (double)
-- **Pointer**: 8 bytes (ptr)
+```snask
+import "json";
+import "os";
 
-Isso garante que a comunicação entre o LLVM e o Runtime C seja livre de erros de alinhamento e falhas de segmentação.
+class main
+    fun start()
+        let o = json::new_object();
+        json::set(o, "name", "davi");
+        os::write_json_pretty("user.json", o);
+
+        let x = os::read_json("user.json");
+        print("name:", json::get(x, "name"));
+```
 
 ---
-*Documentação técnica atualizada em 16 de fevereiro de 2026.*
+
+## 12. HTTP simples: requests
+
+```snask
+import "requests";
+
+class main
+    fun start()
+        let body = requests::get("https://example.com");
+        print(body);
+```
+
+---
+
+## 13. Web server: Blaze
+
+O Blaze permite responder rotas de 2 formas:
+
+### 13.1 Rotas estáticas
+```snask
+import "blaze";
+
+class main
+    fun start()
+        let routes = blaze::new();
+        blaze::get(routes, "/", blaze::resp_text("ok"));
+        blaze::run(8080, routes);
+```
+
+### 13.2 Handlers (dinâmico) com query/cookie/body
+Você registra um **handler por nome** e o runtime chama sua função:
+```snask
+import "blaze";
+
+class main
+    fun start()
+        let routes = blaze::new();
+        blaze::handler_get(routes, "/hello", "hello_handler");
+        blaze::run(8080, routes);
+
+fun hello_handler(method, path, query, body, cookie)
+    let name = blaze::qs_get(query, "name");
+    if is_nil(name)
+        return blaze::bad_request();
+    return blaze::resp_text("Olá " + name);
+```
+
+---
+
+## 14. Autenticação: Blaze Auth
+
+O `blaze_auth` fornece:
+- storage local (users/sessions em JSON)
+- hash/verify nativo (demo)
+- response com `Set-Cookie: sid=...`
+
+Exemplo real (pronto no repo): `blaze_auth_system.snask`
+
+Testando com curl (exemplo):
+```bash
+./blaze_auth_system
+curl "http://127.0.0.1:8080/register?user=alice&pass=123"
+curl -i -c /tmp/cj "http://127.0.0.1:8080/login?user=alice&pass=123"
+curl -i -b /tmp/cj "http://127.0.0.1:8080/me"
+```
+
+---
+
+## 15. Estrutura de projeto recomendada
+
+Para um app web:
+```
+app.snask
+routes.snask
+models.snask
+```
+
+E bibliotecas locais:
+```
+blaze_app_helpers.snask
+```
+
+---
+
+## 16. Debug e troubleshooting
+
+### 16.1 “Undefined reference” na linkagem
+Normalmente significa que:
+- o runtime (`~/.snask/lib/runtime.o`) está desatualizado, ou
+- você chamou uma builtin que não existe no runtime atual.
+
+Solução:
+```bash
+snask setup
+```
+ou recompile manualmente o runtime se estiver desenvolvendo o compilador.
+
+### 16.2 Strings com escapes
+O parser de strings é simples: evite JSON “com aspas escapadas” dentro de string literal.
+Prefira construir o objeto via `json::new_object()` + `json::set(...)`.
+
+---
+
+## 17. Limitações atuais e próximos passos
+
+Limitações comuns do modelo atual:
+- modelo de “obj” ainda é simples (sem tipos fortes)
+- JSON arrays são representados como “obj” com keys `"0..n-1"`
+- handlers web ainda são minimalistas (sem roteamento avançado, sem middleware)
+
+Próximos passos típicos:
+- cookies mais completos (SameSite/Secure)
+- parsing de `application/x-www-form-urlencoded` e JSON body em handlers
+- hash de senha forte (bcrypt/argon2 nativo)
+
+---
+
+*Guia atualizado em 17 de fevereiro de 2026.*
