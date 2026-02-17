@@ -311,6 +311,8 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
         // Necessário para blaze (dlsym handlers) e para expor símbolos do binário
         .arg("-ldl")
         .arg("-Wl,--export-dynamic")
+        // GUI (GTK3) - link opcional
+        .args(get_gtk_libs_if_needed(&source))
         .status()
         .map_err(|e| e.to_string())?;
 
@@ -319,6 +321,19 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
     pb.inc(1);
     pb.finish_with_message("OK");
     Ok(())
+}
+
+fn get_gtk_libs_if_needed(source: &str) -> Vec<String> {
+    // Heurística MVP: só tenta linkar GTK se o arquivo importar "gui".
+    if !source.contains("import \"gui\"") && !source.contains("import \"gui\";") {
+        return Vec::new();
+    }
+
+    let out = Command::new("pkg-config").arg("--libs").arg("gtk+-3.0").output();
+    let Ok(out) = out else { return Vec::new(); };
+    if !out.status.success() { return Vec::new(); }
+    let libs = String::from_utf8_lossy(&out.stdout);
+    libs.split_whitespace().map(|s| s.to_string()).collect()
 }
 
 fn sps_init(name: Option<String>) -> Result<(), String> {
@@ -512,13 +527,32 @@ fn run_setup() -> Result<(), String> {
     fs::create_dir_all(&snask_bin).map_err(|e| e.to_string())?;
 
     println!("⚙️  Compilando o Runtime Nativo (C)...");
-    let status = Command::new("gcc")
-        .arg("-c")
-        .arg("src/runtime.c")
-        .arg("-o")
-        .arg(format!("{}/runtime.o", snask_lib))
-        .status()
-        .map_err(|e| e.to_string())?;
+    let runtime_out = format!("{}/runtime.o", snask_lib);
+
+    let mut gcc = Command::new("gcc");
+    gcc.arg("-c").arg("src/runtime.c").arg("-o").arg(&runtime_out);
+
+    // GUI opcional (GTK3)
+    let gtk_cflags = Command::new("pkg-config")
+        .arg("--cflags")
+        .arg("gtk+-3.0")
+        .output();
+    if let Ok(out) = gtk_cflags {
+        if out.status.success() {
+            let cflags = String::from_utf8_lossy(&out.stdout);
+            for f in cflags.split_whitespace() {
+                gcc.arg(f);
+            }
+            gcc.arg("-DSNASK_GUI_GTK");
+            println!("🖼️  GUI: GTK3 habilitado (runtime).");
+        } else {
+            println!("ℹ️  GUI: GTK3 não encontrado via pkg-config (runtime sem GUI).");
+        }
+    } else {
+        println!("ℹ️  GUI: pkg-config não encontrado (runtime sem GUI).");
+    }
+
+    let status = gcc.status().map_err(|e| e.to_string())?;
 
     if !status.success() {
         return Err("Falha ao compilar o runtime.c. Verifique se o gcc está instalado.".to_string());

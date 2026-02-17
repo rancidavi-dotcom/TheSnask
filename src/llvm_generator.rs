@@ -210,6 +210,22 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("auth_fail".to_string(), self.module.add_function("auth_fail", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("auth_version".to_string(), self.module.add_function("auth_version", void_type.fn_type(&[self.ptr_type.into()], false), None));
 
+        // GUI (GTK) - handles are strings
+        self.functions.insert("gui_init".to_string(), self.module.add_function("gui_init", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_run".to_string(), self.module.add_function("gui_run", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_quit".to_string(), self.module.add_function("gui_quit", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_window".to_string(), self.module.add_function("gui_window", fn_3, None));
+        self.functions.insert("gui_vbox".to_string(), self.module.add_function("gui_vbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_set_child".to_string(), self.module.add_function("gui_set_child", fn_2, None));
+        self.functions.insert("gui_add".to_string(), self.module.add_function("gui_add", fn_2, None));
+        self.functions.insert("gui_label".to_string(), self.module.add_function("gui_label", fn_1, None));
+        self.functions.insert("gui_entry".to_string(), self.module.add_function("gui_entry", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_button".to_string(), self.module.add_function("gui_button", fn_1, None));
+        self.functions.insert("gui_show_all".to_string(), self.module.add_function("gui_show_all", fn_1, None));
+        self.functions.insert("gui_set_text".to_string(), self.module.add_function("gui_set_text", fn_2, None));
+        self.functions.insert("gui_get_text".to_string(), self.module.add_function("gui_get_text", fn_1, None));
+        self.functions.insert("gui_on_click".to_string(), self.module.add_function("gui_on_click", fn_2, None));
+
         self.functions.insert("s_alloc_obj".to_string(), self.module.add_function("s_alloc_obj", fn_alloc, None));
         self.functions.insert("s_json_stringify".to_string(), self.module.add_function("s_json_stringify", fn_1, None));
         self.functions.insert("json_stringify".to_string(), self.module.add_function("json_stringify", fn_1, None));

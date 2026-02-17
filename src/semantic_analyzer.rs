@@ -288,6 +288,22 @@ impl SemanticAnalyzer {
         self.define_builtin("auth_fail", vec![], Type::Bool, false);
         self.define_builtin("auth_version", vec![], Type::String, false);
 
+        // GUI (GTK) - MVP (handles are strings)
+        self.define_builtin("gui_init", vec![], Type::Bool, false);
+        self.define_builtin("gui_run", vec![], Type::Void, false);
+        self.define_builtin("gui_quit", vec![], Type::Void, false);
+        self.define_builtin("gui_window", vec![Type::String, Type::Float, Type::Float], Type::String, false);
+        self.define_builtin("gui_vbox", vec![], Type::String, false);
+        self.define_builtin("gui_set_child", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin("gui_add", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin("gui_label", vec![Type::String], Type::String, false);
+        self.define_builtin("gui_entry", vec![], Type::String, false);
+        self.define_builtin("gui_button", vec![Type::String], Type::String, false);
+        self.define_builtin("gui_show_all", vec![Type::String], Type::Void, false);
+        self.define_builtin("gui_set_text", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin("gui_get_text", vec![Type::String], Type::String, false);
+        self.define_builtin("gui_on_click", vec![Type::String, Type::String], Type::Bool, false);
+
         // Sistema Operacional / Baixo Nível
         self.define_builtin("peek", vec![Type::Ptr], Type::Any, false);
         self.define_builtin("poke", vec![Type::Ptr, Type::Any], Type::Void, false);

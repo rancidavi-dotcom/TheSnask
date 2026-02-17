@@ -149,6 +149,37 @@ class main
             print("erro:", json::get(r, "error"));
 ```
 
+---
+
+## 4.2 Biblioteca: `gui` 🖼️ (Linux/GTK)
+GUI minimalista estilo Tkinter (MVP) para criar apps simples (calculadora, formulários, etc.).
+
+### Dependências do sistema (Ubuntu/Pop!_OS)
+```bash
+sudo apt install -y libgtk-3-dev pkg-config
+snask setup
+```
+
+### Exemplo mínimo
+```snask
+import "gui";
+
+fun on_click(_btn)
+    print("clicou!");
+
+class main
+    fun start()
+        gui::init();
+        let win = gui::window("Snask GUI", 360, 160);
+        let box = gui::vbox();
+        gui::set_child(win, box);
+        let b = gui::button("OK");
+        gui::on_click(b, "on_click");
+        gui::add(box, b);
+        gui::show_all(win);
+        gui::run();
+```
+
 ## 5. Biblioteca: `os` 🖥️
 Helpers para sistema/arquivos. Parte é Snask puro, e parte usa funções nativas do runtime (`sfs_*`, `s_time/s_sleep`, etc.).
 

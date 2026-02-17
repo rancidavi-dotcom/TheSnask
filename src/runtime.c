@@ -17,6 +17,12 @@
 #include <fcntl.h>
 #include <dlfcn.h>
 
+// --- GUI (GTK3) ---
+// Opcional: compilado quando SNASK_GUI_GTK estiver definido e os headers GTK3 existirem.
+#ifdef SNASK_GUI_GTK
+#include <gtk/gtk.h>
+#endif
+
 typedef enum { SNASK_NIL, SNASK_NUM, SNASK_BOOL, SNASK_STR, SNASK_OBJ } SnaskType;
 
 typedef struct {
@@ -1288,6 +1294,203 @@ void s_concat(SnaskValue* out, SnaskValue* s1, SnaskValue* s2) {
     strcpy(new_str, (char*)s1->ptr); strcat(new_str, (char*)s2->ptr);
     out->tag = (double)SNASK_STR; out->ptr = new_str; out->num = 0;
 }
+
+// ---------------- GUI (GTK3) ----------------
+#ifdef SNASK_GUI_GTK
+
+static char* gui_ptr_to_handle(void* p) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%p", p);
+    return strdup(buf);
+}
+
+static void* gui_handle_to_ptr(const char* h) {
+    if (!h) return NULL;
+    void* p = NULL;
+    // accepts "0x..." produced by %p
+    sscanf(h, "%p", &p);
+    return p;
+}
+
+typedef struct {
+    char* handler_name;
+    char* widget_handle;
+} GuiCallbackCtx;
+
+static void gui_free_ctx(GuiCallbackCtx* ctx) {
+    if (!ctx) return;
+    if (ctx->handler_name) free(ctx->handler_name);
+    if (ctx->widget_handle) free(ctx->widget_handle);
+    free(ctx);
+}
+
+static SnaskValue gui_call_handler_1(const char* handler_name, const char* widget_handle) {
+    if (!handler_name) return make_nil();
+    char sym[512];
+    snprintf(sym, sizeof(sym), "f_%s", handler_name);
+    void* fp = dlsym(NULL, sym);
+    if (!fp) return make_nil();
+
+    typedef void (*SnaskFn1)(SnaskValue* ra, SnaskValue* a1);
+    SnaskFn1 f = (SnaskFn1)fp;
+
+    SnaskValue ra = make_nil();
+    SnaskValue wh = make_str_dup(widget_handle ? widget_handle : "");
+    f(&ra, &wh);
+    if ((int)wh.tag == SNASK_STR) free(wh.ptr);
+    return ra;
+}
+
+static void gui_on_button_clicked(GtkWidget* _widget, gpointer user_data) {
+    (void)_widget;
+    GuiCallbackCtx* ctx = (GuiCallbackCtx*)user_data;
+    if (!ctx) return;
+    (void)gui_call_handler_1(ctx->handler_name, ctx->widget_handle);
+}
+
+void gui_init(SnaskValue* out) {
+    int argc = 0;
+    char** argv = NULL;
+    gtk_init(&argc, &argv);
+    out->tag = (double)SNASK_BOOL;
+    out->num = 1.0;
+    out->ptr = NULL;
+}
+
+void gui_quit(SnaskValue* out) {
+    gtk_main_quit();
+    out->tag = (double)SNASK_NIL;
+}
+
+void gui_run(SnaskValue* out) {
+    gtk_main();
+    out->tag = (double)SNASK_NIL;
+}
+
+void gui_window(SnaskValue* out, SnaskValue* title, SnaskValue* w, SnaskValue* h) {
+    if ((int)title->tag != SNASK_STR || (int)w->tag != SNASK_NUM || (int)h->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* win = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_title(GTK_WINDOW(win), (const char*)title->ptr);
+    gtk_window_set_default_size(GTK_WINDOW(win), (int)w->num, (int)h->num);
+    g_signal_connect(win, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(win);
+    out->num = 0;
+}
+
+void gui_vbox(SnaskValue* out) {
+    GtkWidget* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(box);
+    out->num = 0;
+}
+
+void gui_set_child(SnaskValue* out, SnaskValue* parent_h, SnaskValue* child_h) {
+    if ((int)parent_h->tag != SNASK_STR || (int)child_h->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* parent = (GtkWidget*)gui_handle_to_ptr((const char*)parent_h->ptr);
+    GtkWidget* child = (GtkWidget*)gui_handle_to_ptr((const char*)child_h->ptr);
+    if (!parent || !child) { out->tag = (double)SNASK_NIL; return; }
+    gtk_container_add(GTK_CONTAINER(parent), child);
+    out->tag = (double)SNASK_BOOL;
+    out->num = 1.0;
+    out->ptr = NULL;
+}
+
+void gui_add(SnaskValue* out, SnaskValue* box_h, SnaskValue* child_h) {
+    if ((int)box_h->tag != SNASK_STR || (int)child_h->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* box = (GtkWidget*)gui_handle_to_ptr((const char*)box_h->ptr);
+    GtkWidget* child = (GtkWidget*)gui_handle_to_ptr((const char*)child_h->ptr);
+    if (!box || !child) { out->tag = (double)SNASK_NIL; return; }
+    gtk_box_pack_start(GTK_BOX(box), child, FALSE, FALSE, 0);
+    out->tag = (double)SNASK_BOOL;
+    out->num = 1.0;
+    out->ptr = NULL;
+}
+
+void gui_label(SnaskValue* out, SnaskValue* text) {
+    if ((int)text->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = gtk_label_new((const char*)text->ptr);
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(w);
+    out->num = 0;
+}
+
+void gui_entry(SnaskValue* out) {
+    GtkWidget* e = gtk_entry_new();
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(e);
+    out->num = 0;
+}
+
+void gui_button(SnaskValue* out, SnaskValue* text) {
+    if ((int)text->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* b = gtk_button_new_with_label((const char*)text->ptr);
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(b);
+    out->num = 0;
+}
+
+void gui_show_all(SnaskValue* out, SnaskValue* widget_h) {
+    if ((int)widget_h->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)widget_h->ptr);
+    if (!w) { out->tag = (double)SNASK_NIL; return; }
+    gtk_widget_show_all(w);
+    out->tag = (double)SNASK_NIL;
+}
+
+void gui_set_text(SnaskValue* out, SnaskValue* widget_h, SnaskValue* text) {
+    if ((int)widget_h->tag != SNASK_STR || (int)text->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)widget_h->ptr);
+    if (!w) { out->tag = (double)SNASK_NIL; return; }
+    if (GTK_IS_LABEL(w)) gtk_label_set_text(GTK_LABEL(w), (const char*)text->ptr);
+    else if (GTK_IS_BUTTON(w)) gtk_button_set_label(GTK_BUTTON(w), (const char*)text->ptr);
+    else if (GTK_IS_ENTRY(w)) gtk_entry_set_text(GTK_ENTRY(w), (const char*)text->ptr);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void gui_get_text(SnaskValue* out, SnaskValue* widget_h) {
+    if ((int)widget_h->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)widget_h->ptr);
+    if (!w) { out->tag = (double)SNASK_NIL; return; }
+    if (GTK_IS_ENTRY(w)) {
+        const char* t = gtk_entry_get_text(GTK_ENTRY(w));
+        out->tag = (double)SNASK_STR;
+        out->ptr = strdup(t ? t : "");
+        out->num = 0;
+        return;
+    }
+    out->tag = (double)SNASK_NIL;
+}
+
+void gui_on_click(SnaskValue* out, SnaskValue* widget_h, SnaskValue* handler_name) {
+    if ((int)widget_h->tag != SNASK_STR || (int)handler_name->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)widget_h->ptr);
+    if (!w || !GTK_IS_BUTTON(w)) { out->tag = (double)SNASK_NIL; return; }
+    GuiCallbackCtx* ctx = (GuiCallbackCtx*)calloc(1, sizeof(GuiCallbackCtx));
+    ctx->handler_name = strdup((const char*)handler_name->ptr);
+    ctx->widget_handle = strdup((const char*)widget_h->ptr);
+    g_signal_connect_data(w, "clicked", G_CALLBACK(gui_on_button_clicked), ctx, (GClosureNotify)gui_free_ctx, 0);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+#else
+
+void gui_init(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_quit(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_run(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_window(SnaskValue* out, SnaskValue* _t, SnaskValue* _w, SnaskValue* _h) { (void)_t; (void)_w; (void)_h; out->tag = (double)SNASK_NIL; }
+void gui_vbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_set_child(SnaskValue* out, SnaskValue* _p, SnaskValue* _c) { (void)_p; (void)_c; out->tag = (double)SNASK_NIL; }
+void gui_add(SnaskValue* out, SnaskValue* _b, SnaskValue* _c) { (void)_b; (void)_c; out->tag = (double)SNASK_NIL; }
+void gui_label(SnaskValue* out, SnaskValue* _t) { (void)_t; out->tag = (double)SNASK_NIL; }
+void gui_entry(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_button(SnaskValue* out, SnaskValue* _t) { (void)_t; out->tag = (double)SNASK_NIL; }
+void gui_show_all(SnaskValue* out, SnaskValue* _w) { (void)_w; out->tag = (double)SNASK_NIL; }
+void gui_set_text(SnaskValue* out, SnaskValue* _w, SnaskValue* _t) { (void)_w; (void)_t; out->tag = (double)SNASK_NIL; }
+void gui_get_text(SnaskValue* out, SnaskValue* _w) { (void)_w; out->tag = (double)SNASK_NIL; }
+void gui_on_click(SnaskValue* out, SnaskValue* _w, SnaskValue* _h) { (void)_w; (void)_h; out->tag = (double)SNASK_NIL; }
+
+#endif
 
 // --- JSON ---
 typedef struct {
