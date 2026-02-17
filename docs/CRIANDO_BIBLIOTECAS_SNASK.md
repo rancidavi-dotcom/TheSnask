@@ -168,7 +168,13 @@ Se você não tem permissão de escrita no `rancidavi-dotcom/SnaskPackages`, fa�
 2) Publique em uma branch do seu fork:
 
 ```bash
-snask lib publish minha_lib --pr --fork "https://github.com/SEUUSER/SnaskPackages"
+snask lib publish minha_lib --pr --fork "https://github.com/rancidavi-dotcom/SnaskPackages"
+```
+
+Se você quiser publicar diretamente no registry oficial (somente mantenedores/collaborators), use:
+
+```bash
+snask lib publish minha_lib --push
 ```
 
 Isso:

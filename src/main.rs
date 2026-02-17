@@ -80,7 +80,7 @@ enum LibCommands {
         /// Publica via fork + Pull Request (não precisa permissão no repo)
         #[arg(long)]
         pr: bool,
-        /// URL do seu fork (ex: https://github.com/SEUUSER/SnaskPackages)
+        /// URL do seu fork (ex: https://github.com/rancidavi-dotcom/SnaskPackages)
         #[arg(long)]
         fork: Option<String>,
         /// Nome da branch (default: pkg/<nome>-v<versao>)
