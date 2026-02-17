@@ -51,6 +51,7 @@ Explore os guias detalhados na pasta `docs/`:
 1.  **[Guia Geral](docs/GUIA_SNASK.md)**: Referência técnica completa.
 2.  **[Aprenda Snask](docs/APRENDA_SNASK.md)**: Tutorial passo a passo para iniciantes.
 3.  **[Bibliotecas e Módulos](docs/BIBLIOTECAS_SNASK.md)**: Como usar `requests`, `sfs` e `utils`.
+4.  **[SPS (Snask Project System)](docs/SPS.md)**: Manifesto `snask.toml` + `snask build/run` sem argumentos.
 
 ## 🗺️ Roadmap v0.3.0
 - **SQLite ORM**: Integração nativa de banco de dados no compilador.

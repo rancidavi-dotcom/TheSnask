@@ -10,6 +10,7 @@ pub mod span;
 pub mod diagnostics;
 pub mod packages;
 pub mod llvm_generator;
+pub mod sps;
 
 use std::fs;
 use std::process::Command;
@@ -30,8 +31,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Build { file: String, #[arg(short, long)] output: Option<String> },
-    Run { file: String },
+    Init { #[arg(short, long)] name: Option<String> },
+    Build { file: Option<String>, #[arg(short, long)] output: Option<String> },
+    Run { file: Option<String> },
     Setup,
     Install { name: String },
     Uninstall { name: Option<String> },
@@ -43,16 +45,25 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
     match &cli.command {
+        Commands::Init { name } => {
+            if let Err(e) = sps_init(name.clone()) {
+                eprintln!("Erro ao iniciar projeto: {}", e);
+            }
+        }
         Commands::Build { file, output } => {
-            match build_file(file, output.clone()) {
+            match build_entry(file.clone(), output.clone()) {
                 Ok(_) => println!("Compilação LLVM concluída com sucesso."),
                 Err(e) => eprintln!("Erro durante a compilação: {}", e),
             }
         },
         Commands::Run { file } => {
-            match build_file(file, None) {
+            let file_path = match resolve_entry_file(file.clone()) {
+                Ok(p) => p,
+                Err(e) => { eprintln!("Erro durante a compilação: {}", e); return; }
+            };
+            match build_file(&file_path, None) {
                 Ok(_) => {
-                    let binary = file.replace(".snask", "");
+                    let binary = file_path.replace(".snask", "");
                     let binary_path = if binary.starts_with("/") || binary.starts_with("./") { binary } else { format!("./{}", binary) };
                     let status = Command::new(&binary_path).status();
                     if let Err(e) = status {
@@ -108,6 +119,23 @@ fn main() {
             }
         },
     }
+}
+
+fn resolve_entry_file(cli_file: Option<String>) -> Result<String, String> {
+    if let Some(f) = cli_file {
+        return Ok(f);
+    }
+
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
+        return Ok(m.package.entry);
+    }
+    Err("SPS: nenhum arquivo informado. Use `snask build arquivo.snask` ou crie um projeto com `snask init` (snask.toml) e rode `snask build`.".to_string())
+}
+
+fn build_entry(cli_file: Option<String>, output_name: Option<String>) -> Result<(), String> {
+    let file_path = resolve_entry_file(cli_file)?;
+    build_file(&file_path, output_name)
 }
 
 fn build_file(file_path: &str, output_name: Option<String>) -> Result<(), String> {
@@ -169,6 +197,34 @@ fn build_file(file_path: &str, output_name: Option<String>) -> Result<(), String
 
     if !status.success() { return Err("Falha na linkagem final.".to_string()); }
     fs::remove_file(ir_file).ok(); fs::remove_file(obj_file).ok();
+    Ok(())
+}
+
+fn sps_init(name: Option<String>) -> Result<(), String> {
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let project_name = name.unwrap_or_else(|| cwd.file_name().unwrap_or_default().to_string_lossy().to_string());
+    let manifest_path = cwd.join("snask.toml");
+    if manifest_path.exists() {
+        return Err("snask.toml já existe neste diretório.".to_string());
+    }
+
+    let entry = "main.snask";
+    let main_path = cwd.join(entry);
+    if main_path.exists() {
+        return Err(format!("Arquivo '{}' já existe neste diretório.", entry));
+    }
+
+    let manifest = format!(
+        "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nentry = \"{}\"\n\n[dependencies]\n\n[build]\nopt_level = 2\n",
+        project_name.replace('"', ""),
+        entry
+    );
+    fs::write(&manifest_path, manifest).map_err(|e| e.to_string())?;
+
+    let main_src = "class main\n    fun start()\n        print(\"hello snask\");\n";
+    fs::write(&main_path, main_src).map_err(|e| e.to_string())?;
+
+    println!("✅ SPS: criado snask.toml e {}.", entry);
     Ok(())
 }
 

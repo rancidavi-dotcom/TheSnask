@@ -4,6 +4,7 @@ Este documento é uma trilha completa para você dominar o Snask: **instalação
 
 - Tutorial rápido: `docs/APRENDA_SNASK.md`
 - Referência de módulos: `docs/BIBLIOTECAS_SNASK.md`
+- Projetos (SPS): `docs/SPS.md`
 
 ---
 
