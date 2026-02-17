@@ -1,7 +1,4 @@
 import "gui";
-import "gui_layout";
-import "gui_widgets";
-import "gui_app";
 
 mut g_lbl = "";
 mut g_entry = "";
@@ -9,40 +6,28 @@ mut g_count = 0;
 
 class main
     fun start()
-        if gui_app::init() == false
+        if gui::init() == false
             print("GUI não iniciou (sem display?).");
             return nil;
 
-        let win = gui_app::window("Hello Snask (GUI)", 520, 300, true);
+        let win = gui::window("Hello Snask (GUI)", 520, 300);
+        gui::set_resizable(win, true);
 
         // root
         let root = gui::vbox();
         gui::set_child(win, root);
 
-        gui_layout::section(root, "Demo: gui_app + gui_layout + gui_widgets");
+        gui::section(root, "Demo: gui helpers (gui::*)");
 
         g_lbl = gui::label("Contador: 0");
         gui::add(root, g_lbl);
 
-        g_entry = gui_widgets::labeled_entry(root, "Mensagem:", "Digite algo...");
+        g_entry = gui::labeled_entry(root, "Mensagem:", "Digite algo...");
 
-        let row = gui::hbox();
-        gui::add(root, row);
+        gui::buttons3(root, "+1", "on_inc", "Mostrar msg", "on_show", "Sair", "on_quit");
 
-        let btn_inc = gui::button("+1");
-        gui::on_click(btn_inc, "on_inc");
-        gui::add_expand(row, btn_inc);
-
-        let btn_show = gui::button("Mostrar msg");
-        gui::on_click(btn_show, "on_show");
-        gui::add_expand(row, btn_show);
-
-        let btn_quit = gui::button("Sair");
-        gui::on_click(btn_quit, "on_quit");
-        gui::add_expand(row, btn_quit);
-
-        gui_app::show(win);
-        gui_app::run();
+        gui::show_all(win);
+        gui::run();
 
 fun on_inc(_widget)
     g_count = g_count + 1;
