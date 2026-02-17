@@ -1,4 +1,4 @@
-# 📚 Guia de Bibliotecas Snask (v0.2.2)
+# 📚 Guia de Bibliotecas Snask (v0.2.3)
 
 O Snask utiliza um sistema de módulos com **Namespaces por padrão**. Ao importar uma biblioteca, você acessa suas funções usando o prefixo `nome_da_lib::`.
 
@@ -83,7 +83,7 @@ print("Círculo de raio 10 tem área:", area);
 
 ---
 
-💡 **Regra de Ouro:** No Snask v0.2.1, a sintaxe `modulo::funcao()` é o padrão para qualquer código importado. Isso garante que seu código seja modular e livre de conflitos!
+💡 **Regra de Ouro:** No Snask v0.2.3, a sintaxe `modulo::funcao()` é o padrão para qualquer código importado. Isso garante que seu código seja modular e livre de conflitos!
 
 ---
 

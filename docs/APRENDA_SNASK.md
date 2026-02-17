@@ -9,6 +9,7 @@ Este guia contém exemplos práticos e testados para você dominar a sintaxe e a
 print("Olá, Snask!");
 ```
 *   O Snask v0.2.1 garante saída limpa e sem falhas de segmentação no encerramento do programa.
+*   O Snask v0.2.3 mantém essa estabilidade e adiciona SPS (`snask.toml`) para projetos.
 
 ---
 

@@ -495,12 +495,12 @@ fn self_update() -> Result<(), String> {
     let status = Command::new("cargo").arg("build").arg("--release").status().map_err(|e| e.to_string())?;
     if !status.success() { return Err("Falha ao compilar.".to_string()); }
 
-    println!("✅ SNask atualizado com sucesso para a versão 0.2.2!");
+    println!("✅ SNask atualizado com sucesso para a versão 0.2.3!");
     Ok(())
 }
 
 fn run_setup() -> Result<(), String> {
-    println!("🚀 Iniciando configuração do SNask v0.2.2...");
+    println!("🚀 Iniciando configuração do SNask v0.2.3...");
     
     let home = std::env::var("HOME").map_err(|_| "Variável HOME não encontrada.".to_string())?;
     let snask_dir = format!("{}/.snask", home);
@@ -544,14 +544,14 @@ fn run_setup() -> Result<(), String> {
         }
     }
 
-    println!("✅ SNask v0.2.2 configurado com sucesso!");
+    println!("✅ SNask v0.2.3 configurado com sucesso!");
     println!("Dica: Reinicie seu terminal ou rode 'source ~/.bashrc' para começar a usar o comando 'snask' de qualquer lugar.");
     
     Ok(())
 }
 
 fn run_uninstall() -> Result<(), String> {
-    println!("🗑️  Desinstalando SNask v0.2.2...");
+    println!("🗑️  Desinstalando SNask v0.2.3...");
     
     let home = std::env::var("HOME").map_err(|_| "Variável HOME não encontrada.".to_string())?;
     let snask_dir = format!("{}/.snask", home);

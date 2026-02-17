@@ -1,6 +1,6 @@
 # 🐍 Snask: Compilador Nativo de Alto Desempenho
 
-[![Versão](https://img.shields.io/badge/Versão-v0.2.2-blue.svg)](https://github.com/rancidavi-dotcom/TheSnask)
+[![Versão](https://img.shields.io/badge/Versão-v0.2.3-blue.svg)](https://github.com/rancidavi-dotcom/TheSnask)
 [![Compilador](https://img.shields.io/badge/Backend-LLVM%2018-orange.svg)](https://llvm.org/)
 [![Construído com](https://img.shields.io/badge/Construído%20com-Rust-red.svg)](https://www.rust-lang.org/)
 
@@ -8,15 +8,15 @@
 
 ## 🚀 Instalação Rápida (Linux)
 
-Instale o SNask v0.2.2 com um único comando:
+Instale o SNask v0.2.3 com um único comando:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
 ```
 
-## 🛠️ Destaques da v0.2.2
+## 🛠️ Destaques da v0.2.3
 
-A versão 0.2.2 traz o suporte real a Objetos e uma estrutura de código moderna e organizada.
+A versão 0.2.3 adiciona SPS (Snask Project System), melhorias de ergonomia (prelude/escapes/operadores) e um build UX com progresso.
 
 | Recurso | Descrição |
 | :--- | :--- |
@@ -34,7 +34,7 @@ Todo programa Snask deve ter uma `class main` com um método `start()`.
 ```snask
 class main
     fun start()
-        print("Olá, Snask v0.2.2!");
+        print("Olá, Snask v0.2.3!");
         let x = 10;
         print("Resultado:", x * 5);
 ```

@@ -1,4 +1,4 @@
-# 📘 Guia Completo do Snask (Trilha do Desenvolvedor) — v0.2.2
+# 📘 Guia Completo do Snask (Trilha do Desenvolvedor) — v0.2.3
 
 Este documento é uma trilha completa para você dominar o Snask: **instalação → linguagem → módulos → web → autenticação → boas práticas**.
 
@@ -377,4 +377,4 @@ Próximos passos típicos:
 
 ---
 
-*Guia atualizado em 17 de fevereiro de 2026.*
+*Guia atualizado em 17 de fevereiro de 2026 (Snask v0.2.3).*
