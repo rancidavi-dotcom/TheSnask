@@ -1,0 +1,14 @@
+{
+    "packages": {
+        "utils": {
+            "version": "1.2.0",
+            "url": "utils.snask",
+            "description": "Biblioteca padrão de utilitários (Constantes e Funções) para Snask."
+        },
+        "sfs": {
+            "version": "1.2.0",
+            "url": "sfs.snask",
+            "description": "Snask File System - Biblioteca nativa para manipulação de arquivos e diretórios via LLVM."
+        }
+    }
+}
