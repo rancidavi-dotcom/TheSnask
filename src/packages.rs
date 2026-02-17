@@ -171,32 +171,47 @@ pub fn install_package_with_registry(name: &str, registry: &Registry) -> Result<
     } else {
         package.url.clone()
     };
-    let download_url = if url.starts_with("http") { url.clone() } else { format!("{}{}", BASE_PKG_URL, url) };
-
-    // GitHub raw pode ficar em cache; adiciona um cache-buster simples.
-    let download_url = if download_url.contains("raw.githubusercontent.com") && !download_url.contains('?') {
-        let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-        format!("{}?t={}", download_url, ts)
-    } else {
-        download_url
-    };
-
-    let pkg_response = reqwest::blocking::get(&download_url)
-        .map_err(|e| format!("Falha ao baixar pacote: {}", e))?;
-    if !pkg_response.status().is_success() {
-        return Err(format!("Erro ao baixar arquivo do pacote: HTTP {}", pkg_response.status()));
-    }
-
-    let content = pkg_response.bytes().map_err(|e| format!("Falha ao ler bytes do pacote: {}", e))?;
-    let hash = Sha256::digest(&content);
-    let sha256 = format!("{:x}", hash);
-
-    let packages_dir = get_packages_dir();
     let file_name = if url.ends_with(".snask") {
         url.split('/').last().unwrap().to_string()
     } else {
         format!("{}.snask", name)
     };
+
+    // Preferência: ler do registry git local (~/.snask/registry/packages/<file>).
+    let content: Vec<u8> = (|| -> Option<Vec<u8>> {
+        let repo = registry_repo_dir().ok()?;
+        let local = repo.join("packages").join(&file_name);
+        if local.exists() {
+            return fs::read(&local).ok();
+        }
+        None
+    })().unwrap_or_else(|| Vec::new());
+
+    let content = if !content.is_empty() {
+        content
+    } else {
+        // Fallback: baixa por HTTP
+        let download_url = if url.starts_with("http") { url.clone() } else { format!("{}{}", BASE_PKG_URL, url) };
+        // GitHub raw pode ficar em cache; adiciona um cache-buster simples.
+        let download_url = if download_url.contains("raw.githubusercontent.com") && !download_url.contains('?') {
+            let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+            format!("{}?t={}", download_url, ts)
+        } else {
+            download_url
+        };
+
+        let pkg_response = reqwest::blocking::get(&download_url)
+            .map_err(|e| format!("Falha ao baixar pacote: {}", e))?;
+        if !pkg_response.status().is_success() {
+            return Err(format!("Erro ao baixar arquivo do pacote: HTTP {}", pkg_response.status()));
+        }
+        pkg_response.bytes().map_err(|e| format!("Falha ao ler bytes do pacote: {}", e))?.to_vec()
+    };
+
+    let hash = Sha256::digest(&content);
+    let sha256 = format!("{:x}", hash);
+
+    let packages_dir = get_packages_dir();
     let dest_path = packages_dir.join(file_name);
     fs::write(&dest_path, &content)
         .map_err(|e| format!("Falha ao salvar pacote localmente: {}", e))?;
