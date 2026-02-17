@@ -34,6 +34,8 @@ enum Commands {
     Init { #[arg(short, long)] name: Option<String> },
     Build { file: Option<String>, #[arg(short, long)] output: Option<String> },
     Run { file: Option<String> },
+    Add { name: String, version: Option<String> },
+    Remove { name: String },
     Setup,
     Install { name: String },
     Uninstall { name: Option<String> },
@@ -57,11 +59,49 @@ fn main() {
             }
         },
         Commands::Run { file } => {
-            let file_path = match resolve_entry_file(file.clone()) {
-                Ok(p) => p,
-                Err(e) => { eprintln!("Erro durante a compilação: {}", e); return; }
+            // scripts: `snask run dev`
+            if let Some(arg) = file.clone() {
+                if !arg.ends_with(".snask") {
+                    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+                    if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
+                        if let Some(cmdline) = m.scripts.get(&arg) {
+                            let status = Command::new("sh").arg("-lc").arg(cmdline).status();
+                            if let Err(e) = status {
+                                eprintln!("Erro ao executar script '{}': {}", arg, e);
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+
+            let cwd = match std::env::current_dir() {
+                Ok(d) => d,
+                Err(e) => { eprintln!("Erro: {}", e); return; }
             };
-            match build_file(&file_path, None) {
+            let file_path = match crate::sps::load_manifest_from(&cwd) {
+                Ok((m, _p)) => {
+                    if let Err(e) = sps_resolve_deps_and_lock(&cwd, &m) {
+                        eprintln!("Erro durante a compilação: {}", e);
+                        return;
+                    }
+                    file.clone().unwrap_or_else(|| m.package.entry.clone())
+                }
+                Err(_) => match resolve_entry_file(file.clone()) {
+                    Ok(p) => p,
+                    Err(e) => { eprintln!("Erro durante a compilação: {}", e); return; }
+                }
+            };
+
+            // compila (com opt do SPS se existir)
+            let build_res = if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
+                let opt = m.opt_level_for(true);
+                build_file_with_opt(&file_path, None, opt)
+            } else {
+                build_file(&file_path, None)
+            };
+
+            match build_res {
                 Ok(_) => {
                     let binary = file_path.replace(".snask", "");
                     let binary_path = if binary.starts_with("/") || binary.starts_with("./") { binary } else { format!("./{}", binary) };
@@ -73,6 +113,16 @@ fn main() {
                 Err(e) => eprintln!("Erro durante a compilação: {}", e),
             }
         },
+        Commands::Add { name, version } => {
+            if let Err(e) = sps_add_dependency(name, version.clone()) {
+                eprintln!("Erro ao adicionar dependência: {}", e);
+            }
+        }
+        Commands::Remove { name } => {
+            if let Err(e) = sps_remove_dependency(name) {
+                eprintln!("Erro ao remover dependência: {}", e);
+            }
+        }
         Commands::Setup => {
             if let Err(e) = run_setup() {
                 eprintln!("Erro durante o setup: {}", e);
@@ -134,11 +184,25 @@ fn resolve_entry_file(cli_file: Option<String>) -> Result<String, String> {
 }
 
 fn build_entry(cli_file: Option<String>, output_name: Option<String>) -> Result<(), String> {
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+
+    // Se estiver em um projeto SPS, resolve deps e gera lock antes de build.
+    if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
+        sps_resolve_deps_and_lock(&cwd, &m)?;
+        let opt = m.opt_level_for(true);
+        let file_path = cli_file.unwrap_or_else(|| m.package.entry.clone());
+        return build_file_with_opt(&file_path, output_name, opt);
+    }
+
     let file_path = resolve_entry_file(cli_file)?;
     build_file(&file_path, output_name)
 }
 
 fn build_file(file_path: &str, output_name: Option<String>) -> Result<(), String> {
+    build_file_with_opt(file_path, output_name, 2)
+}
+
+fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: u8) -> Result<(), String> {
     let source = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
     let mut program = Parser::new(&source)?.parse_program().map_err(|e| format!("Erro no parser: {}", e))?;
 
@@ -178,7 +242,16 @@ fn build_file(file_path: &str, output_name: Option<String>) -> Result<(), String
     let obj_file = "temp_snask.o";
     fs::write(ir_file, ir).map_err(|e| e.to_string())?;
 
-    Command::new("llc-18").arg("-relocation-model=pic").arg("-filetype=obj").arg(ir_file).arg("-o").arg(obj_file).status().map_err(|e| e.to_string())?;
+    let opt_flag = format!("-O{}", opt_level);
+    Command::new("llc-18")
+        .arg(opt_flag)
+        .arg("-relocation-model=pic")
+        .arg("-filetype=obj")
+        .arg(ir_file)
+        .arg("-o")
+        .arg(obj_file)
+        .status()
+        .map_err(|e| e.to_string())?;
 
     let runtime_path = format!("{}/.snask/lib/runtime.o", std::env::var("HOME").unwrap());
     let final_output = output_name.unwrap_or_else(|| file_path.replace(".snask", ""));
@@ -225,6 +298,53 @@ fn sps_init(name: Option<String>) -> Result<(), String> {
     fs::write(&main_path, main_src).map_err(|e| e.to_string())?;
 
     println!("✅ SPS: criado snask.toml e {}.", entry);
+    Ok(())
+}
+
+fn sps_add_dependency(name: &str, version: Option<String>) -> Result<(), String> {
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let (mut m, manifest_path) = crate::sps::load_manifest_from(&cwd)?;
+    m.dependencies.insert(name.to_string(), version.unwrap_or_else(|| "*".to_string()));
+    let s = toml::to_string_pretty(&m).map_err(|e| e.to_string())?;
+    fs::write(&manifest_path, s).map_err(|e| e.to_string())?;
+
+    // instala imediatamente
+    let registry = crate::packages::fetch_registry()?;
+    let _ = crate::packages::install_package_with_registry(name, &registry)?;
+    // lock determinístico
+    sps_resolve_deps_and_lock(&cwd, &m)?;
+
+    println!("✅ SPS: dependência '{}' adicionada.", name);
+    Ok(())
+}
+
+fn sps_remove_dependency(name: &str) -> Result<(), String> {
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let (mut m, manifest_path) = crate::sps::load_manifest_from(&cwd)?;
+    m.dependencies.remove(name);
+    let s = toml::to_string_pretty(&m).map_err(|e| e.to_string())?;
+    fs::write(&manifest_path, s).map_err(|e| e.to_string())?;
+
+    // não desinstala global por padrão (pode ser compartilhado por outros projetos)
+    sps_resolve_deps_and_lock(&cwd, &m)?;
+    println!("✅ SPS: dependência '{}' removida do snask.toml.", name);
+    Ok(())
+}
+
+fn sps_resolve_deps_and_lock(dir: &std::path::Path, manifest: &crate::sps::SpsManifest) -> Result<(), String> {
+    let registry = crate::packages::fetch_registry()?;
+    let mut locked = std::collections::BTreeMap::new();
+    for (name, _req) in &manifest.dependencies {
+        if !crate::packages::is_package_installed(name) {
+            let (ver, sha, _path) = crate::packages::install_package_with_registry(name, &registry)?;
+            locked.insert(name.clone(), crate::sps::LockedDep { version: ver, sha256: sha });
+        } else {
+            let sha = crate::packages::read_installed_package_sha256(name)?;
+            let ver = crate::packages::read_installed_package_version_from_registry(name, &registry).unwrap_or_else(|| "unknown".to_string());
+            locked.insert(name.clone(), crate::sps::LockedDep { version: ver, sha256: sha });
+        }
+    }
+    crate::sps::write_lockfile(dir, manifest, locked)?;
     Ok(())
 }
 
