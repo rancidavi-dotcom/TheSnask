@@ -244,6 +244,27 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("num_to_str".to_string(), self.module.add_function("num_to_str", fn_1, None));
         self.functions.insert("calc_eval".to_string(), self.module.add_function("calc_eval", fn_1, None));
 
+        // SQLite (optional at link time)
+        self.functions.insert("sqlite_open".to_string(), self.module.add_function("sqlite_open", fn_1, None));
+        self.functions.insert("sqlite_close".to_string(), self.module.add_function("sqlite_close", fn_1, None));
+        self.functions.insert("sqlite_exec".to_string(), self.module.add_function("sqlite_exec", fn_2, None));
+        self.functions.insert("sqlite_query".to_string(), self.module.add_function("sqlite_query", fn_2, None));
+        self.functions.insert("sqlite_prepare".to_string(), self.module.add_function("sqlite_prepare", fn_2, None));
+        self.functions.insert("sqlite_finalize".to_string(), self.module.add_function("sqlite_finalize", fn_1, None));
+        self.functions.insert("sqlite_reset".to_string(), self.module.add_function("sqlite_reset", fn_1, None));
+        self.functions.insert("sqlite_bind_text".to_string(), self.module.add_function("sqlite_bind_text", fn_3, None));
+        self.functions.insert("sqlite_bind_num".to_string(), self.module.add_function("sqlite_bind_num", fn_3, None));
+        self.functions.insert("sqlite_bind_null".to_string(), self.module.add_function("sqlite_bind_null", fn_2, None));
+        self.functions.insert("sqlite_step".to_string(), self.module.add_function("sqlite_step", fn_1, None));
+        self.functions.insert("sqlite_column".to_string(), self.module.add_function("sqlite_column", fn_2, None));
+        self.functions.insert("sqlite_column_count".to_string(), self.module.add_function("sqlite_column_count", fn_1, None));
+        self.functions.insert("sqlite_column_name".to_string(), self.module.add_function("sqlite_column_name", fn_2, None));
+
+        // Multithreading (pthread)
+        self.functions.insert("thread_spawn".to_string(), self.module.add_function("thread_spawn", fn_2, None));
+        self.functions.insert("thread_join".to_string(), self.module.add_function("thread_join", fn_1, None));
+        self.functions.insert("thread_detach".to_string(), self.module.add_function("thread_detach", fn_1, None));
+
         self.functions.insert("s_alloc_obj".to_string(), self.module.add_function("s_alloc_obj", fn_alloc, None));
         self.functions.insert("s_json_stringify".to_string(), self.module.add_function("s_json_stringify", fn_1, None));
         self.functions.insert("json_stringify".to_string(), self.module.add_function("json_stringify", fn_1, None));

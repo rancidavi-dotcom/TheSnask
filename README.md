@@ -1,12 +1,12 @@
-# 🐍 Snask: Compilador Nativo de Alto Desempenho
+# Snask
 
-[![Versão](https://img.shields.io/badge/Versão-v0.2.3-blue.svg)](https://github.com/rancidavi-dotcom/TheSnask)
+[![Versão](https://img.shields.io/badge/Versão-v0.3.0-blue.svg)](https://github.com/rancidavi-dotcom/TheSnask)
 [![Compilador](https://img.shields.io/badge/Backend-LLVM%2018-orange.svg)](https://llvm.org/)
 [![Construído com](https://img.shields.io/badge/Construído%20com-Rust-red.svg)](https://www.rust-lang.org/)
 
-**Snask** é uma linguagem de programação focada em **velocidade bruta**, **identação obrigatória** e **POO Nativa**. Através de um compilador baseado em **LLVM 18**, o Snask gera binários nativos otimizados, eliminando o overhead de interpretação.
+**Snask** é uma linguagem compilada (LLVM 18) focada em **binários nativos**, **identação obrigatória** e uma experiência simples para construir projetos e bibliotecas.
 
-## 🚀 Instalação Rápida (Linux)
+## Instalação (Linux)
 
 Instale/atualize o SNask com um único comando:
 
@@ -14,37 +14,19 @@ Instale/atualize o SNask com um único comando:
 curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
 ```
 
-## 🛠️ Destaques da v0.2.3
+## Destaques (v0.3.0)
 
-A versão 0.2.3 adiciona SPS (Snask Project System), melhorias de ergonomia (prelude/escapes/operadores) e um build UX com progresso.
+A v0.3.0 adiciona base de banco (SQLite) no runtime, multithreading nativo (pthread), cross-compilation por alvo e GC simples para strings/buffers.
 
 | Recurso | Descrição |
 | :--- | :--- |
-| **🧬 POO Real** | Classes, métodos com `self` e instanciação dinâmica. |
-| **📐 Identação** | Blocos de código definidos por espaços (estilo Python). |
-| **⚙️ Pure Compiled** | Motor 100% LLVM, sem overhead de interpretador. |
-| **🚀 Auto-Update** | Comando `snask update` para manter a linguagem atualizada. |
-| **📂 Global PATH** | Instalador configura o sistema para uso global. |
+| **Compilação nativa** | Gera executáveis nativos via LLVM (sem interpretador). |
+| **Identação obrigatória** | Blocos definidos por espaços (estilo Python). |
+| **SPS (Project System)** | `snask.toml`, dependências, lockfile e build sem argumentos. |
+| **Runtime nativo** | Módulos/builtins para IO, JSON/Sjson, GUI (GTK) e mais. |
+| **SQLite + threads** | Integrações nativas para dados e paralelismo. |
 
-## 📦 Começando
-
-Todo programa Snask deve ter uma `class main` com um método `start()`.
-
-### Seu primeiro programa (`hello.snask`)
-```snask
-class main
-    fun start()
-        print("Olá, Snask v0.2.3!");
-        let x = 10;
-        print("Resultado:", x * 5);
-```
-
-### Compilar e Rodar
-```bash
-curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
-```
-
-## 📚 Documentação Oficial
+## Documentação
 
 Explore os guias detalhados na pasta `docs/`:
 
@@ -53,14 +35,13 @@ Explore os guias detalhados na pasta `docs/`:
 3.  **[Bibliotecas e Módulos](docs/BIBLIOTECAS_SNASK.md)**: Como usar `requests`, `sfs` e `utils`.
 4.  **[SPS (Snask Project System)](docs/SPS.md)**: Manifesto `snask.toml` + `snask build/run` sem argumentos.
 
-## 🗺️ Roadmap v0.3.0
-- **SQLite ORM**: Integração nativa de banco de dados no compilador.
-- **Multithreading**: Suporte a execução paralela nativa.
-- **Cross-Compilation**: Build fácil para Windows e macOS a partir do Linux.
-- **Garbage Collection**: Gerenciamento automático de memória para strings dinâmicas.
+## Status
 
-## 📄 Licença
+- Snask é um projeto em evolução; mudanças podem ocorrer entre versões.
+- Issues e contribuições são bem-vindas.
+
+## Licença
 Distribuído sob a **Licença MIT**.
 
 ---
-*Mantido com ⚡ por [rancidavi-dotcom](https://github.com/rancidavi-dotcom)*
+Mantido por [rancidavi-dotcom](https://github.com/rancidavi-dotcom).

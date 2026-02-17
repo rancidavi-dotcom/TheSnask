@@ -16,11 +16,18 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <dlfcn.h>
+#include <pthread.h>
 
 // --- GUI (GTK3) ---
 // Opcional: compilado quando SNASK_GUI_GTK estiver definido e os headers GTK3 existirem.
 #ifdef SNASK_GUI_GTK
 #include <gtk/gtk.h>
+#endif
+
+// --- SQLite ---
+// Opcional: compilado quando SNASK_SQLITE estiver definido e os headers sqlite3 existirem.
+#ifdef SNASK_SQLITE
+#include <sqlite3.h>
 #endif
 
 typedef enum { SNASK_NIL, SNASK_NUM, SNASK_BOOL, SNASK_STR, SNASK_OBJ } SnaskType;
@@ -32,6 +39,90 @@ typedef struct {
 } SnaskValue;
 
 // --- GERENCIAMENTO DE MEMÓRIA ---
+// GC simples (strings/buffers): registra ponteiros heap e libera no final do processo.
+// Objetivo: reduzir a rigidez/complexidade de “precisar dar free” em todo lugar.
+static pthread_mutex_t snask_gc_mu = PTHREAD_MUTEX_INITIALIZER;
+static void** snask_gc_ptrs = NULL;
+static size_t snask_gc_len = 0;
+static size_t snask_gc_cap = 0;
+static bool snask_gc_inited = false;
+
+static void snask_gc_cleanup(void) {
+    pthread_mutex_lock(&snask_gc_mu);
+    for (size_t i = 0; i < snask_gc_len; i++) {
+        if (snask_gc_ptrs[i]) free(snask_gc_ptrs[i]);
+    }
+    free(snask_gc_ptrs);
+    snask_gc_ptrs = NULL;
+    snask_gc_len = 0;
+    snask_gc_cap = 0;
+    pthread_mutex_unlock(&snask_gc_mu);
+}
+
+static void snask_gc_init_if_needed(void) {
+    if (snask_gc_inited) return;
+    snask_gc_inited = true;
+    atexit(snask_gc_cleanup);
+}
+
+static void snask_gc_track_ptr(void* p) {
+    if (!p) return;
+    snask_gc_init_if_needed();
+    pthread_mutex_lock(&snask_gc_mu);
+    if (snask_gc_len == snask_gc_cap) {
+        size_t new_cap = snask_gc_cap ? snask_gc_cap * 2 : 1024;
+        void** n = (void**)realloc(snask_gc_ptrs, new_cap * sizeof(void*));
+        if (!n) { pthread_mutex_unlock(&snask_gc_mu); return; }
+        snask_gc_ptrs = n;
+        snask_gc_cap = new_cap;
+    }
+    snask_gc_ptrs[snask_gc_len++] = p;
+    pthread_mutex_unlock(&snask_gc_mu);
+}
+
+static void* snask_gc_realloc(void* oldp, size_t n) {
+    snask_gc_init_if_needed();
+    void* newp = realloc(oldp, n);
+    if (!newp) return NULL;
+    pthread_mutex_lock(&snask_gc_mu);
+    for (size_t i = 0; i < snask_gc_len; i++) {
+        if (snask_gc_ptrs[i] == oldp) {
+            snask_gc_ptrs[i] = newp;
+            pthread_mutex_unlock(&snask_gc_mu);
+            return newp;
+        }
+    }
+    pthread_mutex_unlock(&snask_gc_mu);
+    snask_gc_track_ptr(newp);
+    return newp;
+}
+
+static void* snask_gc_malloc(size_t n) {
+    snask_gc_init_if_needed();
+    void* p = malloc(n);
+    snask_gc_track_ptr(p);
+    return p;
+}
+
+static char* snask_gc_strdup(const char* s) {
+    if (!s) return NULL;
+    snask_gc_init_if_needed();
+    char* p = strdup(s);
+    snask_gc_track_ptr(p);
+    return p;
+}
+
+static char* snask_gc_strndup(const char* s, size_t n) {
+    if (!s) return NULL;
+    snask_gc_init_if_needed();
+    char* p = (char*)malloc(n + 1);
+    if (!p) return NULL;
+    memcpy(p, s, n);
+    p[n] = '\0';
+    snask_gc_track_ptr(p);
+    return p;
+}
+
 typedef struct {
     char** names;
     SnaskValue* values;
@@ -45,6 +136,7 @@ static SnaskValue make_str(char* s);
 static SnaskValue make_obj(SnaskObject* o);
 static SnaskObject* obj_new(int count);
 void json_stringify(SnaskValue* out, SnaskValue* v);
+void json_parse(SnaskValue* out, SnaskValue* data);
 
 void s_alloc_obj(SnaskValue* out, SnaskValue* size_val, char** names) {
     if ((int)size_val->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
@@ -74,14 +166,14 @@ void http_request(SnaskValue* out, const char* method, SnaskValue* url, SnaskVal
     FILE *fp = popen(cmd, "r");
     if (!fp) { out->tag = (double)SNASK_NIL; return; }
     
-    char *response = malloc(1);
+    char *response = (char*)snask_gc_malloc(1);
     response[0] = '\0';
     char buffer[1024];
     size_t total_len = 0;
     
     while (fgets(buffer, sizeof(buffer), fp) != NULL) {
         size_t chunk_len = strlen(buffer);
-        response = realloc(response, total_len + chunk_len + 1);
+        response = (char*)snask_gc_realloc(response, total_len + chunk_len + 1);
         strcpy(response + total_len, buffer);
         total_len += chunk_len;
     }
@@ -233,8 +325,8 @@ void sfs_listdir(SnaskValue* out, SnaskValue* path) {
         }
         char idx_name[32];
         snprintf(idx_name, sizeof(idx_name), "%d", arr->count);
-        arr->names[arr->count] = strdup(idx_name);
-        arr->values[arr->count] = (SnaskValue){(double)SNASK_STR, 0, strdup(name)};
+        arr->names[arr->count] = snask_gc_strdup(idx_name);
+        arr->values[arr->count] = (SnaskValue){(double)SNASK_STR, 0, snask_gc_strdup(name)};
         arr->count++;
     }
     closedir(d);
@@ -263,7 +355,7 @@ void os_platform(SnaskValue* out) {
     struct utsname u;
     if (uname(&u) != 0) { out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return; }
     out->tag = (double)SNASK_STR;
-    out->ptr = strdup(u.sysname);
+    out->ptr = snask_gc_strdup(u.sysname);
     out->num = 0;
 }
 
@@ -271,7 +363,7 @@ void os_arch(SnaskValue* out) {
     struct utsname u;
     if (uname(&u) != 0) { out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return; }
     out->tag = (double)SNASK_STR;
-    out->ptr = strdup(u.machine);
+    out->ptr = snask_gc_strdup(u.machine);
     out->num = 0;
 }
 
@@ -280,7 +372,7 @@ void os_getenv(SnaskValue* out, SnaskValue* key) {
     const char* v = getenv((const char*)key->ptr);
     if (!v) { out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return; }
     out->tag = (double)SNASK_STR;
-    out->ptr = strdup(v);
+    out->ptr = snask_gc_strdup(v);
     out->num = 0;
 }
 
@@ -331,12 +423,12 @@ void path_basename(SnaskValue* out, SnaskValue* path) {
     const char* s = (const char*)path->ptr;
     size_t n = strlen(s);
     while (n > 0 && s[n - 1] == '/') n--;
-    if (n == 0) { out->tag = (double)SNASK_STR; out->ptr = strdup("/"); out->num = 0; return; }
-    char* tmp = strndup(s, n);
+    if (n == 0) { out->tag = (double)SNASK_STR; out->ptr = snask_gc_strdup("/"); out->num = 0; return; }
+    char* tmp = snask_gc_strndup(s, n);
     const char* ls = last_slash(tmp);
     const char* base = ls ? (ls + 1) : tmp;
     out->tag = (double)SNASK_STR;
-    out->ptr = strdup(base);
+    out->ptr = snask_gc_strdup(base);
     out->num = 0;
     free(tmp);
 }
@@ -346,15 +438,15 @@ void path_dirname(SnaskValue* out, SnaskValue* path) {
     const char* s = (const char*)path->ptr;
     size_t n = strlen(s);
     while (n > 0 && s[n - 1] == '/') n--;
-    if (n == 0) { out->tag = (double)SNASK_STR; out->ptr = strdup("/"); out->num = 0; return; }
-    char* tmp = strndup(s, n);
+    if (n == 0) { out->tag = (double)SNASK_STR; out->ptr = snask_gc_strdup("/"); out->num = 0; return; }
+    char* tmp = snask_gc_strndup(s, n);
     char* ls = strrchr(tmp, '/');
-    if (!ls) { out->tag = (double)SNASK_STR; out->ptr = strdup("."); out->num = 0; free(tmp); return; }
+    if (!ls) { out->tag = (double)SNASK_STR; out->ptr = snask_gc_strdup("."); out->num = 0; free(tmp); return; }
     while (ls > tmp && *ls == '/') ls--;
     size_t dn = (size_t)(ls - tmp + 1);
     if (dn == 0) dn = 1;
     out->tag = (double)SNASK_STR;
-    out->ptr = strndup(tmp, dn);
+    out->ptr = snask_gc_strndup(tmp, dn);
     out->num = 0;
     free(tmp);
 }
@@ -365,9 +457,9 @@ void path_extname(SnaskValue* out, SnaskValue* path) {
     const char* ls = last_slash(s);
     const char* base = ls ? (ls + 1) : s;
     const char* dot = strrchr(base, '.');
-    if (!dot || dot == base) { out->tag = (double)SNASK_STR; out->ptr = strdup(""); out->num = 0; return; }
+    if (!dot || dot == base) { out->tag = (double)SNASK_STR; out->ptr = snask_gc_strdup(""); out->num = 0; return; }
     out->tag = (double)SNASK_STR;
-    out->ptr = strdup(dot + 1);
+    out->ptr = snask_gc_strdup(dot + 1);
     out->num = 0;
 }
 
@@ -540,7 +632,7 @@ static void blaze_send_response_headers(int fd, int status, const char* content_
 
 static SnaskValue make_str_dup(const char* s) {
     if (!s) return make_nil();
-    return (SnaskValue){(double)SNASK_STR, 0, strdup(s)};
+    return (SnaskValue){(double)SNASK_STR, 0, snask_gc_strdup(s)};
 }
 
 static SnaskValue make_num_val(double n) { return (SnaskValue){(double)SNASK_NUM, n, NULL}; }
@@ -563,12 +655,6 @@ static SnaskValue blaze_call_snask_handler(const char* handler_name, const char*
     SnaskValue c = make_str_dup(cookie_header ? cookie_header : "");
 
     f(&ra, &m, &p, &q, &b, &c);
-
-    if ((int)m.tag == SNASK_STR) free(m.ptr);
-    if ((int)p.tag == SNASK_STR) free(p.ptr);
-    if ((int)q.tag == SNASK_STR) free(q.ptr);
-    if ((int)b.tag == SNASK_STR) free(b.ptr);
-    if ((int)c.tag == SNASK_STR) free(c.ptr);
     return ra;
 }
 
@@ -601,26 +687,32 @@ static int blaze_parse_content_length(const char* req) {
 
 static char* blaze_extract_query(const char* req) {
     char target[2048];
-    if (!blaze_parse_target_raw(req, target, sizeof(target))) return strdup("");
+    if (!blaze_parse_target_raw(req, target, sizeof(target))) return snask_gc_strdup("");
     const char* q = strchr(target, '?');
-    if (!q) return strdup("");
-    return strdup(q + 1);
+    if (!q) return snask_gc_strdup("");
+    return snask_gc_strdup(q + 1);
 }
 
 static char* blaze_extract_path_only(const char* req) {
     char target[2048];
-    if (!blaze_parse_target_raw(req, target, sizeof(target))) return strdup("/");
+    if (!blaze_parse_target_raw(req, target, sizeof(target))) return snask_gc_strdup("/");
     char* q = strchr(target, '?');
     if (q) *q = '\0';
-    return strdup(target);
+    return snask_gc_strdup(target);
 }
 
 static char* blaze_extract_cookie_header(const char* req) {
     const char* v = blaze_find_header(req, "Cookie");
-    if (!v) return strdup("");
+    if (!v) return snask_gc_strdup("");
     const char* eol = strstr(v, "\r\n");
-    if (!eol) return strdup(v);
-    return strndup(v, (size_t)(eol - v));
+    if (!eol) return snask_gc_strdup(v);
+    size_t n = (size_t)(eol - v);
+    char* tmp = (char*)malloc(n + 1);
+    memcpy(tmp, v, n);
+    tmp[n] = '\0';
+    char* out = snask_gc_strdup(tmp);
+    free(tmp);
+    return out;
 }
 
 // blaze_run(port, routes)
@@ -721,9 +813,6 @@ void blaze_run(SnaskValue* out, SnaskValue* port_val, SnaskValue* routes_val) {
                 char* query = blaze_extract_query(req);
                 char* cookie = blaze_extract_cookie_header(req);
                 SnaskValue rv = blaze_call_snask_handler((const char*)hv.ptr, method ? method : "GET", path_only, query, body_ptr, cookie);
-                free(path_only);
-                free(query);
-                free(cookie);
                 v = rv;
             }
         }
@@ -803,7 +892,7 @@ void blaze_qs_get(SnaskValue* out, SnaskValue* qs, SnaskValue* key) {
                 const char* v = eq + 1;
                 size_t vlen = (size_t)(end - v);
                 out->tag = (double)SNASK_STR;
-                out->ptr = strndup(v, vlen);
+                out->ptr = snask_gc_strndup(v, vlen);
                 out->num = 0;
                 return;
             }
@@ -811,7 +900,7 @@ void blaze_qs_get(SnaskValue* out, SnaskValue* qs, SnaskValue* key) {
             size_t nlen = (size_t)(end - p);
             if (nlen == klen && strncmp(p, k, klen) == 0) {
                 out->tag = (double)SNASK_STR;
-                out->ptr = strdup("");
+                out->ptr = snask_gc_strdup("");
                 out->num = 0;
                 return;
             }
@@ -840,7 +929,7 @@ void blaze_cookie_get(SnaskValue* out, SnaskValue* cookie_header, SnaskValue* na
                 const char* v = eq + 1;
                 size_t vlen = (size_t)(end - v);
                 out->tag = (double)SNASK_STR;
-                out->ptr = strndup(v, vlen);
+                out->ptr = snask_gc_strndup(v, vlen);
                 out->num = 0;
                 return;
             }
@@ -873,7 +962,7 @@ void sjson_type(SnaskValue* out, SnaskValue* v) {
     else if (tag == SNASK_BOOL) t = "bool";
     else if (tag == SNASK_STR) t = "str";
     else if (tag == SNASK_OBJ) t = "obj";
-    out->ptr = strdup(t);
+    out->ptr = snask_gc_strdup(t);
 }
 
 void sjson_arr_len(SnaskValue* out, SnaskValue* arr) {
@@ -915,7 +1004,7 @@ void sjson_arr_set(SnaskValue* out, SnaskValue* arr, SnaskValue* idx_val, SnaskV
     for (int i = o->count; i < new_count; i++) {
         char idx_name[32];
         snprintf(idx_name, sizeof(idx_name), "%d", i);
-        o->names[i] = strdup(idx_name);
+        o->names[i] = snask_gc_strdup(idx_name);
         o->values[i] = make_nil();
     }
     o->count = new_count;
@@ -935,7 +1024,7 @@ void sjson_arr_push(SnaskValue* out, SnaskValue* arr, SnaskValue* value) {
     o->values = (SnaskValue*)realloc(o->values, (size_t)new_count * sizeof(SnaskValue));
     char idx_name[32];
     snprintf(idx_name, sizeof(idx_name), "%d", idx);
-    o->names[idx] = strdup(idx_name);
+    o->names[idx] = snask_gc_strdup(idx_name);
     o->values[idx] = *value;
     o->count = new_count;
     out->num = 1.0;
@@ -970,18 +1059,18 @@ void sjson_path_get(SnaskValue* out, SnaskValue* root, SnaskValue* path_val) {
 
         if ((int)cur.tag != SNASK_OBJ || !cur.ptr) {
             SnaskObject* r = obj_new(3);
-            r->names[0] = strdup("ok"); r->values[0] = make_bool(false);
-            r->names[1] = strdup("value"); r->values[1] = make_nil();
-            r->names[2] = strdup("error"); r->values[2] = make_str(strdup("path_get: alvo não é objeto/array."));
+            r->names[0] = snask_gc_strdup("ok"); r->values[0] = make_bool(false);
+            r->names[1] = snask_gc_strdup("value"); r->values[1] = make_nil();
+            r->names[2] = snask_gc_strdup("error"); r->values[2] = make_str(snask_gc_strdup("path_get: alvo não é objeto/array."));
             *out = make_obj(r);
             return;
         }
 
         if (seg[0] == '\0') {
             SnaskObject* r = obj_new(3);
-            r->names[0] = strdup("ok"); r->values[0] = make_bool(false);
-            r->names[1] = strdup("value"); r->values[1] = make_nil();
-            r->names[2] = strdup("error"); r->values[2] = make_str(strdup("path_get: segmento vazio."));
+            r->names[0] = snask_gc_strdup("ok"); r->values[0] = make_bool(false);
+            r->names[1] = snask_gc_strdup("value"); r->values[1] = make_nil();
+            r->names[2] = snask_gc_strdup("error"); r->values[2] = make_str(snask_gc_strdup("path_get: segmento vazio."));
             *out = make_obj(r);
             return;
         }
@@ -1001,11 +1090,11 @@ void sjson_path_get(SnaskValue* out, SnaskValue* root, SnaskValue* path_val) {
 
         if (!found) {
             SnaskObject* r = obj_new(3);
-            r->names[0] = strdup("ok"); r->values[0] = make_bool(false);
-            r->names[1] = strdup("value"); r->values[1] = make_nil();
+            r->names[0] = snask_gc_strdup("ok"); r->values[0] = make_bool(false);
+            r->names[1] = snask_gc_strdup("value"); r->values[1] = make_nil();
             char msg[512];
             snprintf(msg, sizeof(msg), "path_get: segmento '%s' não encontrado.", seg);
-            r->names[2] = strdup("error"); r->values[2] = make_str(strdup(msg));
+            r->names[2] = snask_gc_strdup("error"); r->values[2] = make_str(snask_gc_strdup(msg));
             *out = make_obj(r);
             return;
         }
@@ -1013,9 +1102,9 @@ void sjson_path_get(SnaskValue* out, SnaskValue* root, SnaskValue* path_val) {
     }
 
     SnaskObject* r = obj_new(3);
-    r->names[0] = strdup("ok"); r->values[0] = make_bool(true);
-    r->names[1] = strdup("value"); r->values[1] = cur;
-    r->names[2] = strdup("error"); r->values[2] = make_str(strdup(""));
+    r->names[0] = snask_gc_strdup("ok"); r->values[0] = make_bool(true);
+    r->names[1] = snask_gc_strdup("value"); r->values[1] = cur;
+    r->names[2] = snask_gc_strdup("error"); r->values[2] = make_str(snask_gc_strdup(""));
     *out = make_obj(r);
 }
 
@@ -1036,7 +1125,7 @@ void os_random_hex(SnaskValue* out, SnaskValue* nbytes_val) {
     if (n != nbytes) { free(buf); out->tag = (double)SNASK_NIL; return; }
 
     static const char* hex = "0123456789abcdef";
-    char* s = (char*)malloc((size_t)nbytes * 2 + 1);
+    char* s = (char*)snask_gc_malloc((size_t)nbytes * 2 + 1);
     for (int i = 0; i < nbytes; i++) {
         s[i * 2] = hex[(buf[i] >> 4) & 0xF];
         s[i * 2 + 1] = hex[buf[i] & 0xF];
@@ -1112,9 +1201,8 @@ void auth_hash_password(SnaskValue* out, SnaskValue* password) {
     u64_to_hex(h, hex16);
 
     size_t out_len = 3 + 1 + ls + 1 + 16; // "v1$" + salt + "$" + hash
-    char* s = (char*)malloc(out_len + 1);
+    char* s = (char*)snask_gc_malloc(out_len + 1);
     snprintf(s, out_len + 1, "v1$%s$%s", salt_s, hex16);
-    free(salt.ptr);
 
     out->tag = (double)SNASK_STR;
     out->ptr = s;
@@ -1229,7 +1317,7 @@ void auth_bearer_header(SnaskValue* out, SnaskValue* token) {
 
 void auth_ok(SnaskValue* out) { out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL; }
 void auth_fail(SnaskValue* out) { out->tag = (double)SNASK_BOOL; out->num = 0.0; out->ptr = NULL; }
-void auth_version(SnaskValue* out) { out->tag = (double)SNASK_STR; out->ptr = strdup("0.2.0"); out->num = 0; }
+void auth_version(SnaskValue* out) { out->tag = (double)SNASK_STR; out->ptr = snask_gc_strdup("0.2.0"); out->num = 0; }
 
 // --- Type checks ---
 void is_nil(SnaskValue* out, SnaskValue* v) {
@@ -1273,7 +1361,7 @@ void s_len(SnaskValue* out, SnaskValue* s) {
 
 void s_upper(SnaskValue* out, SnaskValue* s) {
     if ((int)s->tag != SNASK_STR) { *out = *s; return; }
-    char* new_s = strdup((char*)s->ptr);
+    char* new_s = snask_gc_strdup((char*)s->ptr);
     for(int i = 0; new_s[i]; i++) new_s[i] = toupper(new_s[i]);
     out->tag = (double)SNASK_STR; out->ptr = new_s; out->num = 0;
 }
@@ -1287,10 +1375,87 @@ void s_exit(SnaskValue* out, SnaskValue* code) {
     exit(status);
 }
 
+// ---------------- Multithreading (pthread) ----------------
+typedef struct {
+    pthread_t tid;
+    char* fn_name;
+    char* arg;
+    int started;
+    int joined;
+} SnaskThread;
+
+static char* thread_ptr_to_handle(void* p) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%p", p);
+    return snask_gc_strdup(buf);
+}
+
+static void* thread_handle_to_ptr(const char* h) {
+    if (!h) return NULL;
+    void* p = NULL;
+    sscanf(h, "%p", &p);
+    return p;
+}
+
+static void* snask_thread_entry(void* vp) {
+    SnaskThread* t = (SnaskThread*)vp;
+    if (!t || !t->fn_name) return NULL;
+    char sym[512];
+    snprintf(sym, sizeof(sym), "f_%s", t->fn_name);
+    void* fp = dlsym(NULL, sym);
+    if (!fp) return NULL;
+    typedef void (*SnaskFn1)(SnaskValue* ra, SnaskValue* a1);
+    SnaskFn1 f = (SnaskFn1)fp;
+    SnaskValue ra = make_nil();
+    SnaskValue a = make_str_dup(t->arg ? t->arg : "");
+    f(&ra, &a);
+    (void)ra;
+    return NULL;
+}
+
+// thread_spawn(fn_name, arg_str) -> handle(str) ou nil
+void thread_spawn(SnaskValue* out, SnaskValue* fn_name, SnaskValue* arg_str) {
+    if ((int)fn_name->tag != SNASK_STR || (int)arg_str->tag != SNASK_STR || !fn_name->ptr || !arg_str->ptr) { out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return; }
+    SnaskThread* t = (SnaskThread*)snask_gc_malloc(sizeof(SnaskThread));
+    memset(t, 0, sizeof(*t));
+    t->fn_name = snask_gc_strdup((const char*)fn_name->ptr);
+    t->arg = snask_gc_strdup((const char*)arg_str->ptr);
+    if (pthread_create(&t->tid, NULL, snask_thread_entry, t) != 0) { out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return; }
+    t->started = 1;
+    out->tag = (double)SNASK_STR;
+    out->ptr = thread_ptr_to_handle(t);
+    out->num = 0;
+}
+
+// thread_join(handle) -> bool
+void thread_join(SnaskValue* out, SnaskValue* handle) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = 0;
+    if ((int)handle->tag != SNASK_STR || !handle->ptr) return;
+    SnaskThread* t = (SnaskThread*)thread_handle_to_ptr((const char*)handle->ptr);
+    if (!t || !t->started || t->joined) return;
+    if (pthread_join(t->tid, NULL) != 0) return;
+    t->joined = 1;
+    out->num = 1.0;
+}
+
+// thread_detach(handle) -> bool
+void thread_detach(SnaskValue* out, SnaskValue* handle) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = 0;
+    if ((int)handle->tag != SNASK_STR || !handle->ptr) return;
+    SnaskThread* t = (SnaskThread*)thread_handle_to_ptr((const char*)handle->ptr);
+    if (!t || !t->started) return;
+    if (pthread_detach(t->tid) != 0) return;
+    out->num = 1.0;
+}
+
 void s_concat(SnaskValue* out, SnaskValue* s1, SnaskValue* s2) {
     if ((int)s1->tag != SNASK_STR || (int)s2->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
     size_t len1 = strlen((char*)s1->ptr); size_t len2 = strlen((char*)s2->ptr);
-    char* new_str = malloc(len1 + len2 + 1);
+    char* new_str = (char*)snask_gc_malloc(len1 + len2 + 1);
     strcpy(new_str, (char*)s1->ptr); strcat(new_str, (char*)s2->ptr);
     out->tag = (double)SNASK_STR; out->ptr = new_str; out->num = 0;
 }
@@ -1301,7 +1466,7 @@ void s_concat(SnaskValue* out, SnaskValue* s1, SnaskValue* s2) {
 static char* gui_ptr_to_handle(void* p) {
     char buf[64];
     snprintf(buf, sizeof(buf), "%p", p);
-    return strdup(buf);
+    return snask_gc_strdup(buf);
 }
 
 static void* gui_handle_to_ptr(const char* h) {
@@ -1339,7 +1504,6 @@ static SnaskValue gui_call_handler_1(const char* handler_name, const char* widge
     SnaskValue ra = make_nil();
     SnaskValue wh = make_str_dup(widget_handle ? widget_handle : "");
     f(&ra, &wh);
-    if ((int)wh.tag == SNASK_STR) free(wh.ptr);
     return ra;
 }
 
@@ -1357,8 +1521,6 @@ static SnaskValue gui_call_handler_2(const char* handler_name, const char* widge
     SnaskValue wh = make_str_dup(widget_handle ? widget_handle : "");
     SnaskValue cv = make_str_dup(ctx ? ctx : "");
     f(&ra, &wh, &cv);
-    if ((int)wh.tag == SNASK_STR) free(wh.ptr);
-    if ((int)cv.tag == SNASK_STR) free(cv.ptr);
     return ra;
 }
 
@@ -1551,7 +1713,7 @@ void gui_get_text(SnaskValue* out, SnaskValue* widget_h) {
     if (GTK_IS_ENTRY(w)) {
         const char* t = gtk_entry_get_text(GTK_ENTRY(w));
         out->tag = (double)SNASK_STR;
-        out->ptr = strdup(t ? t : "");
+        out->ptr = snask_gc_strdup(t ? t : "");
         out->num = 0;
         return;
     }
@@ -1664,7 +1826,7 @@ void num_to_str(SnaskValue* out, SnaskValue* n) {
     char buf[128];
     snprintf(buf, sizeof(buf), "%.15g", n->num);
     out->tag = (double)SNASK_STR;
-    out->ptr = strdup(buf);
+    out->ptr = snask_gc_strdup(buf);
     out->num = 0;
 }
 
@@ -1804,6 +1966,293 @@ void calc_eval(SnaskValue* out, SnaskValue* expr) {
     out->num = r;
     out->ptr = NULL;
 }
+
+#ifdef SNASK_SQLITE
+// ---------------- SQLite (MVP) ----------------
+static char* sqlite_ptr_to_handle(void* p) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%p", p);
+    return snask_gc_strdup(buf);
+}
+
+static void* sqlite_handle_to_ptr(const char* h) {
+    if (!h) return NULL;
+    void* p = NULL;
+    sscanf(h, "%p", &p);
+    return p;
+}
+
+// sqlite_open(path) -> handle(str) ou nil
+void sqlite_open(SnaskValue* out, SnaskValue* path) {
+    if (!path || (int)path->tag != SNASK_STR || !path->ptr) { out->tag = (double)SNASK_NIL; return; }
+    sqlite3* db = NULL;
+    int rc = sqlite3_open((const char*)path->ptr, &db);
+    if (rc != SQLITE_OK || !db) { if (db) sqlite3_close(db); out->tag = (double)SNASK_NIL; return; }
+    out->tag = (double)SNASK_STR;
+    out->ptr = sqlite_ptr_to_handle(db);
+    out->num = 0;
+}
+
+void sqlite_close(SnaskValue* out, SnaskValue* handle) {
+    if (!handle || (int)handle->tag != SNASK_STR || !handle->ptr) { out->tag = (double)SNASK_NIL; return; }
+    sqlite3* db = (sqlite3*)sqlite_handle_to_ptr((const char*)handle->ptr);
+    if (!db) { out->tag = (double)SNASK_NIL; return; }
+    sqlite3_close(db);
+    out->tag = (double)SNASK_BOOL;
+    out->num = 1.0;
+    out->ptr = NULL;
+}
+
+void sqlite_exec(SnaskValue* out, SnaskValue* handle, SnaskValue* sql) {
+    if (!handle || !sql || (int)handle->tag != SNASK_STR || (int)sql->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    sqlite3* db = (sqlite3*)sqlite_handle_to_ptr((const char*)handle->ptr);
+    if (!db) { out->tag = (double)SNASK_NIL; return; }
+    char* err = NULL;
+    int rc = sqlite3_exec(db, (const char*)sql->ptr, NULL, NULL, &err);
+    if (err) sqlite3_free(err);
+    out->tag = (double)SNASK_BOOL;
+    out->num = (rc == SQLITE_OK) ? 1.0 : 0.0;
+    out->ptr = NULL;
+}
+
+typedef struct {
+    char* data;
+    size_t len;
+    size_t cap;
+} SqlBuf;
+
+static void sqlb_init(SqlBuf* sb) {
+    sb->cap = 256;
+    sb->len = 0;
+    sb->data = (char*)malloc(sb->cap);
+    sb->data[0] = '\0';
+}
+
+static void sqlb_append(SqlBuf* sb, const char* s) {
+    if (!s) s = "";
+    size_t n = strlen(s);
+    if (sb->len + n + 1 > sb->cap) {
+        while (sb->len + n + 1 > sb->cap) sb->cap *= 2;
+        sb->data = (char*)realloc(sb->data, sb->cap);
+    }
+    memcpy(sb->data + sb->len, s, n);
+    sb->len += n;
+    sb->data[sb->len] = '\0';
+}
+
+static void sqlb_append_ch(SqlBuf* sb, char c) {
+    if (sb->len + 2 > sb->cap) {
+        sb->cap *= 2;
+        sb->data = (char*)realloc(sb->data, sb->cap);
+    }
+    sb->data[sb->len++] = c;
+    sb->data[sb->len] = '\0';
+}
+
+static void sqlb_append_json_string(SqlBuf* sb, const char* s) {
+    sqlb_append_ch(sb, '"');
+    for (const unsigned char* p = (const unsigned char*)(s ? s : ""); *p; p++) {
+        unsigned char c = *p;
+        if (c == '"' || c == '\\') { sqlb_append_ch(sb, '\\'); sqlb_append_ch(sb, (char)c); }
+        else if (c == '\n') { sqlb_append(sb, "\\n"); }
+        else if (c == '\r') { sqlb_append(sb, "\\r"); }
+        else if (c == '\t') { sqlb_append(sb, "\\t"); }
+        else if (c < 0x20) { sqlb_append(sb, " "); }
+        else sqlb_append_ch(sb, (char)c);
+    }
+    sqlb_append_ch(sb, '"');
+}
+
+// sqlite_query(handle, sql) -> array(obj) ou nil
+// Retorna array JSON parseado: [ {col: val, ...}, ... ]
+void sqlite_query(SnaskValue* out, SnaskValue* handle, SnaskValue* sql) {
+    if (!handle || !sql || (int)handle->tag != SNASK_STR || (int)sql->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    sqlite3* db = (sqlite3*)sqlite_handle_to_ptr((const char*)handle->ptr);
+    if (!db) { out->tag = (double)SNASK_NIL; return; }
+
+    sqlite3_stmt* stmt = NULL;
+    int rc = sqlite3_prepare_v2(db, (const char*)sql->ptr, -1, &stmt, NULL);
+    if (rc != SQLITE_OK || !stmt) { out->tag = (double)SNASK_NIL; return; }
+
+    SqlBuf sb; sqlb_init(&sb);
+    sqlb_append_ch(&sb, '[');
+    bool first_row = true;
+    int cols = sqlite3_column_count(stmt);
+
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        if (!first_row) sqlb_append_ch(&sb, ',');
+        first_row = false;
+        sqlb_append_ch(&sb, '{');
+        for (int i = 0; i < cols; i++) {
+            if (i > 0) sqlb_append_ch(&sb, ',');
+            const char* col = sqlite3_column_name(stmt, i);
+            sqlb_append_json_string(&sb, col ? col : "");
+            sqlb_append_ch(&sb, ':');
+            int t = sqlite3_column_type(stmt, i);
+            if (t == SQLITE_NULL) {
+                sqlb_append(&sb, "null");
+            } else if (t == SQLITE_INTEGER) {
+                char buf[64];
+                snprintf(buf, sizeof(buf), "%lld", (long long)sqlite3_column_int64(stmt, i));
+                sqlb_append(&sb, buf);
+            } else if (t == SQLITE_FLOAT) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "%.15g", sqlite3_column_double(stmt, i));
+                sqlb_append(&sb, buf);
+            } else {
+                const unsigned char* txt = sqlite3_column_text(stmt, i);
+                sqlb_append_json_string(&sb, (const char*)txt);
+            }
+        }
+        sqlb_append_ch(&sb, '}');
+    }
+
+    sqlite3_finalize(stmt);
+    sqlb_append_ch(&sb, ']');
+
+    // parse JSON string into SnaskValue
+    SnaskValue tmp;
+    tmp.tag = (double)SNASK_STR;
+    tmp.ptr = sb.data; // take ownership
+    tmp.num = 0;
+    json_parse(out, &tmp);
+    // json_parse does not take ownership of tmp.ptr; free buffer
+    free(sb.data);
+}
+
+// ---------------- SQLite Stmt API (para ORM/queries seguras) ----------------
+// sqlite_prepare(db_handle, sql) -> stmt_handle(str) ou nil
+void sqlite_prepare(SnaskValue* out, SnaskValue* handle, SnaskValue* sql) {
+    if (!handle || !sql || (int)handle->tag != SNASK_STR || (int)sql->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    sqlite3* db = (sqlite3*)sqlite_handle_to_ptr((const char*)handle->ptr);
+    if (!db) { out->tag = (double)SNASK_NIL; return; }
+    sqlite3_stmt* stmt = NULL;
+    int rc = sqlite3_prepare_v2(db, (const char*)sql->ptr, -1, &stmt, NULL);
+    if (rc != SQLITE_OK || !stmt) { out->tag = (double)SNASK_NIL; return; }
+    out->tag = (double)SNASK_STR;
+    out->ptr = sqlite_ptr_to_handle(stmt);
+    out->num = 0;
+}
+
+// sqlite_finalize(stmt_handle) -> bool
+void sqlite_finalize(SnaskValue* out, SnaskValue* stmt_h) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = 0;
+    if (!stmt_h || (int)stmt_h->tag != SNASK_STR || !stmt_h->ptr) return;
+    sqlite3_stmt* st = (sqlite3_stmt*)sqlite_handle_to_ptr((const char*)stmt_h->ptr);
+    if (!st) return;
+    sqlite3_finalize(st);
+    out->num = 1.0;
+}
+
+// sqlite_reset(stmt_handle) -> bool
+void sqlite_reset(SnaskValue* out, SnaskValue* stmt_h) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = 0;
+    if (!stmt_h || (int)stmt_h->tag != SNASK_STR || !stmt_h->ptr) return;
+    sqlite3_stmt* st = (sqlite3_stmt*)sqlite_handle_to_ptr((const char*)stmt_h->ptr);
+    if (!st) return;
+    int rc = sqlite3_reset(st);
+    out->num = (rc == SQLITE_OK) ? 1.0 : 0.0;
+}
+
+// sqlite_bind_text(stmt_handle, idx, text) -> bool  (idx começa em 1)
+void sqlite_bind_text(SnaskValue* out, SnaskValue* stmt_h, SnaskValue* idx_v, SnaskValue* txt) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = 0;
+    if (!stmt_h || !idx_v || !txt || (int)stmt_h->tag != SNASK_STR || (int)idx_v->tag != SNASK_NUM || (int)txt->tag != SNASK_STR) return;
+    sqlite3_stmt* st = (sqlite3_stmt*)sqlite_handle_to_ptr((const char*)stmt_h->ptr);
+    if (!st) return;
+    int idx = (int)idx_v->num;
+    int rc = sqlite3_bind_text(st, idx, (const char*)txt->ptr, -1, SQLITE_TRANSIENT);
+    out->num = (rc == SQLITE_OK) ? 1.0 : 0.0;
+}
+
+// sqlite_bind_num(stmt_handle, idx, num) -> bool
+void sqlite_bind_num(SnaskValue* out, SnaskValue* stmt_h, SnaskValue* idx_v, SnaskValue* num_v) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = 0;
+    if (!stmt_h || !idx_v || !num_v || (int)stmt_h->tag != SNASK_STR || (int)idx_v->tag != SNASK_NUM || (int)num_v->tag != SNASK_NUM) return;
+    sqlite3_stmt* st = (sqlite3_stmt*)sqlite_handle_to_ptr((const char*)stmt_h->ptr);
+    if (!st) return;
+    int idx = (int)idx_v->num;
+    int rc = sqlite3_bind_double(st, idx, (double)num_v->num);
+    out->num = (rc == SQLITE_OK) ? 1.0 : 0.0;
+}
+
+// sqlite_bind_null(stmt_handle, idx) -> bool
+void sqlite_bind_null(SnaskValue* out, SnaskValue* stmt_h, SnaskValue* idx_v) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = 0;
+    if (!stmt_h || !idx_v || (int)stmt_h->tag != SNASK_STR || (int)idx_v->tag != SNASK_NUM) return;
+    sqlite3_stmt* st = (sqlite3_stmt*)sqlite_handle_to_ptr((const char*)stmt_h->ptr);
+    if (!st) return;
+    int idx = (int)idx_v->num;
+    int rc = sqlite3_bind_null(st, idx);
+    out->num = (rc == SQLITE_OK) ? 1.0 : 0.0;
+}
+
+// sqlite_step(stmt_handle) -> bool (true se retornou uma linha; false se DONE/erro)
+void sqlite_step(SnaskValue* out, SnaskValue* stmt_h) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = 0;
+    if (!stmt_h || (int)stmt_h->tag != SNASK_STR || !stmt_h->ptr) return;
+    sqlite3_stmt* st = (sqlite3_stmt*)sqlite_handle_to_ptr((const char*)stmt_h->ptr);
+    if (!st) return;
+    int rc = sqlite3_step(st);
+    out->num = (rc == SQLITE_ROW) ? 1.0 : 0.0;
+}
+
+// sqlite_column(stmt_handle, idx0) -> any (idx0 começa em 0)
+void sqlite_column(SnaskValue* out, SnaskValue* stmt_h, SnaskValue* idx_v) {
+    if (!stmt_h || !idx_v || (int)stmt_h->tag != SNASK_STR || (int)idx_v->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return; }
+    sqlite3_stmt* st = (sqlite3_stmt*)sqlite_handle_to_ptr((const char*)stmt_h->ptr);
+    if (!st) { out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return; }
+    int idx = (int)idx_v->num;
+    int t = sqlite3_column_type(st, idx);
+    if (t == SQLITE_NULL) {
+        out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return;
+    }
+    if (t == SQLITE_INTEGER) {
+        out->tag = (double)SNASK_NUM; out->ptr = NULL; out->num = (double)sqlite3_column_int64(st, idx); return;
+    }
+    if (t == SQLITE_FLOAT) {
+        out->tag = (double)SNASK_NUM; out->ptr = NULL; out->num = (double)sqlite3_column_double(st, idx); return;
+    }
+    const unsigned char* txt = sqlite3_column_text(st, idx);
+    out->tag = (double)SNASK_STR;
+    out->ptr = snask_gc_strdup((const char*)(txt ? txt : (const unsigned char*)""));
+    out->num = 0;
+}
+
+// sqlite_column_count(stmt_handle) -> num
+void sqlite_column_count(SnaskValue* out, SnaskValue* stmt_h) {
+    if (!stmt_h || (int)stmt_h->tag != SNASK_STR || !stmt_h->ptr) { out->tag = (double)SNASK_NIL; return; }
+    sqlite3_stmt* st = (sqlite3_stmt*)sqlite_handle_to_ptr((const char*)stmt_h->ptr);
+    if (!st) { out->tag = (double)SNASK_NIL; return; }
+    out->tag = (double)SNASK_NUM;
+    out->ptr = NULL;
+    out->num = (double)sqlite3_column_count(st);
+}
+
+// sqlite_column_name(stmt_handle, idx0) -> str
+void sqlite_column_name(SnaskValue* out, SnaskValue* stmt_h, SnaskValue* idx_v) {
+    if (!stmt_h || !idx_v || (int)stmt_h->tag != SNASK_STR || (int)idx_v->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
+    sqlite3_stmt* st = (sqlite3_stmt*)sqlite_handle_to_ptr((const char*)stmt_h->ptr);
+    if (!st) { out->tag = (double)SNASK_NIL; return; }
+    int idx = (int)idx_v->num;
+    const char* n = sqlite3_column_name(st, idx);
+    out->tag = (double)SNASK_STR;
+    out->ptr = snask_gc_strdup(n ? n : "");
+    out->num = 0;
+}
+#endif
 
 // --- JSON ---
 typedef struct {
@@ -2068,7 +2517,7 @@ static SnaskValue jp_parse_array(JsonParser* p) {
         if (p->err) { free(arr->names); free(arr->values); free(arr); return make_nil(); }
         char idx_name[32];
         snprintf(idx_name, sizeof(idx_name), "%d", len);
-        obj_push(&arr, &cap, &len, strdup(idx_name), val);
+        obj_push(&arr, &cap, &len, snask_gc_strdup(idx_name), val);
         jp_skip_ws(p);
         if (jp_consume(p, ']')) return make_obj(arr);
         if (!jp_consume(p, ',')) { p->err = "Esperado ',' ou ']' em array JSON."; free(arr->names); free(arr->values); free(arr); return make_nil(); }
@@ -2129,12 +2578,12 @@ void json_parse_ex(SnaskValue* out, SnaskValue* data) {
     }
 
     SnaskObject* obj = obj_new(3);
-    obj->names[0] = strdup("ok");
-    obj->names[1] = strdup("value");
-    obj->names[2] = strdup("error");
+    obj->names[0] = snask_gc_strdup("ok");
+    obj->names[1] = snask_gc_strdup("value");
+    obj->names[2] = snask_gc_strdup("error");
     obj->values[0] = make_bool(err == NULL);
     obj->values[1] = (err == NULL) ? v : make_nil();
-    obj->values[2] = make_str(strdup(err ? err : ""));
+    obj->values[2] = make_str(snask_gc_strdup(err ? err : ""));
 
     *out = make_obj(obj);
 }
@@ -2196,7 +2645,7 @@ void json_set(SnaskValue* out, SnaskValue* obj_val, SnaskValue* key_val, SnaskVa
     int new_count = obj->count + 1;
     obj->names = (char**)realloc(obj->names, (size_t)new_count * sizeof(char*));
     obj->values = (SnaskValue*)realloc(obj->values, (size_t)new_count * sizeof(SnaskValue));
-    obj->names[new_count - 1] = strdup(key);
+    obj->names[new_count - 1] = snask_gc_strdup(key);
     obj->values[new_count - 1] = *value;
     obj->count = new_count;
     out->num = 1.0;

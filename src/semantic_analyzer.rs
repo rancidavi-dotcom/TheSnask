@@ -322,6 +322,27 @@ impl SemanticAnalyzer {
         self.define_builtin("num_to_str", vec![Type::Float], Type::String, false);
         self.define_builtin("calc_eval", vec![Type::String], Type::Float, false);
 
+        // SQLite (MVP)
+        self.define_builtin("sqlite_open", vec![Type::String], Type::String, false);
+        self.define_builtin("sqlite_close", vec![Type::String], Type::Bool, false);
+        self.define_builtin("sqlite_exec", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin("sqlite_query", vec![Type::String, Type::String], Type::Any, false);
+        self.define_builtin("sqlite_prepare", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin("sqlite_finalize", vec![Type::String], Type::Bool, false);
+        self.define_builtin("sqlite_reset", vec![Type::String], Type::Bool, false);
+        self.define_builtin("sqlite_bind_text", vec![Type::String, Type::Float, Type::String], Type::Bool, false);
+        self.define_builtin("sqlite_bind_num", vec![Type::String, Type::Float, Type::Float], Type::Bool, false);
+        self.define_builtin("sqlite_bind_null", vec![Type::String, Type::Float], Type::Bool, false);
+        self.define_builtin("sqlite_step", vec![Type::String], Type::Bool, false);
+        self.define_builtin("sqlite_column", vec![Type::String, Type::Float], Type::Any, false);
+        self.define_builtin("sqlite_column_count", vec![Type::String], Type::Float, false);
+        self.define_builtin("sqlite_column_name", vec![Type::String, Type::Float], Type::String, false);
+
+        // Multithreading (pthread)
+        self.define_builtin("thread_spawn", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin("thread_join", vec![Type::String], Type::Bool, false);
+        self.define_builtin("thread_detach", vec![Type::String], Type::Bool, false);
+
         // Sistema Operacional / Baixo Nível
         self.define_builtin("peek", vec![Type::Ptr], Type::Any, false);
         self.define_builtin("poke", vec![Type::Ptr, Type::Any], Type::Void, false);

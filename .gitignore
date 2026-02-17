@@ -1,14 +1,22 @@
-/target
-/api_demo
-/hello
-/snask
-/test_*
-/blaze_demo
-/blaze_auth_system
-/tmp_blaze/
-/runtime.o
-/.snask/
-/tmp_blaze_auth_sessions.json
-/tmp_blaze_auth_users.json
-/api_items.json
-/vscode-snask/
+# Build/artifacts
+target/
+*.o
+*.ll
+
+# Snask build temp files
+temp_snask.*
+
+# Local demos / scratch
+tmp_*/
+tmp_*.json
+tmp_*.db
+*.db
+
+# Local SPS demo folders
+tmp_sps_demo_*/
+
+# Nested repos
+_SnaskPackages/
+
+# OS junk
+.DS_Store

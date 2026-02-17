@@ -33,11 +33,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Init { #[arg(short, long)] name: Option<String> },
-    Build { file: Option<String>, #[arg(short, long)] output: Option<String> },
+    Build { file: Option<String>, #[arg(short, long)] output: Option<String>, #[arg(long)] target: Option<String> },
     Run { file: Option<String> },
     Add { name: String, version: Option<String> },
     Remove { name: String },
-    Setup,
+    Setup { #[arg(long)] target: Option<String> },
     Install { name: String },
     Uninstall { name: Option<String> },
     Update { name: Option<String> },
@@ -53,8 +53,8 @@ fn main() {
                 eprintln!("Erro ao iniciar projeto: {}", e);
             }
         }
-        Commands::Build { file, output } => {
-            match build_entry(file.clone(), output.clone()) {
+        Commands::Build { file, output, target } => {
+            match build_entry(file.clone(), output.clone(), target.clone()) {
                 Ok(_) => println!("Compilação LLVM concluída com sucesso."),
                 Err(e) => eprintln!("Erro durante a compilação: {}", e),
             }
@@ -101,9 +101,9 @@ fn main() {
             // compila (com opt do SPS se existir)
             let build_res = if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
                 let opt = m.opt_level_for(true);
-                build_file_with_opt(&file_path, None, opt)
+                build_file_with_opt(&file_path, None, opt, None)
             } else {
-                build_file(&file_path, None)
+                build_file(&file_path, None, None)
             };
 
             match build_res {
@@ -128,8 +128,8 @@ fn main() {
                 eprintln!("Erro ao remover dependência: {}", e);
             }
         }
-        Commands::Setup => {
-            if let Err(e) = run_setup() {
+        Commands::Setup { target } => {
+            if let Err(e) = run_setup(target.clone()) {
                 eprintln!("Erro durante o setup: {}", e);
             }
         },
@@ -188,7 +188,7 @@ fn resolve_entry_file(cli_file: Option<String>) -> Result<String, String> {
     Err("SPS: nenhum arquivo informado. Use `snask build arquivo.snask` ou crie um projeto com `snask init` (snask.toml) e rode `snask build`.".to_string())
 }
 
-fn build_entry(cli_file: Option<String>, output_name: Option<String>) -> Result<(), String> {
+fn build_entry(cli_file: Option<String>, output_name: Option<String>, target: Option<String>) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(ProgressStyle::with_template("{spinner} {msg}").unwrap());
@@ -205,7 +205,7 @@ fn build_entry(cli_file: Option<String>, output_name: Option<String>) -> Result<
         let opt = m.opt_level_for(true);
         let file_path = cli_file.unwrap_or_else(|| m.package.entry.clone());
         spinner.set_message(format!("Compilando {} (O{})", file_path, opt));
-        let res = build_file_with_opt(&file_path, output_name, opt);
+        let res = build_file_with_opt(&file_path, output_name, opt, target.clone());
         match &res {
             Ok(_) => spinner.finish_with_message("Build finalizado"),
             Err(_) => spinner.finish_and_clear(),
@@ -215,7 +215,7 @@ fn build_entry(cli_file: Option<String>, output_name: Option<String>) -> Result<
 
     let file_path = resolve_entry_file(cli_file)?;
     spinner.set_message(format!("Compilando {}", file_path));
-    let res = build_file(&file_path, output_name);
+    let res = build_file_with_opt(&file_path, output_name, 2, target);
     match &res {
         Ok(_) => spinner.finish_with_message("Build finalizado"),
         Err(_) => spinner.finish_and_clear(),
@@ -223,11 +223,11 @@ fn build_entry(cli_file: Option<String>, output_name: Option<String>) -> Result<
     res
 }
 
-fn build_file(file_path: &str, output_name: Option<String>) -> Result<(), String> {
-    build_file_with_opt(file_path, output_name, 2)
+fn build_file(file_path: &str, output_name: Option<String>, target: Option<String>) -> Result<(), String> {
+    build_file_with_opt(file_path, output_name, 2, target)
 }
 
-fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: u8) -> Result<(), String> {
+fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: u8, target: Option<String>) -> Result<(), String> {
     let pb = ProgressBar::new(6);
     pb.set_style(
         ProgressStyle::with_template("{bar:40.cyan/blue} {pos}/{len} {msg}")
@@ -288,10 +288,16 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
 
     pb.set_message(format!("Compilando (llc-18 -O{})", opt_level));
     let opt_flag = format!("-O{}", opt_level);
-    Command::new("llc-18")
+    let mut llc = Command::new("llc-18");
+    llc
         .arg(opt_flag)
         .arg("-relocation-model=pic")
         .arg("-filetype=obj")
+        ;
+    if let Some(t) = &target {
+        llc.arg(format!("-mtriple={}", t));
+    }
+    llc
         .arg(ir_file)
         .arg("-o")
         .arg(obj_file)
@@ -299,10 +305,22 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
         .map_err(|e| e.to_string())?;
 
     pb.set_message("Linkando (clang-18)");
-    let runtime_path = format!("{}/.snask/lib/runtime.o", std::env::var("HOME").unwrap());
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let runtime_path = if let Some(t) = &target {
+        format!("{}/.snask/lib/{}/runtime.o", home, t)
+    } else {
+        format!("{}/.snask/lib/runtime.o", home)
+    };
+    if !std::path::Path::new(&runtime_path).exists() {
+        return Err(format!("Runtime não encontrado em '{}'. Rode `snask setup{}`.", runtime_path, target.as_ref().map(|t| format!(" --target {}", t)).unwrap_or_default()));
+    }
     let final_output = output_name.unwrap_or_else(|| file_path.replace(".snask", ""));
 
-    let status = Command::new("clang-18")
+    let mut clang = Command::new("clang-18");
+    if let Some(t) = &target {
+        clang.arg(format!("--target={}", t));
+    }
+    let status = clang
         .arg(obj_file)
         .arg(runtime_path)
         .arg("-o")
@@ -311,8 +329,8 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
         // Necessário para blaze (dlsym handlers) e para expor símbolos do binário
         .arg("-ldl")
         .arg("-Wl,--export-dynamic")
-        // GUI (GTK3) - link opcional
-        .args(get_gtk_libs_if_needed(&source))
+        // Link args requeridos pelo runtime (ex.: gtk/sqlite se habilitados no setup)
+        .args(get_runtime_linkargs(target.as_deref()))
         .status()
         .map_err(|e| e.to_string())?;
 
@@ -323,17 +341,15 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
     Ok(())
 }
 
-fn get_gtk_libs_if_needed(source: &str) -> Vec<String> {
-    // Heurística MVP: só tenta linkar GTK se o arquivo importar "gui".
-    if !source.contains("import \"gui\"") && !source.contains("import \"gui\";") {
-        return Vec::new();
-    }
-
-    let out = Command::new("pkg-config").arg("--libs").arg("gtk+-3.0").output();
-    let Ok(out) = out else { return Vec::new(); };
-    if !out.status.success() { return Vec::new(); }
-    let libs = String::from_utf8_lossy(&out.stdout);
-    libs.split_whitespace().map(|s| s.to_string()).collect()
+fn get_runtime_linkargs(target: Option<&str>) -> Vec<String> {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let p = if let Some(t) = target {
+        format!("{}/.snask/lib/{}/runtime.linkargs", home, t)
+    } else {
+        format!("{}/.snask/lib/runtime.linkargs", home)
+    };
+    let Ok(s) = std::fs::read_to_string(&p) else { return Vec::new(); };
+    s.split_whitespace().map(|x| x.to_string()).collect()
 }
 
 fn sps_init(name: Option<String>) -> Result<(), String> {
@@ -510,12 +526,12 @@ fn self_update() -> Result<(), String> {
     let status = Command::new("cargo").arg("build").arg("--release").status().map_err(|e| e.to_string())?;
     if !status.success() { return Err("Falha ao compilar.".to_string()); }
 
-    println!("✅ SNask atualizado com sucesso para a versão 0.2.3!");
+    println!("✅ SNask atualizado com sucesso para a versão 0.3.0!");
     Ok(())
 }
 
-fn run_setup() -> Result<(), String> {
-    println!("🚀 Iniciando configuração do SNask v0.2.3...");
+fn run_setup(target: Option<String>) -> Result<(), String> {
+    println!("🚀 Iniciando configuração do SNask v0.3.0...");
     
     let home = std::env::var("HOME").map_err(|_| "Variável HOME não encontrada.".to_string())?;
     let snask_dir = format!("{}/.snask", home);
@@ -527,36 +543,98 @@ fn run_setup() -> Result<(), String> {
     fs::create_dir_all(&snask_bin).map_err(|e| e.to_string())?;
 
     println!("⚙️  Compilando o Runtime Nativo (C)...");
-    let runtime_out = format!("{}/runtime.o", snask_lib);
-
-    let mut gcc = Command::new("gcc");
-    gcc.arg("-c").arg("src/runtime.c").arg("-o").arg(&runtime_out);
-
-    // GUI opcional (GTK3)
-    let gtk_cflags = Command::new("pkg-config")
-        .arg("--cflags")
-        .arg("gtk+-3.0")
-        .output();
-    if let Ok(out) = gtk_cflags {
-        if out.status.success() {
-            let cflags = String::from_utf8_lossy(&out.stdout);
-            for f in cflags.split_whitespace() {
-                gcc.arg(f);
-            }
-            gcc.arg("-DSNASK_GUI_GTK");
-            println!("🖼️  GUI: GTK3 habilitado (runtime).");
-        } else {
-            println!("ℹ️  GUI: GTK3 não encontrado via pkg-config (runtime sem GUI).");
-        }
+    let (_runtime_dir, runtime_out, linkargs_path) = if let Some(t) = &target {
+        let dir = format!("{}/{}", snask_lib, t);
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        (dir.clone(), format!("{}/runtime.o", dir), format!("{}/runtime.linkargs", dir))
     } else {
-        println!("ℹ️  GUI: pkg-config não encontrado (runtime sem GUI).");
+        (snask_lib.clone(), format!("{}/runtime.o", snask_lib), format!("{}/runtime.linkargs", snask_lib))
+    };
+
+    // Link args requeridos pelo runtime (persistidos para `snask build`)
+    let mut runtime_linkargs: Vec<String> = vec!["-pthread".to_string()];
+
+    // Compilador: nativo usa gcc; cross usa clang-18 --target.
+    let mut cc = if target.is_some() { Command::new("clang-18") } else { Command::new("gcc") };
+    cc.arg("-c")
+        .arg("src/runtime.c")
+        .arg("-ffunction-sections")
+        .arg("-fdata-sections")
+        .arg("-pthread")
+        .arg("-o")
+        .arg(&runtime_out);
+
+    if let Some(t) = &target {
+        // Para cross-compilation, não tentamos ativar GTK/SQLite via pkg-config (seria do host).
+        cc.arg(format!("--target={}", t));
+        println!("🎯 Cross: runtime alvo = {}", t);
+        // Persistimos apenas pthread por padrão.
+    } else {
+        // GUI opcional (GTK3)
+        let gtk_cflags = Command::new("pkg-config")
+            .arg("--cflags")
+            .arg("gtk+-3.0")
+            .output();
+        if let Ok(out) = gtk_cflags {
+            if out.status.success() {
+                let cflags = String::from_utf8_lossy(&out.stdout);
+                for f in cflags.split_whitespace() {
+                    cc.arg(f);
+                }
+                cc.arg("-DSNASK_GUI_GTK");
+                println!("🖼️  GUI: GTK3 habilitado (runtime).");
+
+                if let Ok(libs) = Command::new("pkg-config").arg("--libs").arg("gtk+-3.0").output() {
+                    if libs.status.success() {
+                        runtime_linkargs.extend(String::from_utf8_lossy(&libs.stdout).split_whitespace().map(|s| s.to_string()));
+                    }
+                }
+            } else {
+                println!("ℹ️  GUI: GTK3 não encontrado via pkg-config (runtime sem GUI).");
+            }
+        } else {
+            println!("ℹ️  GUI: pkg-config não encontrado (runtime sem GUI).");
+        }
+
+        // SQLite opcional
+        let sqlite_cflags = Command::new("pkg-config")
+            .arg("--cflags")
+            .arg("sqlite3")
+            .output();
+        if let Ok(out) = sqlite_cflags {
+            if out.status.success() {
+                let cflags = String::from_utf8_lossy(&out.stdout);
+                for f in cflags.split_whitespace() {
+                    cc.arg(f);
+                }
+                cc.arg("-DSNASK_SQLITE");
+                println!("🗄️  SQLite: sqlite3 habilitado (runtime).");
+
+                if let Ok(libs) = Command::new("pkg-config").arg("--libs").arg("sqlite3").output() {
+                    if libs.status.success() {
+                        runtime_linkargs.extend(String::from_utf8_lossy(&libs.stdout).split_whitespace().map(|s| s.to_string()));
+                    }
+                }
+            } else {
+                println!("ℹ️  SQLite: sqlite3 não encontrado via pkg-config (runtime sem SQLite).");
+            }
+        } else {
+            println!("ℹ️  SQLite: pkg-config não encontrado (runtime sem SQLite).");
+        }
     }
 
-    let status = gcc.status().map_err(|e| e.to_string())?;
+    let status = cc.status().map_err(|e| e.to_string())?;
 
     if !status.success() {
-        return Err("Falha ao compilar o runtime.c. Verifique se o gcc está instalado.".to_string());
+        return Err(if target.is_some() {
+            "Falha ao compilar o runtime.c (cross). Verifique seu toolchain/headers do alvo e se o clang-18 suporta este --target.".to_string()
+        } else {
+            "Falha ao compilar o runtime.c. Verifique se o gcc está instalado.".to_string()
+        });
     }
+
+    let linkargs = runtime_linkargs.join(" ");
+    fs::write(&linkargs_path, linkargs).map_err(|e| e.to_string())?;
 
     println!("🚚 Instalando binário em {}...", snask_bin);
     let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -578,14 +656,14 @@ fn run_setup() -> Result<(), String> {
         }
     }
 
-    println!("✅ SNask v0.2.3 configurado com sucesso!");
+    println!("✅ SNask v0.3.0 configurado com sucesso!");
     println!("Dica: Reinicie seu terminal ou rode 'source ~/.bashrc' para começar a usar o comando 'snask' de qualquer lugar.");
     
     Ok(())
 }
 
 fn run_uninstall() -> Result<(), String> {
-    println!("🗑️  Desinstalando SNask v0.2.3...");
+    println!("🗑️  Desinstalando SNask v0.3.0...");
     
     let home = std::env::var("HOME").map_err(|_| "Variável HOME não encontrada.".to_string())?;
     let snask_dir = format!("{}/.snask", home);
