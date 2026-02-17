@@ -110,6 +110,42 @@ Se você já usa um registry interno, mantenha o padrão dele. Se quiser, eu pos
 
 ---
 
+## 5.1) Ferramentas oficiais (CLI)
+
+O Snask tem comandos para **criar** e **publicar** bibliotecas no registry oficial (SnaskPackages) sem mexer no compilador.
+
+### Criar template
+
+```bash
+snask lib init minha_lib --version 0.1.0 --description "Minha lib de exemplo"
+```
+
+Isso gera no diretório atual:
+- `minha_lib.snask`
+- `minha_lib_README.md`
+
+### Publicar no registry (SnaskPackages)
+
+Pré-requisito: o registry precisa estar clonado em `~/.snask/registry`.
+Se ainda não estiver, rode uma vez:
+
+```bash
+snask search json
+```
+
+Depois publique:
+
+```bash
+snask lib publish minha_lib --version 0.1.0 --description "Minha lib de exemplo" --push
+```
+
+O publish:
+- copia `minha_lib.snask` para `~/.snask/registry/packages/minha_lib.snask`
+- cria/atualiza `~/.snask/registry/index/m/minha_lib.json`
+- faz `git commit` e (se `--push`) `git push origin main`
+
+---
+
 ## 6) Template pronto (copiar e começar)
 
 Crie `minha_lib.snask`:

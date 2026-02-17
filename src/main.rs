@@ -9,6 +9,7 @@ pub mod stdlib;
 pub mod span;
 pub mod diagnostics;
 pub mod packages;
+pub mod lib_tool;
 pub mod llvm_generator;
 pub mod sps;
 
@@ -45,6 +46,37 @@ enum Commands {
     Update { name: Option<String> },
     List,
     Search { query: String },
+    /// Ferramentas para criar/publicar bibliotecas Snask
+    Lib {
+        #[command(subcommand)]
+        cmd: LibCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum LibCommands {
+    /// Cria um template de biblioteca no diretório atual
+    Init {
+        name: String,
+        #[arg(long, default_value = "0.1.0")]
+        version: String,
+        #[arg(long, default_value = "Minha biblioteca Snask.")]
+        description: String,
+    },
+    /// Publica a biblioteca atual no registry (SnaskPackages via ~/.snask/registry)
+    Publish {
+        name: String,
+        #[arg(long, default_value = "0.1.0")]
+        version: String,
+        #[arg(long, default_value = "Minha biblioteca Snask.")]
+        description: String,
+        /// Mensagem do commit
+        #[arg(long)]
+        message: Option<String>,
+        /// Faz git push automaticamente
+        #[arg(long)]
+        push: bool,
+    },
 }
 
 fn main() {
@@ -180,6 +212,32 @@ fn main() {
                 eprintln!("Erro ao pesquisar pacotes: {}", e);
             }
         },
+        Commands::Lib { cmd } => {
+            match cmd {
+                LibCommands::Init { name, version, description } => {
+                    let res = crate::lib_tool::lib_init(crate::lib_tool::NewLibOpts {
+                        name: name.clone(),
+                        description: description.clone(),
+                        version: version.clone(),
+                    });
+                    if let Err(e) = res {
+                        eprintln!("Erro: {}", e);
+                    }
+                }
+                LibCommands::Publish { name, version, description, message, push } => {
+                    let res = crate::lib_tool::lib_publish(crate::lib_tool::PublishOpts {
+                        name: name.clone(),
+                        version: version.clone(),
+                        description: description.clone(),
+                        message: message.clone(),
+                        push: *push,
+                    });
+                    if let Err(e) = res {
+                        eprintln!("Erro: {}", e);
+                    }
+                }
+            }
+        }
     }
 }
 
