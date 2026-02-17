@@ -1,0 +1,72 @@
+import "json";
+import "sjson";
+
+// Prelude padrão (Snask puro).
+// Importando este módulo você ganha helpers comuns: println, dbg, assert/expect e Result-like.
+
+fun println(a)
+    print(a);
+
+fun dbg(label, value)
+    print(label, "=", value);
+    return value;
+
+fun assert(cond, msg)
+    if cond
+        return true;
+    print("Assertion failed:", msg);
+    exit(1);
+    return false;
+
+fun expect(value, msg)
+    if is_nil(value)
+        print("Expect failed:", msg);
+        exit(1);
+    return value;
+
+// Result-like: { ok: bool, value: any, error: str }
+fun ok(value)
+    let r = json::new_object();
+    json::set(r, "ok", true);
+    json::set(r, "value", value);
+    json::set(r, "error", "");
+    return r;
+
+fun err(message)
+    let r = json::new_object();
+    json::set(r, "ok", false);
+    json::set(r, "value", nil);
+    json::set(r, "error", message);
+    return r;
+
+fun unwrap(res)
+    if json::get(res, "ok")
+        return json::get(res, "value");
+    print("Unwrap error:", json::get(res, "error"));
+    exit(1);
+    return nil;
+
+fun unwrap_or(res, default_value)
+    if json::get(res, "ok")
+        return json::get(res, "value");
+    return default_value;
+
+// Nil ergonomics
+fun is_some(value)
+    return not is_nil(value);
+
+fun unwrap_nil(value, msg)
+    if is_nil(value)
+        print("Nil unwrap:", msg);
+        exit(1);
+    return value;
+
+// JSON helpers (safe)
+fun jget(o, key)
+    return sjson::path_get(o, key);
+
+fun path_get(o, key, default_value)
+    let v = sjson::path_get(o, key);
+    if is_nil(v)
+        return default_value;
+    return v;

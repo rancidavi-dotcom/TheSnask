@@ -15,7 +15,7 @@ use std::fs;
 use std::process::Command;
 use clap::{Parser as ClapParser, Subcommand};
 use crate::parser::Parser;
-use crate::semantic_analyzer::SemanticAnalyzer;
+use crate::semantic_analyzer::{SemanticAnalyzer, SemanticError};
 use crate::llvm_generator::LLVMGenerator;
 use inkwell::context::Context;
 use crate::ast::{Program, StmtKind};
@@ -134,7 +134,13 @@ fn build_file(file_path: &str, output_name: Option<String>) -> Result<(), String
 
     let mut analyzer = SemanticAnalyzer::new();
     analyzer.analyze(&resolved_program);
-    if !analyzer.errors.is_empty() { return Err(format!("Análise semântica encontrou erros: {:?}", analyzer.errors)); }
+    if !analyzer.errors.is_empty() {
+        let mut out = String::from("Análise semântica encontrou erros:\n");
+        for e in &analyzer.errors {
+            out.push_str(&format!("- {}\n", format_semantic_error(e)));
+        }
+        return Err(out);
+    }
 
     let context = Context::create();
     let mut generator = LLVMGenerator::new(&context, file_path);
@@ -164,6 +170,31 @@ fn build_file(file_path: &str, output_name: Option<String>) -> Result<(), String
     if !status.success() { return Err("Falha na linkagem final.".to_string()); }
     fs::remove_file(ir_file).ok(); fs::remove_file(obj_file).ok();
     Ok(())
+}
+
+fn format_semantic_error(e: &SemanticError) -> String {
+    use crate::semantic_analyzer::SemanticError::*;
+    match e {
+        VariableAlreadyDeclared(name) => format!("Variável '{}' já foi declarada.", name),
+        VariableNotFound(name) => format!("Variável '{}' não encontrada.", name),
+        FunctionAlreadyDeclared(name) => format!("Função '{}' já foi declarada.", name),
+        FunctionNotFound(name) => format!("Função '{}' não encontrada.", name),
+        TypeMismatch { expected, found } => format!("Tipo incompatível: esperado {:?}, encontrado {:?}.", expected, found),
+        InvalidOperation { op, type1, type2 } => {
+            if let Some(t2) = type2 {
+                format!("Operação inválida: '{}' entre {:?} e {:?}.", op, type1, t2)
+            } else {
+                format!("Operação inválida: '{}' em {:?}.", op, type1)
+            }
+        }
+        ImmutableAssignment(name) => format!("'{}' é imutável. Dica: declare com 'mut {} = ...;'.", name, name),
+        ReturnOutsideFunction => "Uso de 'return' fora de uma função.".to_string(),
+        WrongNumberOfArguments { expected, found } => format!("Número errado de argumentos: esperado {}, encontrado {}.", expected, found),
+        IndexAccessOnNonIndexable(t) => format!("Acesso por índice em tipo não indexável: {:?}.", t),
+        InvalidIndexType(t) => format!("Tipo de índice inválido: {:?} (esperado num).", t),
+        PropertyNotFound(p) => format!("Propriedade '{}' não encontrada.", p),
+        NotCallable(t) => format!("Tentativa de chamada em valor não chamável: {:?}.", t),
+    }
 }
 
 fn self_update() -> Result<(), String> {
@@ -261,10 +292,13 @@ fn resolve_imports(program: &mut Program, resolved_program: &mut Program, resolv
                     .to_str()
                     .unwrap_or_default();
 
-                // Renomeia funções do módulo para incluir o namespace
-                for m_stmt in &mut module_ast {
-                    if let StmtKind::FuncDeclaration(f) = &mut m_stmt.kind {
-                        f.name = format!("{}::{}", module_name, f.name);
+                // Renomeia funções do módulo para incluir o namespace.
+                // Exceção: "prelude" é pensado para ser importado e usado sem prefixos (ergonomia).
+                if module_name != "prelude" {
+                    for m_stmt in &mut module_ast {
+                        if let StmtKind::FuncDeclaration(f) = &mut m_stmt.kind {
+                            f.name = format!("{}::{}", module_name, f.name);
+                        }
                     }
                 }
 

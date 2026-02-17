@@ -1,6 +1,23 @@
-# 📚 Guia de Bibliotecas Snask (v0.2.1)
+# 📚 Guia de Bibliotecas Snask (v0.2.2)
 
-O Snask utiliza um sistema de módulos com **Namespaces Obrigatórios**. Ao importar uma biblioteca, você deve acessar suas funções usando o prefixo `nome_da_lib::`.
+O Snask utiliza um sistema de módulos com **Namespaces por padrão**. Ao importar uma biblioteca, você acessa suas funções usando o prefixo `nome_da_lib::`.
+
+Exceção: `prelude` foi feita para ser importada e usada **sem prefixo** (ergonomia).
+
+---
+
+## 0. Biblioteca: `prelude` ✅
+Helpers “de sempre”: `println`, `dbg`, `assert`, `expect`, Result-like (`ok/err/unwrap/unwrap_or`), `is_some`, `path_get`.
+
+### Exemplo de Uso:
+```snask
+import "prelude"
+
+class main
+    fun main()
+        println("ok");
+        assert(1 + 1 == 2, "math");
+```
 
 ---
 
@@ -104,6 +121,33 @@ class main
 ```
 
 ---
+
+## 4.1 Biblioteca: `sjson` (Sjson) ✅
+Camada **mais segura** para JSON, mantendo compatibilidade com `json`.
+
+### Ideia
+O `sjson` padroniza operações e oferece versões “safe” que retornam um objeto:
+`{ ok: bool, value: any, error: str }`
+
+### Funções Disponíveis (principais)
+*   `sjson::decode(text)` / `sjson::encode(value)` / `sjson::encode_pretty(value)`
+*   `sjson::decode_safe(text)` (retorna `{ok,value,error}`)
+*   `sjson::path_get(root, "a.b.0.c")` (retorna `{ok,value,error}`)
+*   Arrays: `sjson::arr()`, `sjson::push(a,v)`, `sjson::at(a,i)`, `sjson::alen(a)`
+
+### Exemplo
+```snask
+import "sjson";
+import "json";
+
+class main
+    fun start()
+        let r = sjson::decode_safe("[1,2,3]");
+        if json::get(r, "ok")
+            print("ok len:", sjson::alen(json::get(r, "value")));
+        else
+            print("erro:", json::get(r, "error"));
+```
 
 ## 5. Biblioteca: `os` 🖥️
 Helpers para sistema/arquivos. Parte é Snask puro, e parte usa funções nativas do runtime (`sfs_*`, `s_time/s_sleep`, etc.).

@@ -201,6 +201,17 @@ impl SemanticAnalyzer {
         self.define_builtin("json_index", vec![Type::Any, Type::Float], Type::Any, false);
         self.define_builtin("json_set", vec![Type::Any, Type::String, Type::Any], Type::Bool, false);
 
+        // Sjson
+        self.define_builtin("sjson_new_object", vec![], Type::Any, false);
+        self.define_builtin("sjson_new_array", vec![], Type::Any, false);
+        self.define_builtin("sjson_type", vec![Type::Any], Type::String, false);
+        self.define_builtin("sjson_arr_len", vec![Type::Any], Type::Float, false);
+        self.define_builtin("sjson_arr_get", vec![Type::Any, Type::Float], Type::Any, false);
+        self.define_builtin("sjson_arr_set", vec![Type::Any, Type::Float, Type::Any], Type::Bool, false);
+        self.define_builtin("sjson_arr_push", vec![Type::Any, Type::Any], Type::Bool, false);
+        self.define_builtin("sjson_path_get", vec![Type::Any, Type::String], Type::Any, false);
+        self.define_builtin("json_parse_ex", vec![Type::String], Type::Any, false);
+
         // System
         self.define_builtin("time", vec![], Type::Float, false);
         self.define_builtin("sleep", vec![Type::Float], Type::Void, false);
@@ -653,6 +664,15 @@ impl SemanticAnalyzer {
                              Err(SemanticError::InvalidOperation { op: format!("{:?}", op), type1: left_type, type2: Some(right_type) })
                         }
                     }
+                    BinaryOp::And | BinaryOp::Or => {
+                        if left_type == Type::Any || right_type == Type::Any {
+                            Ok(Type::Bool)
+                        } else if left_type == Type::Bool && right_type == Type::Bool {
+                            Ok(Type::Bool)
+                        } else {
+                            Err(SemanticError::InvalidOperation { op: format!("{:?}", op), type1: left_type, type2: Some(right_type) })
+                        }
+                    }
                 }
             }
             ExprKind::Unary { op, expr } => {
@@ -661,6 +681,11 @@ impl SemanticAnalyzer {
                     UnaryOp::Negative => {
                         if expr_type.is_numeric() { Ok(expr_type) } else {
                             Err(SemanticError::InvalidOperation { op: "Negative".to_string(), type1: expr_type, type2: None })
+                        }
+                    }
+                    UnaryOp::Not => {
+                        if expr_type == Type::Any || expr_type == Type::Bool { Ok(Type::Bool) } else {
+                            Err(SemanticError::InvalidOperation { op: "Not".to_string(), type1: expr_type, type2: None })
                         }
                     }
                 }

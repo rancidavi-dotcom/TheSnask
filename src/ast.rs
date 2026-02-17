@@ -19,11 +19,14 @@ pub enum BinaryOp {
     LessThan,
     GreaterThanOrEquals,
     LessThanOrEquals,
+    And,
+    Or,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum UnaryOp {
     Negative,
+    Not,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -218,4 +221,3 @@ pub enum StmtKind {
 }
 
 pub type Program = Vec<Stmt>;
-

@@ -29,6 +29,11 @@
             "version": "0.2.0",
             "url": "blaze_auth.snask",
             "description": "Blaze Auth - primitives de autenticação (local) e helpers de sessão/cookie; stubs para Google OAuth."
+        },
+        "sjson": {
+            "version": "0.1.0",
+            "url": "sjson.snask",
+            "description": "Sjson - JSON padrão do Snask, mantendo compatibilidade com json."
         }
     }
 }

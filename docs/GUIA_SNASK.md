@@ -95,7 +95,22 @@ mut idade = 25;
 idade = idade + 1;
 ```
 
-### 4.3 Comentários
+### 4.3 Operadores úteis (ergonomia)
+Lógicos:
+- `and`, `or`, `not`
+
+Atribuição com açúcar:
+- `+=`, `-=`, `*=`, `/=`
+
+Exemplo:
+```snask
+mut x = 1;
+x += 2;
+if (x == 3) and not false
+    print("ok");
+```
+
+### 4.4 Comentários
 Use `//` para comentário de linha.
 
 ---
@@ -180,6 +195,16 @@ E use sempre o namespace:
 ```snask
 let obj = json::new_object();
 os::write_json_pretty("data.json", obj);
+```
+
+Exceção: `prelude` é um módulo “ergonômico” pensado para ser importado e usado sem prefixo:
+```snask
+import "prelude";
+
+class main
+    fun start()
+        println("hello");
+        assert(1 + 1 == 2, "math");
 ```
 
 O compilador procura módulos:
@@ -323,8 +348,17 @@ snask setup
 ou recompile manualmente o runtime se estiver desenvolvendo o compilador.
 
 ### 16.2 Strings com escapes
-O parser de strings é simples: evite JSON “com aspas escapadas” dentro de string literal.
-Prefira construir o objeto via `json::new_object()` + `json::set(...)`.
+Snask suporta escapes comuns em strings:
+- `\\n`, `\\r`, `\\t`, `\\\"`, `\\\\`
+- `\\uXXXX` (unicode)
+
+Exemplo:
+```snask
+let s = "linha1\\nlinha2\\t\\\"q\\\"\\\\";
+print(s);
+```
+
+Para JSON, ainda é válido preferir `json::new_object()` + `json::set(...)` para evitar strings gigantes.
 
 ---
 

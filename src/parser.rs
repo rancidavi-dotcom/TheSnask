@@ -33,6 +33,9 @@ pub enum Token {
     True(Location),
     False(Location),
     Nil(Location),
+    And(Location),
+    Or(Location),
+    Not(Location),
 
     // Identation
     Indent(Location),
@@ -49,6 +52,10 @@ pub enum Token {
     Minus(Location),
     Star(Location),
     Slash(Location),
+    PlusEqual(Location),
+    MinusEqual(Location),
+    StarEqual(Location),
+    SlashEqual(Location),
     Equal(Location),
     EqualEqual(Location),
     BangEqual(Location),
@@ -99,6 +106,9 @@ impl Token {
             Token::True(loc) |
             Token::False(loc) |
             Token::Nil(loc) |
+            Token::And(loc) |
+            Token::Or(loc) |
+            Token::Not(loc) |
             Token::Indent(loc) |
             Token::Dedent(loc) |
             Token::Newline(loc) |
@@ -109,6 +119,10 @@ impl Token {
             Token::Minus(loc) |
             Token::Star(loc) |
             Token::Slash(loc) |
+            Token::PlusEqual(loc) |
+            Token::MinusEqual(loc) |
+            Token::StarEqual(loc) |
+            Token::SlashEqual(loc) |
             Token::Equal(loc) |
             Token::EqualEqual(loc) |
             Token::BangEqual(loc) |
@@ -154,6 +168,9 @@ impl Token {
             Token::True(_) => "'true'".to_string(),
             Token::False(_) => "'false'".to_string(),
             Token::Nil(_) => "'nil'".to_string(),
+            Token::And(_) => "'and'".to_string(),
+            Token::Or(_) => "'or'".to_string(),
+            Token::Not(_) => "'not'".to_string(),
             Token::Indent(_) => "indentação".to_string(),
             Token::Dedent(_) => "redução de indentação".to_string(),
             Token::Newline(_) => "nova linha".to_string(),
@@ -164,6 +181,10 @@ impl Token {
             Token::Minus(_) => "'-'".to_string(),
             Token::Star(_) => "'*'".to_string(),
             Token::Slash(_) => "'/'".to_string(),
+            Token::PlusEqual(_) => "'+='".to_string(),
+            Token::MinusEqual(_) => "'-='".to_string(),
+            Token::StarEqual(_) => "'*='".to_string(),
+            Token::SlashEqual(_) => "'/='".to_string(),
             Token::Equal(_) => "'='".to_string(),
             Token::EqualEqual(_) => "'=='".to_string(),
             Token::BangEqual(_) => "'!='".to_string(),
@@ -265,22 +286,20 @@ impl<'a> Tokenizer<'a> {
                     self.at_start_of_line = true;
                     return self.next_token();
                 } else if c == '/' {
-                    // Possível comentário, verifica
-                    self.advance();
-                    if self.match_char('/') {
+                    // Possível comentário no começo da linha: "// ..."
+                    let mut it = self.chars.clone();
+                    it.next();
+                    if it.peek() == Some(&'/') {
+                        // consome "//" e o resto da linha
+                        self.advance();
+                        self.advance();
                         while self.peek() != Some(&'\n') && self.peek().is_some() {
                             self.advance();
                         }
                         self.at_start_of_line = true;
                         return self.next_token();
-                    } else {
-                        // Não era comentário, era uma divisão. 
-                        // Mas division não pode começar linha sem identação antes.
-                        // Na verdade, pode se indent == 0.
-                        // Vamos tratar como token normal abaixo, mas precisamos restaurar o '/'
-                        // Por simplicidade, assumimos que nenhuma linha começa com '/' sem ser comentário.
-                        return Err(format!("Linha não pode começar com '/' na linha {}, coluna {}", loc.line, loc.column));
                     }
+                    break;
                 } else {
                     break;
                 }
@@ -300,7 +319,11 @@ impl<'a> Tokenizer<'a> {
                     self.pending_tokens.push(Token::Dedent(loc.clone()));
                 }
                 if indent != *self.indent_stack.last().unwrap() {
-                    return Err(format!("Nível de identação inconsistente na linha {}, coluna {}", loc.line, loc.column));
+                    return Err(format!(
+                        "Nível de identação inconsistente na linha {}, coluna {} (dica: não misture tabs e espaços; use múltiplos de 4 espaços por nível)",
+                        loc.line,
+                        loc.column
+                    ));
                 }
                 if !self.pending_tokens.is_empty() {
                     return Ok(self.pending_tokens.remove(0));
@@ -344,10 +367,18 @@ impl<'a> Tokenizer<'a> {
                     }
                 },
                 ';' => Token::Semicolon(loc),
-                '+' => Token::Plus(loc),
-                '-' => Token::Minus(loc),
-                '*' => Token::Star(loc),
-                '/' => Token::Slash(loc),
+                '+' => {
+                    if self.match_char('=') { Token::PlusEqual(loc) } else { Token::Plus(loc) }
+                },
+                '-' => {
+                    if self.match_char('=') { Token::MinusEqual(loc) } else { Token::Minus(loc) }
+                },
+                '*' => {
+                    if self.match_char('=') { Token::StarEqual(loc) } else { Token::Star(loc) }
+                },
+                '/' => {
+                    if self.match_char('=') { Token::SlashEqual(loc) } else { Token::Slash(loc) }
+                },
                 '=' => {
                     if self.match_char('=') {
                         Token::EqualEqual(loc)
@@ -376,7 +407,7 @@ impl<'a> Tokenizer<'a> {
                         Token::Greater(loc)
                     }
                 }
-                '"' => self.read_string(loc),
+                '"' => self.read_string(loc)?,
                 _ => return Err(format!(
                     "Caractere inesperado: {} na linha {}, coluna {}",
                     ch, loc.line, loc.column
@@ -437,6 +468,9 @@ impl<'a> Tokenizer<'a> {
             "true" => Token::True(loc),
             "false" => Token::False(loc),
             "nil" => Token::Nil(loc),
+            "and" => Token::And(loc),
+            "or" => Token::Or(loc),
+            "not" => Token::Not(loc),
             _ => Token::Identifier(ident, loc),
         }
     }
@@ -454,17 +488,85 @@ impl<'a> Tokenizer<'a> {
         Token::Number(number.parse().unwrap(), loc)
     }
 
-    fn read_string(&mut self, loc: Location) -> Token {
+    fn read_string(&mut self, loc: Location) -> Result<Token, String> {
         let mut s = String::new();
         while let Some(c) = self.peek().copied() {
-            if c != '"' {
-                s.push(self.advance().unwrap());
-            } else {
+            if c == '"' {
                 break;
             }
+            if c == '\n' || c == '\r' {
+                return Err(format!(
+                    "String não terminada (quebra de linha) na linha {}, coluna {} (dica: feche com '\"' ou use \\n)",
+                    loc.line,
+                    loc.column
+                ));
+            }
+            if c == '\\' {
+                self.advance();
+                let esc = self.advance().unwrap_or('\0');
+                match esc {
+                    '"' => s.push('"'),
+                    '\\' => s.push('\\'),
+                    'n' => s.push('\n'),
+                    'r' => s.push('\r'),
+                    't' => s.push('\t'),
+                    'b' => s.push('\x08'),
+                    'f' => s.push('\x0c'),
+                    'u' => {
+                        let mut hex = String::new();
+                        for _ in 0..4 {
+                            if let Some(h) = self.advance() {
+                                hex.push(h);
+                            } else {
+                                return Err(format!(
+                                    "Escape unicode incompleto (\\uXXXX) na linha {}, coluna {}",
+                                    loc.line,
+                                    loc.column
+                                ));
+                            }
+                        }
+                        if let Ok(code) = u32::from_str_radix(&hex, 16) {
+                            if let Some(ch) = char::from_u32(code) {
+                                s.push(ch);
+                            } else {
+                                return Err(format!(
+                                    "Escape unicode inválido (\\u{}) na linha {}, coluna {}",
+                                    hex,
+                                    loc.line,
+                                    loc.column
+                                ));
+                            }
+                        } else {
+                            return Err(format!(
+                                "Escape unicode inválido (\\u{}) na linha {}, coluna {}",
+                                hex,
+                                loc.line,
+                                loc.column
+                            ));
+                        }
+                    }
+                    '\0' => {
+                        return Err(format!(
+                            "String não terminada (fim do arquivo) na linha {}, coluna {}",
+                            loc.line,
+                            loc.column
+                        ));
+                    }
+                    other => s.push(other),
+                }
+            } else {
+                s.push(self.advance().unwrap());
+            }
+        }
+        if self.peek().is_none() {
+            return Err(format!(
+                "String não terminada (fim do arquivo) na linha {}, coluna {}",
+                loc.line,
+                loc.column
+            ));
         }
         self.advance();
-        Token::String(s, loc)
+        Ok(Token::String(s, loc))
     }
 }
 
@@ -472,11 +574,13 @@ impl<'a> Tokenizer<'a> {
 enum Precedence {
     None,
     Assignment,  // =
+    Or,          // or
+    And,         // and
     Equality,    // == !=
     Comparison,  // < > <= >= 
     Term,        // + -
     Factor,      // * /
-    Unary,       // -
+    Unary,       // - not
     Call,        // . ()
     Index,       // []
 }
@@ -518,13 +622,20 @@ impl<'a> Parser<'a> {
             Ok(consumed_token)
         } else {
             let found_loc = self.current_token.get_location().clone();
-            Err(format!(
+            let mut msg = format!(
                 "Esperado {}, mas encontrado {} na linha {}, coluna {}",
-                expected_variant.friendly_name(), 
-                self.current_token.friendly_name(), 
-                found_loc.line, 
+                expected_variant.friendly_name(),
+                self.current_token.friendly_name(),
+                found_loc.line,
                 found_loc.column
-            ))
+            );
+            if matches!(expected_variant, Token::Semicolon(_)) {
+                msg.push_str(" (dica: provavelmente faltou um ';' no fim da linha)");
+            }
+            if matches!(expected_variant, Token::Indent(_)) {
+                msg.push_str(" (dica: verifique a identação do bloco: use 4 espaços)");
+            }
+            Err(msg)
         }
     }
     
@@ -564,11 +675,28 @@ impl<'a> Parser<'a> {
 
     fn parse_statement(&mut self) -> Result<Stmt, String> {
         if let Token::Identifier(_, loc) = self.current_token.clone() {
-            if let Token::Equal(_) = self.peek_token {
+            let op_tok = match self.peek_token {
+                Token::Equal(_) |
+                Token::PlusEqual(_) |
+                Token::MinusEqual(_) |
+                Token::StarEqual(_) |
+                Token::SlashEqual(_) => Some(self.peek_token.clone()),
+                _ => None,
+            };
+            if let Some(op_tok) = op_tok {
                 // This is an assignment statement.
                 let (name, _) = self.consume_identifier()?;
-                self.consume_token(&Token::Equal(Location{line:0,column:0}))?;
-                let value = self.parse_expression(Precedence::Assignment)?;
+                // consume operator token
+                self.consume_token(&op_tok)?;
+                let rhs = self.parse_expression(Precedence::Assignment)?;
+                let value = match op_tok {
+                    Token::Equal(_) => rhs,
+                    Token::PlusEqual(_) => Expr { kind: ExprKind::Binary { op: BinaryOp::Add, left: Box::new(Expr { kind: ExprKind::Variable(name.clone()), loc: loc.clone() }), right: Box::new(rhs) }, loc: loc.clone() },
+                    Token::MinusEqual(_) => Expr { kind: ExprKind::Binary { op: BinaryOp::Subtract, left: Box::new(Expr { kind: ExprKind::Variable(name.clone()), loc: loc.clone() }), right: Box::new(rhs) }, loc: loc.clone() },
+                    Token::StarEqual(_) => Expr { kind: ExprKind::Binary { op: BinaryOp::Multiply, left: Box::new(Expr { kind: ExprKind::Variable(name.clone()), loc: loc.clone() }), right: Box::new(rhs) }, loc: loc.clone() },
+                    Token::SlashEqual(_) => Expr { kind: ExprKind::Binary { op: BinaryOp::Divide, left: Box::new(Expr { kind: ExprKind::Variable(name.clone()), loc: loc.clone() }), right: Box::new(rhs) }, loc: loc.clone() },
+                    _ => rhs,
+                };
                 self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
                 let kind = StmtKind::VarAssignment(crate::ast::VarSet { name, value });
                 return Ok(Stmt { kind, loc });
@@ -877,6 +1005,8 @@ impl<'a> Parser<'a> {
     fn get_precedence(&self, token: &Token) -> Precedence {
         match token {
             Token::Equal(_) => Precedence::Assignment,
+            Token::Or(_) => Precedence::Or,
+            Token::And(_) => Precedence::And,
             Token::EqualEqual(_) | Token::BangEqual(_) => Precedence::Equality,
             Token::Less(_) | Token::LessEqual(_) | Token::Greater(_) | Token::GreaterEqual(_) => Precedence::Comparison,
             Token::Plus(_) | Token::Minus(_) => Precedence::Term,
@@ -894,6 +1024,8 @@ impl<'a> Parser<'a> {
             Token::Minus(_) => Ok(BinaryOp::Subtract),
             Token::Star(_) => Ok(BinaryOp::Multiply),
             Token::Slash(_) => Ok(BinaryOp::Divide),
+            Token::And(_) => Ok(BinaryOp::And),
+            Token::Or(_) => Ok(BinaryOp::Or),
             Token::EqualEqual(_) => Ok(BinaryOp::Equals),
             Token::BangEqual(_) => Ok(BinaryOp::NotEquals),
             Token::Less(_) => Ok(BinaryOp::LessThan),
@@ -965,6 +1097,14 @@ impl<'a> Parser<'a> {
                     loc,
                 })
             }
+            Token::Not(_) => {
+                self.consume_token(&Token::Not(loc.clone()))?;
+                let expr = self.parse_expression(Precedence::Unary)?;
+                Ok(Expr {
+                    kind: ExprKind::Unary { op: UnaryOp::Not, expr: Box::new(expr) },
+                    loc,
+                })
+            }
             Token::LeftParen(_) => {
                 self.consume_token(&Token::LeftParen(loc))?;
                 let expr = self.parse_expression(Precedence::Assignment)?;
@@ -984,6 +1124,7 @@ impl<'a> Parser<'a> {
         let loc = self.current_token.get_location().clone();
         match self.current_token.clone() {
             Token::Plus(_) | Token::Minus(_) | Token::Star(_) | Token::Slash(_) |
+            Token::And(_) | Token::Or(_) |
             Token::EqualEqual(_) | Token::BangEqual(_) | Token::Less(_) |
             Token::LessEqual(_) | Token::Greater(_) | Token::GreaterEqual(_) => {
                 let op = self.binary_op_from_token(&self.current_token)?;

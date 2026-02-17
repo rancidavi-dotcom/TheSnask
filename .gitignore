@@ -1,1 +1,14 @@
 /target
+/api_demo
+/hello
+/snask
+/test_*
+/blaze_demo
+/blaze_auth_system
+/tmp_blaze/
+/runtime.o
+/.snask/
+/tmp_blaze_auth_sessions.json
+/tmp_blaze_auth_users.json
+/api_items.json
+/vscode-snask/

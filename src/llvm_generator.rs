@@ -140,14 +140,40 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("s_http_put".to_string(), self.module.add_function("s_http_put", fn_2, None));
         self.functions.insert("s_http_delete".to_string(), self.module.add_function("s_http_delete", fn_1, None));
         self.functions.insert("s_http_patch".to_string(), self.module.add_function("s_http_patch", fn_2, None));
-        self.functions.insert("s_concat".to_string(), self.module.add_function("s_concat", fn_2, None));
-        self.functions.insert("s_abs".to_string(), self.module.add_function("s_abs", fn_1, None));
-        self.functions.insert("s_max".to_string(), self.module.add_function("s_max", fn_2, None));
-        self.functions.insert("s_min".to_string(), self.module.add_function("s_min", fn_2, None));
-        self.functions.insert("s_len".to_string(), self.module.add_function("s_len", fn_1, None));
-        self.functions.insert("s_upper".to_string(), self.module.add_function("s_upper", fn_1, None));
-        self.functions.insert("s_time".to_string(), self.module.add_function("s_time", void_type.fn_type(&[self.ptr_type.into()], false), None));
-        self.functions.insert("s_sleep".to_string(), self.module.add_function("s_sleep", fn_1, None));
+        let f_concat = self.module.add_function("s_concat", fn_2, None);
+        self.functions.insert("s_concat".to_string(), f_concat);
+        self.functions.insert("concat".to_string(), f_concat);
+
+        let f_abs = self.module.add_function("s_abs", fn_1, None);
+        self.functions.insert("s_abs".to_string(), f_abs);
+        self.functions.insert("abs".to_string(), f_abs);
+
+        let f_max = self.module.add_function("s_max", fn_2, None);
+        self.functions.insert("s_max".to_string(), f_max);
+        self.functions.insert("max".to_string(), f_max);
+
+        let f_min = self.module.add_function("s_min", fn_2, None);
+        self.functions.insert("s_min".to_string(), f_min);
+        self.functions.insert("min".to_string(), f_min);
+
+        let f_len = self.module.add_function("s_len", fn_1, None);
+        self.functions.insert("s_len".to_string(), f_len);
+        self.functions.insert("len".to_string(), f_len);
+
+        let f_upper = self.module.add_function("s_upper", fn_1, None);
+        self.functions.insert("s_upper".to_string(), f_upper);
+        self.functions.insert("upper".to_string(), f_upper);
+
+        let f_time = self.module.add_function("s_time", void_type.fn_type(&[self.ptr_type.into()], false), None);
+        self.functions.insert("s_time".to_string(), f_time);
+        self.functions.insert("time".to_string(), f_time);
+
+        let f_sleep = self.module.add_function("s_sleep", fn_1, None);
+        self.functions.insert("s_sleep".to_string(), f_sleep);
+        self.functions.insert("sleep".to_string(), f_sleep);
+
+        let f_exit = self.module.add_function("s_exit", fn_1, None);
+        self.functions.insert("exit".to_string(), f_exit);
         self.functions.insert("is_nil".to_string(), self.module.add_function("is_nil", fn_1, None));
         self.functions.insert("is_str".to_string(), self.module.add_function("is_str", fn_1, None));
         self.functions.insert("is_obj".to_string(), self.module.add_function("is_obj", fn_1, None));
@@ -194,6 +220,15 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("json_len".to_string(), self.module.add_function("json_len", fn_1, None));
         self.functions.insert("json_index".to_string(), self.module.add_function("json_index", fn_2, None));
         self.functions.insert("json_set".to_string(), self.module.add_function("json_set", fn_3, None));
+        self.functions.insert("sjson_new_object".to_string(), self.module.add_function("sjson_new_object", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("sjson_new_array".to_string(), self.module.add_function("sjson_new_array", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("sjson_type".to_string(), self.module.add_function("sjson_type", fn_1, None));
+        self.functions.insert("sjson_arr_len".to_string(), self.module.add_function("sjson_arr_len", fn_1, None));
+        self.functions.insert("sjson_arr_get".to_string(), self.module.add_function("sjson_arr_get", fn_2, None));
+        self.functions.insert("sjson_arr_set".to_string(), self.module.add_function("sjson_arr_set", fn_3, None));
+        self.functions.insert("sjson_arr_push".to_string(), self.module.add_function("sjson_arr_push", fn_2, None));
+        self.functions.insert("sjson_path_get".to_string(), self.module.add_function("sjson_path_get", fn_2, None));
+        self.functions.insert("json_parse_ex".to_string(), self.module.add_function("json_parse_ex", fn_1, None));
         self.functions.insert("s_get_member".to_string(), self.module.add_function("s_get_member", fn_2, None));
         self.functions.insert("s_set_member".to_string(), self.module.add_function("s_set_member", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
     }
@@ -414,6 +449,18 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     BinaryOp::Subtract => self.builder.build_float_sub(lv, rv, "s").unwrap(),
                     BinaryOp::Multiply => self.builder.build_float_mul(lv, rv, "m").unwrap(),
                     BinaryOp::Divide => self.builder.build_float_div(lv, rv, "d").unwrap(),
+                    BinaryOp::And => {
+                        let lz = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, lv, self.context.f64_type().const_float(0.0), "lz").unwrap();
+                        let rz = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, rv, self.context.f64_type().const_float(0.0), "rz").unwrap();
+                        let both = self.builder.build_and(lz, rz, "and").unwrap();
+                        self.builder.build_unsigned_int_to_float(both, self.context.f64_type(), "bf").unwrap()
+                    }
+                    BinaryOp::Or => {
+                        let lz = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, lv, self.context.f64_type().const_float(0.0), "lz").unwrap();
+                        let rz = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, rv, self.context.f64_type().const_float(0.0), "rz").unwrap();
+                        let any = self.builder.build_or(lz, rz, "or").unwrap();
+                        self.builder.build_unsigned_int_to_float(any, self.context.f64_type(), "bf").unwrap()
+                    }
                     BinaryOp::LessThan => {
                         let cmp = self.builder.build_float_compare(inkwell::FloatPredicate::OLT, lv, rv, "lt").unwrap();
                         self.builder.build_unsigned_int_to_float(cmp, self.context.f64_type(), "bf").unwrap()
@@ -611,6 +658,11 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 let n = self.builder.build_extract_value(v, 1, "n").unwrap().into_float_value();
                 let res_n = match op {
                     crate::ast::UnaryOp::Negative => self.builder.build_float_mul(n, self.context.f64_type().const_float(-1.0), "neg").unwrap(),
+                    crate::ast::UnaryOp::Not => {
+                        let is_true = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, n, self.context.f64_type().const_float(0.0), "is_true").unwrap();
+                        let is_false = self.builder.build_not(is_true, "not").unwrap();
+                        self.builder.build_unsigned_int_to_float(is_false, self.context.f64_type(), "bf").unwrap()
+                    }
                 };
                 let mut s = self.value_type.get_undef();
                 s = self.builder.build_insert_value(s, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();

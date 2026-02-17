@@ -25,16 +25,20 @@ typedef struct {
     void* ptr;
 } SnaskValue;
 
-// Forward decls (usadas por seções posteriores)
-static SnaskValue make_nil(void);
-void json_stringify(SnaskValue* out, SnaskValue* v);
-
 // --- GERENCIAMENTO DE MEMÓRIA ---
 typedef struct {
     char** names;
     SnaskValue* values;
     int count;
 } SnaskObject;
+
+// Forward decls (usadas por seções posteriores)
+static SnaskValue make_nil(void);
+static SnaskValue make_bool(bool b);
+static SnaskValue make_str(char* s);
+static SnaskValue make_obj(SnaskObject* o);
+static SnaskObject* obj_new(int count);
+void json_stringify(SnaskValue* out, SnaskValue* v);
 
 void s_alloc_obj(SnaskValue* out, SnaskValue* size_val, char** names) {
     if ((int)size_val->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
@@ -841,6 +845,174 @@ void blaze_cookie_get(SnaskValue* out, SnaskValue* cookie_header, SnaskValue* na
     out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0;
 }
 
+// --- Sjson (Snask JSON standard) ---
+static SnaskValue sjson_new_empty_object_value(void) {
+    SnaskObject* obj = (SnaskObject*)malloc(sizeof(SnaskObject));
+    obj->count = 0;
+    obj->names = NULL;
+    obj->values = NULL;
+    return (SnaskValue){(double)SNASK_OBJ, 0, obj};
+}
+
+void sjson_new_object(SnaskValue* out) { *out = sjson_new_empty_object_value(); }
+void sjson_new_array(SnaskValue* out) { *out = sjson_new_empty_object_value(); }
+
+void sjson_type(SnaskValue* out, SnaskValue* v) {
+    out->tag = (double)SNASK_STR;
+    out->num = 0;
+    out->ptr = NULL;
+    int tag = (int)v->tag;
+    const char* t = "null";
+    if (tag == SNASK_NUM) t = "num";
+    else if (tag == SNASK_BOOL) t = "bool";
+    else if (tag == SNASK_STR) t = "str";
+    else if (tag == SNASK_OBJ) t = "obj";
+    out->ptr = strdup(t);
+}
+
+void sjson_arr_len(SnaskValue* out, SnaskValue* arr) {
+    out->tag = (double)SNASK_NUM;
+    out->ptr = NULL;
+    out->num = 0;
+    if ((int)arr->tag != SNASK_OBJ || !arr->ptr) return;
+    SnaskObject* o = (SnaskObject*)arr->ptr;
+    out->num = (double)o->count;
+}
+
+void sjson_arr_get(SnaskValue* out, SnaskValue* arr, SnaskValue* idx_val) {
+    if ((int)arr->tag != SNASK_OBJ || (int)idx_val->tag != SNASK_NUM || !arr->ptr) { out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return; }
+    SnaskObject* o = (SnaskObject*)arr->ptr;
+    int idx = (int)idx_val->num;
+    if (idx < 0 || idx >= o->count) { out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return; }
+    *out = o->values[idx];
+}
+
+void sjson_arr_set(SnaskValue* out, SnaskValue* arr, SnaskValue* idx_val, SnaskValue* value) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = 0;
+    if ((int)arr->tag != SNASK_OBJ || (int)idx_val->tag != SNASK_NUM || !arr->ptr) return;
+    SnaskObject* o = (SnaskObject*)arr->ptr;
+    int idx = (int)idx_val->num;
+    if (idx < 0) return;
+
+    if (idx < o->count) {
+        o->values[idx] = *value;
+        out->num = 1.0;
+        return;
+    }
+
+    // expand up to idx
+    int new_count = idx + 1;
+    o->names = (char**)realloc(o->names, (size_t)new_count * sizeof(char*));
+    o->values = (SnaskValue*)realloc(o->values, (size_t)new_count * sizeof(SnaskValue));
+    for (int i = o->count; i < new_count; i++) {
+        char idx_name[32];
+        snprintf(idx_name, sizeof(idx_name), "%d", i);
+        o->names[i] = strdup(idx_name);
+        o->values[i] = make_nil();
+    }
+    o->count = new_count;
+    o->values[idx] = *value;
+    out->num = 1.0;
+}
+
+void sjson_arr_push(SnaskValue* out, SnaskValue* arr, SnaskValue* value) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = 0;
+    if ((int)arr->tag != SNASK_OBJ || !arr->ptr) return;
+    SnaskObject* o = (SnaskObject*)arr->ptr;
+    int idx = o->count;
+    int new_count = o->count + 1;
+    o->names = (char**)realloc(o->names, (size_t)new_count * sizeof(char*));
+    o->values = (SnaskValue*)realloc(o->values, (size_t)new_count * sizeof(SnaskValue));
+    char idx_name[32];
+    snprintf(idx_name, sizeof(idx_name), "%d", idx);
+    o->names[idx] = strdup(idx_name);
+    o->values[idx] = *value;
+    o->count = new_count;
+    out->num = 1.0;
+}
+
+static bool sjson_is_digits(const char* s) {
+    if (!s || !*s) return false;
+    for (const unsigned char* p = (const unsigned char*)s; *p; p++) {
+        if (*p < '0' || *p > '9') return false;
+    }
+    return true;
+}
+
+// Path get: "a.b.0.c" (obj keys + numeric index)
+// Retorna { ok: bool, value: any, error: str }
+void sjson_path_get(SnaskValue* out, SnaskValue* root, SnaskValue* path_val) {
+    if ((int)path_val->tag != SNASK_STR || !path_val->ptr) { out->tag = (double)SNASK_NIL; return; }
+    const char* path = (const char*)path_val->ptr;
+
+    SnaskValue cur = *root;
+    const char* p = path;
+    char seg[256];
+
+    while (*p) {
+        size_t si = 0;
+        while (*p && *p != '.') {
+            if (si + 1 < sizeof(seg)) seg[si++] = *p;
+            p++;
+        }
+        seg[si] = '\0';
+        if (*p == '.') p++;
+
+        if ((int)cur.tag != SNASK_OBJ || !cur.ptr) {
+            SnaskObject* r = obj_new(3);
+            r->names[0] = strdup("ok"); r->values[0] = make_bool(false);
+            r->names[1] = strdup("value"); r->values[1] = make_nil();
+            r->names[2] = strdup("error"); r->values[2] = make_str(strdup("path_get: alvo não é objeto/array."));
+            *out = make_obj(r);
+            return;
+        }
+
+        if (seg[0] == '\0') {
+            SnaskObject* r = obj_new(3);
+            r->names[0] = strdup("ok"); r->values[0] = make_bool(false);
+            r->names[1] = strdup("value"); r->values[1] = make_nil();
+            r->names[2] = strdup("error"); r->values[2] = make_str(strdup("path_get: segmento vazio."));
+            *out = make_obj(r);
+            return;
+        }
+
+        SnaskObject* o = (SnaskObject*)cur.ptr;
+        bool found = false;
+        SnaskValue next = make_nil();
+
+        if (sjson_is_digits(seg)) {
+            int idx = atoi(seg);
+            if (idx >= 0 && idx < o->count) { next = o->values[idx]; found = true; }
+        } else {
+            for (int i = 0; i < o->count; i++) {
+                if (o->names[i] && strcmp(o->names[i], seg) == 0) { next = o->values[i]; found = true; break; }
+            }
+        }
+
+        if (!found) {
+            SnaskObject* r = obj_new(3);
+            r->names[0] = strdup("ok"); r->values[0] = make_bool(false);
+            r->names[1] = strdup("value"); r->values[1] = make_nil();
+            char msg[512];
+            snprintf(msg, sizeof(msg), "path_get: segmento '%s' não encontrado.", seg);
+            r->names[2] = strdup("error"); r->values[2] = make_str(strdup(msg));
+            *out = make_obj(r);
+            return;
+        }
+        cur = next;
+    }
+
+    SnaskObject* r = obj_new(3);
+    r->names[0] = strdup("ok"); r->values[0] = make_bool(true);
+    r->names[1] = strdup("value"); r->values[1] = cur;
+    r->names[2] = strdup("error"); r->values[2] = make_str(strdup(""));
+    *out = make_obj(r);
+}
+
 // --- Random ---
 void os_random_hex(SnaskValue* out, SnaskValue* nbytes_val) {
     out->tag = (double)SNASK_STR;
@@ -1102,6 +1274,12 @@ void s_upper(SnaskValue* out, SnaskValue* s) {
 
 void s_time(SnaskValue* out) { out->tag = (double)SNASK_NUM; out->num = (double)time(NULL); out->ptr = NULL; }
 void s_sleep(SnaskValue* out, SnaskValue* ms) { usleep((unsigned int)(ms->num * 1000)); out->tag = (double)SNASK_NIL; }
+void s_exit(SnaskValue* out, SnaskValue* code) {
+    int status = 0;
+    if (code && (int)code->tag == SNASK_NUM) status = (int)code->num;
+    out->tag = (double)SNASK_NIL;
+    exit(status);
+}
 
 void s_concat(SnaskValue* out, SnaskValue* s1, SnaskValue* s2) {
     if ((int)s1->tag != SNASK_STR || (int)s2->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
@@ -1420,6 +1598,29 @@ void json_parse(SnaskValue* out, SnaskValue* data) {
     jp_skip_ws(&p);
     if (p.s[p.i] != '\0') { out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return; }
     *out = v;
+}
+
+// Retorna um objeto: { ok: bool, value: any, error: str }
+void json_parse_ex(SnaskValue* out, SnaskValue* data) {
+    if ((int)data->tag != SNASK_STR || !data->ptr) { out->tag = (double)SNASK_NIL; return; }
+
+    JsonParser p = { .s = (const char*)data->ptr, .i = 0, .err = NULL };
+    SnaskValue v = jp_parse_value(&p);
+    const char* err = p.err;
+    if (!err) {
+        jp_skip_ws(&p);
+        if (p.s[p.i] != '\0') err = "Conteúdo extra após o JSON.";
+    }
+
+    SnaskObject* obj = obj_new(3);
+    obj->names[0] = strdup("ok");
+    obj->names[1] = strdup("value");
+    obj->names[2] = strdup("error");
+    obj->values[0] = make_bool(err == NULL);
+    obj->values[1] = (err == NULL) ? v : make_nil();
+    obj->values[2] = make_str(strdup(err ? err : ""));
+
+    *out = make_obj(obj);
 }
 
 void json_get(SnaskValue* out, SnaskValue* obj_val, SnaskValue* key_val) {

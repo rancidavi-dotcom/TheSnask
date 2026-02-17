@@ -1,0 +1,126 @@
+import "json";
+import "os";
+
+// Biblioteca: blaze_auth
+// Autenticação local (user+senha) + sessões.
+// Google OAuth fica como stub (depende de request body/query no Blaze para ser completo).
+//
+// Segurança:
+// - `auth_hash_password/auth_verify_password` são "nativos" mas usam um hash simples (FNV1a + salt).
+// - Isso é suficiente para DEMO, não para produção. Próximo passo: bcrypt/argon2 nativo.
+
+// ---------- Nativas (14) ----------
+// 1) auth_version() -> "0.2.0"
+// 2) auth_now() -> epoch seconds
+// 3) auth_random_hex(nbytes)
+// 4) auth_const_time_eq(a, b)
+// 5) auth_hash_password(password) -> "v1$...$..."
+// 6) auth_verify_password(password, stored_hash)
+// 7) auth_session_id()
+// 8) auth_csrf_token()
+// 9) auth_cookie_kv(name, value)
+// 10) auth_cookie_session(sid)
+// 11) auth_cookie_delete(name)
+// 12) auth_bearer_header(token)
+// 13) auth_ok()
+// 14) auth_fail()
+
+// ---------- Config ----------
+fun config(users_path, sessions_path)
+    let c = json::new_object();
+    json::set(c, "users_path", users_path);
+    json::set(c, "sessions_path", sessions_path);
+    return c;
+
+fun default_config()
+    return blaze_auth::config("users.json", "sessions.json");
+
+// ---------- Storage ----------
+fun _load_json_or_empty(path)
+    if os::exists(path)
+        return os::read_json(path);
+    return json::new_object();
+
+fun load_users(cfg)
+    return blaze_auth::_load_json_or_empty(json::get(cfg, "users_path"));
+
+fun save_users(cfg, users)
+    return os::write_json_pretty(json::get(cfg, "users_path"), users);
+
+fun load_sessions(cfg)
+    return blaze_auth::_load_json_or_empty(json::get(cfg, "sessions_path"));
+
+fun save_sessions(cfg, sessions)
+    return os::write_json_pretty(json::get(cfg, "sessions_path"), sessions);
+
+// ---------- Local auth ----------
+fun register_local(cfg, username, password)
+    let users = blaze_auth::load_users(cfg);
+    if json::has(users, username)
+        return false;
+    let u = json::new_object();
+    json::set(u, "password_hash", auth_hash_password(password));
+    json::set(u, "created_at", auth_now());
+    json::set(users, username, u);
+    blaze_auth::save_users(cfg, users);
+    return true;
+
+fun verify_local(cfg, username, password)
+    let users = blaze_auth::load_users(cfg);
+    let u = json::get(users, username);
+    if is_nil(u)
+        return false;
+    let h = json::get(u, "password_hash");
+    if is_nil(h)
+        return false;
+    return auth_verify_password(password, h);
+
+// ---------- Sessions ----------
+fun create_session(cfg, username)
+    let sessions = blaze_auth::load_sessions(cfg);
+    let sid = auth_session_id();
+    json::set(sessions, sid, username);
+    blaze_auth::save_sessions(cfg, sessions);
+    return sid;
+
+fun get_session_user(cfg, sid)
+    let sessions = blaze_auth::load_sessions(cfg);
+    return json::get(sessions, sid);
+
+// ---------- Blaze response helpers ----------
+fun resp_login_ok(username, sid)
+    let payload = json::new_object();
+    json::set(payload, "user", username);
+    json::set(payload, "sid", sid);
+
+    let r = json::new_object();
+    json::set(r, "status", 200);
+    json::set(r, "content_type", "application/json; charset=utf-8");
+    json::set(r, "json", payload);
+    json::set(r, "cookie", auth_cookie_session(sid));
+    return r;
+
+fun resp_login_failed()
+    let r = json::new_object();
+    json::set(r, "status", 401);
+    json::set(r, "content_type", "application/json; charset=utf-8");
+    let o = json::new_object();
+    json::set(o, "error", "invalid_credentials");
+    json::set(r, "json", o);
+    return r;
+
+fun login_static(cfg, username, password)
+    if blaze_auth::verify_local(cfg, username, password)
+        let sid = blaze_auth::create_session(cfg, username);
+        return blaze_auth::resp_login_ok(username, sid);
+    return blaze_auth::resp_login_failed();
+
+// ---------- Google OAuth (stubs) ----------
+fun google_enabled()
+    return false;
+
+fun google_login_url(client_id, redirect_uri)
+    return "not_implemented";
+
+fun google_exchange_code(client_id, client_secret, redirect_uri, code)
+    return nil;
