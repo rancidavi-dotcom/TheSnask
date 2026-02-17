@@ -76,6 +76,15 @@ enum LibCommands {
         /// Faz git push automaticamente
         #[arg(long)]
         push: bool,
+        /// Publica via fork + Pull Request (não precisa permissão no repo)
+        #[arg(long)]
+        pr: bool,
+        /// URL do seu fork (ex: https://github.com/SEUUSER/SnaskPackages)
+        #[arg(long)]
+        fork: Option<String>,
+        /// Nome da branch (default: pkg/<nome>-v<versao>)
+        #[arg(long)]
+        branch: Option<String>,
     },
 }
 
@@ -224,13 +233,16 @@ fn main() {
                         eprintln!("Erro: {}", e);
                     }
                 }
-                LibCommands::Publish { name, version, description, message, push } => {
+                LibCommands::Publish { name, version, description, message, push, pr, fork, branch } => {
                     let res = crate::lib_tool::lib_publish(crate::lib_tool::PublishOpts {
                         name: name.clone(),
                         version: version.clone(),
                         description: description.clone(),
                         message: message.clone(),
                         push: *push,
+                        pr: *pr,
+                        fork: fork.clone(),
+                        branch: branch.clone(),
                     });
                     if let Err(e) = res {
                         eprintln!("Erro: {}", e);

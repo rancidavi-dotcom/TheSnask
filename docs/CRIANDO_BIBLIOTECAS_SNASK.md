@@ -144,6 +144,23 @@ O publish:
 - cria/atualiza `~/.snask/registry/index/m/minha_lib.json`
 - faz `git commit` e (se `--push`) `git push origin main`
 
+### Publicar sem permissão no repo (Fork + Pull Request)
+
+Se você não tem permissão de escrita no `rancidavi-dotcom/SnaskPackages`, faça via fork:
+
+1) Faça um fork no GitHub: `SnaskPackages`
+2) Publique em uma branch do seu fork:
+
+```bash
+snask lib publish minha_lib --version 0.1.0 --description "Minha lib" \
+  --pr --fork "https://github.com/SEUUSER/SnaskPackages"
+```
+
+Isso:
+- cria uma branch `pkg/minha_lib-v0.1.0` no seu fork
+- faz push para o remote `fork`
+- e te pede para abrir um Pull Request no GitHub
+
 ---
 
 ## 6) Template pronto (copiar e começar)

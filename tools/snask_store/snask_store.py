@@ -496,9 +496,20 @@ def main() -> int:
             self.dev_btn_publish = Gtk.Button(label="Publicar no GitHub")
             self.dev_push = Gtk.CheckButton(label="git push automaticamente")
             self.dev_push.set_active(True)
+            self.dev_pr = Gtk.CheckButton(label="Enviar como PR (fork)")
+            self.dev_fork = Gtk.Entry()
+            self.dev_fork.set_placeholder_text("https://github.com/SEUUSER/SnaskPackages")
             actions.pack_start(self.dev_btn_create, False, False, 0)
             actions.pack_start(self.dev_btn_publish, False, False, 0)
             actions.pack_start(self.dev_push, False, False, 0)
+            actions.pack_start(self.dev_pr, False, False, 0)
+
+            fork_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            dev_tab.pack_start(fork_row, False, False, 0)
+            fork_lbl = Gtk.Label(label="Fork URL (para PR):")
+            fork_lbl.set_xalign(0.0)
+            fork_row.pack_start(fork_lbl, False, False, 0)
+            fork_row.pack_start(self.dev_fork, True, True, 0)
 
             self.dev_log = Gtk.TextView()
             self.dev_log.set_editable(False)
@@ -563,7 +574,16 @@ def main() -> int:
                 self.dev_btn_create.set_sensitive(False)
                 self.dev_btn_publish.set_sensitive(False)
                 args = ["snask", "lib", "publish", n, "--version", v, "--description", ds]
-                if self.dev_push.get_active():
+                if self.dev_pr.get_active():
+                    fork = (self.dev_fork.get_text() or "").strip()
+                    if not fork:
+                        self.spinner.stop()
+                        self.dev_btn_create.set_sensitive(True)
+                        self.dev_btn_publish.set_sensitive(True)
+                        self.status_lbl.set_text("Dev: informe o Fork URL para PR.")
+                        return
+                    args += ["--pr", "--fork", fork]
+                elif self.dev_push.get_active():
                     args.append("--push")
                 log_append("$ " + " ".join(args) + "\n")
 

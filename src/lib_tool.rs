@@ -100,6 +100,9 @@ pub struct PublishOpts {
     pub description: String,
     pub message: Option<String>,
     pub push: bool,
+    pub pr: bool,
+    pub fork: Option<String>,
+    pub branch: Option<String>,
 }
 
 pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
@@ -113,6 +116,31 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
     }
 
     let repo = ensure_registry_repo()?;
+
+    // Evita bagunçar o repo do registry caso esteja "sujo"
+    let out = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&repo)
+        .output()
+        .map_err(|e| format!("Falha ao checar status do git: {}", e))?;
+    if !out.status.success() {
+        return Err("Falha ao checar status do git no registry.".to_string());
+    }
+    if !String::from_utf8_lossy(&out.stdout).trim().is_empty() {
+        return Err(format!(
+            "Seu registry em '{}' tem mudanças pendentes. Commit/reverta antes de publicar.",
+            repo.display()
+        ));
+    }
+
+    // Se for PR, cria uma branch e envia para o fork
+    let target_branch = opts.branch.clone().unwrap_or_else(|| format!("pkg/{}-v{}", name, opts.version));
+    if opts.pr {
+        // Garante que estamos na main antes de criar branch
+        run_git(&["checkout", "main"], &repo)?;
+        run_git(&["checkout", "-B", &target_branch], &repo)?;
+    }
+
     let packages_dir = repo.join("packages");
     let index_dir = repo.join("index").join(name.chars().next().unwrap().to_ascii_lowercase().to_string());
     fs::create_dir_all(&packages_dir).map_err(|e| format!("Falha ao criar {}: {}", packages_dir.display(), e))?;
@@ -146,6 +174,27 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
         }
     })?;
 
+    if opts.pr {
+        // Usa remote "fork" para push
+        let fork_url = opts
+            .fork
+            .clone()
+            .ok_or_else(|| "Modo PR exige `--fork <URL-do-seu-fork>`.".to_string())?;
+
+        // cria/atualiza remote fork
+        let _ = run_git(&["remote", "remove", "fork"], &repo);
+        run_git(&["remote", "add", "fork", &fork_url], &repo)?;
+        run_git(&["push", "-u", "fork", &target_branch], &repo)?;
+
+        // volta para main para não confundir o usuário
+        let _ = run_git(&["checkout", "main"], &repo);
+
+        println!("✅ Branch enviada para seu fork (remote 'fork'): {}", target_branch);
+        println!("📌 Abra um Pull Request no GitHub do seu fork → base: main, compare: {}.", target_branch);
+        println!("ℹ️  Fork usado: {}", fork_url);
+        return Ok(());
+    }
+
     if opts.push {
         run_git(&["push", "origin", "main"], &repo)?;
         println!("✅ Publicado e enviado para o GitHub via git push.");
@@ -155,4 +204,3 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
     }
     Ok(())
 }
-

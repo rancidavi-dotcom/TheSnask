@@ -15,6 +15,17 @@ sudo apt install -y python3-gi gir1.2-gtk-3.0
 python3 tools/snask_store/snask_store.py
 ```
 
+## Aba Dev (criar/publicar libs)
+
+O Snask Store tem uma aba **Dev** que chama o CLI do Snask:
+
+- **Criar template**: `snask lib init`
+- **Publicar**: `snask lib publish`
+
+Pré-requisitos:
+- `snask` no PATH (ou instalado em `~/.snask/bin`)
+- `git` instalado
+
 ## 3) Gerar executáveis
 
 ### Linux (binário)
