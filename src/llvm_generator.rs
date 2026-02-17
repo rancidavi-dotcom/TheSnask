@@ -216,6 +216,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("gui_quit".to_string(), self.module.add_function("gui_quit", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("gui_window".to_string(), self.module.add_function("gui_window", fn_3, None));
         self.functions.insert("gui_vbox".to_string(), self.module.add_function("gui_vbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_hbox".to_string(), self.module.add_function("gui_hbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("gui_set_child".to_string(), self.module.add_function("gui_set_child", fn_2, None));
         self.functions.insert("gui_add".to_string(), self.module.add_function("gui_add", fn_2, None));
         self.functions.insert("gui_label".to_string(), self.module.add_function("gui_label", fn_1, None));
@@ -225,6 +226,11 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("gui_set_text".to_string(), self.module.add_function("gui_set_text", fn_2, None));
         self.functions.insert("gui_get_text".to_string(), self.module.add_function("gui_get_text", fn_1, None));
         self.functions.insert("gui_on_click".to_string(), self.module.add_function("gui_on_click", fn_2, None));
+        self.functions.insert("gui_on_click_ctx".to_string(), self.module.add_function("gui_on_click_ctx", fn_3, None));
+
+        self.functions.insert("str_to_num".to_string(), self.module.add_function("str_to_num", fn_1, None));
+        self.functions.insert("num_to_str".to_string(), self.module.add_function("num_to_str", fn_1, None));
+        self.functions.insert("calc_eval".to_string(), self.module.add_function("calc_eval", fn_1, None));
 
         self.functions.insert("s_alloc_obj".to_string(), self.module.add_function("s_alloc_obj", fn_alloc, None));
         self.functions.insert("s_json_stringify".to_string(), self.module.add_function("s_json_stringify", fn_1, None));

@@ -1315,12 +1315,14 @@ static void* gui_handle_to_ptr(const char* h) {
 typedef struct {
     char* handler_name;
     char* widget_handle;
+    char* ctx;
 } GuiCallbackCtx;
 
 static void gui_free_ctx(GuiCallbackCtx* ctx) {
     if (!ctx) return;
     if (ctx->handler_name) free(ctx->handler_name);
     if (ctx->widget_handle) free(ctx->widget_handle);
+    if (ctx->ctx) free(ctx->ctx);
     free(ctx);
 }
 
@@ -1341,11 +1343,31 @@ static SnaskValue gui_call_handler_1(const char* handler_name, const char* widge
     return ra;
 }
 
+static SnaskValue gui_call_handler_2(const char* handler_name, const char* widget_handle, const char* ctx) {
+    if (!handler_name) return make_nil();
+    char sym[512];
+    snprintf(sym, sizeof(sym), "f_%s", handler_name);
+    void* fp = dlsym(NULL, sym);
+    if (!fp) return make_nil();
+
+    typedef void (*SnaskFn2)(SnaskValue* ra, SnaskValue* a1, SnaskValue* a2);
+    SnaskFn2 f = (SnaskFn2)fp;
+
+    SnaskValue ra = make_nil();
+    SnaskValue wh = make_str_dup(widget_handle ? widget_handle : "");
+    SnaskValue cv = make_str_dup(ctx ? ctx : "");
+    f(&ra, &wh, &cv);
+    if ((int)wh.tag == SNASK_STR) free(wh.ptr);
+    if ((int)cv.tag == SNASK_STR) free(cv.ptr);
+    return ra;
+}
+
 static void gui_on_button_clicked(GtkWidget* _widget, gpointer user_data) {
     (void)_widget;
     GuiCallbackCtx* ctx = (GuiCallbackCtx*)user_data;
     if (!ctx) return;
-    (void)gui_call_handler_1(ctx->handler_name, ctx->widget_handle);
+    if (ctx->ctx) (void)gui_call_handler_2(ctx->handler_name, ctx->widget_handle, ctx->ctx);
+    else (void)gui_call_handler_1(ctx->handler_name, ctx->widget_handle);
 }
 
 void gui_init(SnaskValue* out) {
@@ -1380,6 +1402,13 @@ void gui_window(SnaskValue* out, SnaskValue* title, SnaskValue* w, SnaskValue* h
 
 void gui_vbox(SnaskValue* out) {
     GtkWidget* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(box);
+    out->num = 0;
+}
+
+void gui_hbox(SnaskValue* out) {
+    GtkWidget* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     out->tag = (double)SNASK_STR;
     out->ptr = gui_ptr_to_handle(box);
     out->num = 0;
@@ -1469,6 +1498,19 @@ void gui_on_click(SnaskValue* out, SnaskValue* widget_h, SnaskValue* handler_nam
     GuiCallbackCtx* ctx = (GuiCallbackCtx*)calloc(1, sizeof(GuiCallbackCtx));
     ctx->handler_name = strdup((const char*)handler_name->ptr);
     ctx->widget_handle = strdup((const char*)widget_h->ptr);
+    ctx->ctx = NULL;
+    g_signal_connect_data(w, "clicked", G_CALLBACK(gui_on_button_clicked), ctx, (GClosureNotify)gui_free_ctx, 0);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void gui_on_click_ctx(SnaskValue* out, SnaskValue* widget_h, SnaskValue* handler_name, SnaskValue* ctx_str) {
+    if ((int)widget_h->tag != SNASK_STR || (int)handler_name->tag != SNASK_STR || (int)ctx_str->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)widget_h->ptr);
+    if (!w || !GTK_IS_BUTTON(w)) { out->tag = (double)SNASK_NIL; return; }
+    GuiCallbackCtx* ctx = (GuiCallbackCtx*)calloc(1, sizeof(GuiCallbackCtx));
+    ctx->handler_name = strdup((const char*)handler_name->ptr);
+    ctx->widget_handle = strdup((const char*)widget_h->ptr);
+    ctx->ctx = strdup((const char*)ctx_str->ptr);
     g_signal_connect_data(w, "clicked", G_CALLBACK(gui_on_button_clicked), ctx, (GClosureNotify)gui_free_ctx, 0);
     out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
 }
@@ -1480,6 +1522,7 @@ void gui_quit(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_run(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_window(SnaskValue* out, SnaskValue* _t, SnaskValue* _w, SnaskValue* _h) { (void)_t; (void)_w; (void)_h; out->tag = (double)SNASK_NIL; }
 void gui_vbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_hbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_set_child(SnaskValue* out, SnaskValue* _p, SnaskValue* _c) { (void)_p; (void)_c; out->tag = (double)SNASK_NIL; }
 void gui_add(SnaskValue* out, SnaskValue* _b, SnaskValue* _c) { (void)_b; (void)_c; out->tag = (double)SNASK_NIL; }
 void gui_label(SnaskValue* out, SnaskValue* _t) { (void)_t; out->tag = (double)SNASK_NIL; }
@@ -1489,8 +1532,166 @@ void gui_show_all(SnaskValue* out, SnaskValue* _w) { (void)_w; out->tag = (doubl
 void gui_set_text(SnaskValue* out, SnaskValue* _w, SnaskValue* _t) { (void)_w; (void)_t; out->tag = (double)SNASK_NIL; }
 void gui_get_text(SnaskValue* out, SnaskValue* _w) { (void)_w; out->tag = (double)SNASK_NIL; }
 void gui_on_click(SnaskValue* out, SnaskValue* _w, SnaskValue* _h) { (void)_w; (void)_h; out->tag = (double)SNASK_NIL; }
+void gui_on_click_ctx(SnaskValue* out, SnaskValue* _w, SnaskValue* _h, SnaskValue* _c) { (void)_w; (void)_h; (void)_c; out->tag = (double)SNASK_NIL; }
 
 #endif
+
+// ---------------- calc helpers ----------------
+void str_to_num(SnaskValue* out, SnaskValue* s) {
+    if (!s || (int)s->tag != SNASK_STR || !s->ptr) { out->tag = (double)SNASK_NIL; return; }
+    char* end = NULL;
+    double v = strtod((const char*)s->ptr, &end);
+    if (end == (char*)s->ptr) { out->tag = (double)SNASK_NIL; return; }
+    out->tag = (double)SNASK_NUM;
+    out->num = v;
+    out->ptr = NULL;
+}
+
+void num_to_str(SnaskValue* out, SnaskValue* n) {
+    if (!n || (int)n->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
+    char buf[128];
+    snprintf(buf, sizeof(buf), "%.15g", n->num);
+    out->tag = (double)SNASK_STR;
+    out->ptr = strdup(buf);
+    out->num = 0;
+}
+
+typedef struct {
+    const char* s;
+    size_t i;
+} CalcLexer;
+
+static void calc_skip_ws(CalcLexer* lx) {
+    while (lx->s[lx->i] && isspace((unsigned char)lx->s[lx->i])) lx->i++;
+}
+
+static int calc_peek(CalcLexer* lx) {
+    calc_skip_ws(lx);
+    return lx->s[lx->i] ? lx->s[lx->i] : 0;
+}
+
+static int calc_get(CalcLexer* lx) {
+    calc_skip_ws(lx);
+    return lx->s[lx->i] ? lx->s[lx->i++] : 0;
+}
+
+static int calc_prec(char op) {
+    if (op == '+' || op == '-') return 1;
+    if (op == '*' || op == '/') return 2;
+    return 0;
+}
+
+static bool calc_apply(char op, double a, double b, double* out) {
+    switch (op) {
+        case '+': *out = a + b; return true;
+        case '-': *out = a - b; return true;
+        case '*': *out = a * b; return true;
+        case '/': if (b == 0.0) return false; *out = a / b; return true;
+        default: return false;
+    }
+}
+
+// Shunting-yard evaluator for + - * / and parentheses.
+// Returns 1 on success, 0 on error.
+static int calc_eval_c(const char* expr, double* result) {
+    double vals[256];
+    char ops[256];
+    int vtop = -1, otop = -1;
+    CalcLexer lx = { expr ? expr : "", 0 };
+
+    bool expect_value = true;
+    while (1) {
+        int c = calc_peek(&lx);
+        if (!c) break;
+
+        if (c == '(') {
+            calc_get(&lx);
+            ops[++otop] = '(';
+            expect_value = true;
+            continue;
+        }
+        if (c == ')') {
+            calc_get(&lx);
+            while (otop >= 0 && ops[otop] != '(') {
+                if (vtop < 1) return 0;
+                double b = vals[vtop--];
+                double a = vals[vtop--];
+                double r;
+                if (!calc_apply(ops[otop--], a, b, &r)) return 0;
+                vals[++vtop] = r;
+            }
+            if (otop < 0 || ops[otop] != '(') return 0;
+            otop--;
+            expect_value = false;
+            continue;
+        }
+
+        if ((c == '+' || c == '-' || c == '*' || c == '/') && !expect_value) {
+            char op = (char)calc_get(&lx);
+            while (otop >= 0 && ops[otop] != '(' && calc_prec(ops[otop]) >= calc_prec(op)) {
+                if (vtop < 1) return 0;
+                double b = vals[vtop--];
+                double a = vals[vtop--];
+                double r;
+                if (!calc_apply(ops[otop--], a, b, &r)) return 0;
+                vals[++vtop] = r;
+            }
+            ops[++otop] = op;
+            expect_value = true;
+            continue;
+        }
+
+        // number (also allow unary + / -)
+        if (expect_value && (c == '+' || c == '-')) {
+            // unary sign
+            char sign = (char)calc_get(&lx);
+            int c2 = calc_peek(&lx);
+            if (!(isdigit(c2) || c2 == '.')) return 0;
+            char* end = NULL;
+            double v = strtod(expr + lx.i, &end);
+            if (end == expr + lx.i) return 0;
+            lx.i = (size_t)(end - expr);
+            if (sign == '-') v = -v;
+            vals[++vtop] = v;
+            expect_value = false;
+            continue;
+        }
+
+        if (isdigit(c) || c == '.') {
+            char* end = NULL;
+            double v = strtod(expr + lx.i, &end);
+            if (end == expr + lx.i) return 0;
+            lx.i = (size_t)(end - expr);
+            vals[++vtop] = v;
+            expect_value = false;
+            continue;
+        }
+
+        return 0;
+    }
+
+    while (otop >= 0) {
+        if (ops[otop] == '(') return 0;
+        if (vtop < 1) return 0;
+        double b = vals[vtop--];
+        double a = vals[vtop--];
+        double r;
+        if (!calc_apply(ops[otop--], a, b, &r)) return 0;
+        vals[++vtop] = r;
+    }
+    if (vtop != 0) return 0;
+    *result = vals[0];
+    return 1;
+}
+
+void calc_eval(SnaskValue* out, SnaskValue* expr) {
+    if (!expr || (int)expr->tag != SNASK_STR || !expr->ptr) { out->tag = (double)SNASK_NIL; return; }
+    double r = 0.0;
+    if (!calc_eval_c((const char*)expr->ptr, &r)) { out->tag = (double)SNASK_NIL; return; }
+    out->tag = (double)SNASK_NUM;
+    out->num = r;
+    out->ptr = NULL;
+}
 
 // --- JSON ---
 typedef struct {

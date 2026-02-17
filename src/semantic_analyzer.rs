@@ -294,6 +294,7 @@ impl SemanticAnalyzer {
         self.define_builtin("gui_quit", vec![], Type::Void, false);
         self.define_builtin("gui_window", vec![Type::String, Type::Float, Type::Float], Type::String, false);
         self.define_builtin("gui_vbox", vec![], Type::String, false);
+        self.define_builtin("gui_hbox", vec![], Type::String, false);
         self.define_builtin("gui_set_child", vec![Type::String, Type::String], Type::Bool, false);
         self.define_builtin("gui_add", vec![Type::String, Type::String], Type::Bool, false);
         self.define_builtin("gui_label", vec![Type::String], Type::String, false);
@@ -303,6 +304,11 @@ impl SemanticAnalyzer {
         self.define_builtin("gui_set_text", vec![Type::String, Type::String], Type::Bool, false);
         self.define_builtin("gui_get_text", vec![Type::String], Type::String, false);
         self.define_builtin("gui_on_click", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin("gui_on_click_ctx", vec![Type::String, Type::String, Type::String], Type::Bool, false);
+
+        self.define_builtin("str_to_num", vec![Type::String], Type::Float, false);
+        self.define_builtin("num_to_str", vec![Type::Float], Type::String, false);
+        self.define_builtin("calc_eval", vec![Type::String], Type::Float, false);
 
         // Sistema Operacional / Baixo Nível
         self.define_builtin("peek", vec![Type::Ptr], Type::Any, false);
