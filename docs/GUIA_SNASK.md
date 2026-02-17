@@ -182,6 +182,35 @@ class main
         print(p.nome, p.idade);
 ```
 
+### 8.1 Métodos de instância
+
+Você chama métodos como em linguagens comuns:
+
+```snask
+class Pessoa
+    let nome = "Davi";
+    mut idade = 25;
+
+    fun aniversario()
+        // `self` é passado automaticamente como primeiro argumento (interno do runtime)
+        self.idade = self.idade + 1;
+        return self.idade;
+
+    fun dizer(msg)
+        return self.nome + ": " + msg;
+
+class main
+    fun start()
+        let p = Pessoa();
+        p.aniversario();
+        print(p.idade);
+        print(p.dizer("oi"));
+```
+
+Notas importantes (estado atual):
+- O backend ainda usa algumas heurísticas para localizar propriedades/métodos (sem tipos fortes completos).
+- Prefira nomes únicos de propriedades entre classes para evitar ambiguidades.
+
 ---
 
 ## 9. Módulos e bibliotecas (import e namespace)
@@ -204,7 +233,7 @@ import "prelude";
 
 class main
     fun start()
-        println("hello");
+        print("hello");
         assert(1 + 1 == 2, "math");
 ```
 
@@ -242,7 +271,8 @@ import "os";
 
 class main
     fun start()
-        let o = json::new_object();
+        // Cria um objeto via parse e depois edita campos
+        let o = json::parse("{\"name\":\"davi\"}");
         json::set(o, "name", "davi");
         os::write_json_pretty("user.json", o);
 

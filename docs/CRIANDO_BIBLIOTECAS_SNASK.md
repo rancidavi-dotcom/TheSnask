@@ -17,7 +17,7 @@ Uma biblioteca é só um **módulo**: um arquivo `nome.snask` com funções/clas
 Quando você faz:
 
 ```snask
-import "minha_lib"
+import "minha_lib";
 ```
 
 o compilador:
@@ -57,7 +57,7 @@ fun soma3(a, b, c)
 Uso no seu app:
 
 ```snask
-import "math_extra"
+import "math_extra";
 
 class main
     fun start()
@@ -202,7 +202,7 @@ fun _clamp(n, a, b)
 Uso:
 
 ```snask
-import "minha_lib"
+import "minha_lib";
 
 class main
     fun start()

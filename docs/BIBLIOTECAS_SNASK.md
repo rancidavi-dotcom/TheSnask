@@ -11,10 +11,10 @@ Helpers “de sempre”: `println`, `dbg`, `assert`, `expect`, Result-like (`ok/
 
 ### Exemplo de Uso:
 ```snask
-import "prelude"
+import "prelude";
 
 class main
-    fun main()
+    fun start()
         println("ok");
         assert(1 + 1 == 2, "math");
 ```
@@ -33,7 +33,7 @@ Biblioteca HTTP simples para comunicação em rede e integração com APIs Web (
 
 ### Exemplo de Uso:
 ```snask
-import "requests"
+import "requests";
 
 // Exemplo simples de download HTTP (o package manager do Snask usa o registry via git)
 let url = "https://raw.githubusercontent.com/rancidavi-dotcom/SnaskPackages/main/registry.json";
@@ -68,7 +68,7 @@ Módulo para manipulação de arquivos via runtime nativo `sfs_*`.
 
 ### Exemplo de Uso:
 ```snask
-import "sfs"
+import "sfs";
 
 sfs::write("logs.txt", "Evento registrado!");
 if sfs::exists("logs.txt")
@@ -87,7 +87,7 @@ Utilitários básicos (exemplos simples em Snask puro).
 
 ### Exemplo de Uso:
 ```snask
-import "utils"
+import "utils";
 
 utils::saudar("Desenvolvedor");
 let area = utils::calcular_area(10);
