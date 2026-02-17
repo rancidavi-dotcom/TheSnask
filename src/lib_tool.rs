@@ -32,18 +32,32 @@ fn run_git(args: &[&str], cwd: &Path) -> Result<(), String> {
 
 fn ensure_registry_repo() -> Result<PathBuf, String> {
     let repo = registry_dir()?;
+    let git_url = "https://github.com/rancidavi-dotcom/SnaskPackages";
+
     if !repo.exists() {
-        return Err(format!(
-            "Registry não encontrado em '{}'. Rode um comando de pacotes (ex: `snask search json`) para clonar o registry primeiro.",
-            repo.display()
-        ));
+        // Auto-clone: necessário para qualquer dev conseguir publicar via fork/PR.
+        fs::create_dir_all(repo.parent().unwrap_or_else(|| Path::new(".")))
+            .map_err(|e| format!("Falha ao criar diretório do registry: {}", e))?;
+        let out = Command::new("git")
+            .args(["clone", "--depth", "1", git_url, repo.to_string_lossy().as_ref()])
+            .output()
+            .map_err(|e| format!("Falha ao executar git clone: {}", e))?;
+        if !out.status.success() {
+            return Err(format!(
+                "Falha ao clonar registry.\nstdout: {}\nstderr: {}",
+                String::from_utf8_lossy(&out.stdout).trim(),
+                String::from_utf8_lossy(&out.stderr).trim()
+            ));
+        }
     }
+
     if !repo.join(".git").exists() {
         return Err(format!(
-            "Pasta '{}' existe, mas não é um repo git (sem .git). Apague e rode `snask search json` para recriar.",
+            "Pasta '{}' existe, mas não é um repo git (sem .git). Apague e rode novamente.",
             repo.display()
         ));
     }
+
     // Mantém atualizado antes de publicar
     let _ = run_git(&["fetch", "--all", "--prune"], &repo);
     run_git(&["pull", "--ff-only"], &repo)
