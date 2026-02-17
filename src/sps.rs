@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SpsManifest {
@@ -90,7 +91,12 @@ pub fn find_manifest(start_dir: &Path) -> Option<PathBuf> {
 pub fn load_manifest_from(dir: &Path) -> Result<(SpsManifest, PathBuf), String> {
     let manifest_path = find_manifest(dir).ok_or_else(|| "SPS: snask.toml não encontrado no diretório atual".to_string())?;
     let src = fs::read_to_string(&manifest_path).map_err(|e| format!("SPS: falha ao ler {}: {}", manifest_path.display(), e))?;
-    let m: SpsManifest = toml::from_str(&src).map_err(|e| format!("SPS: erro ao parsear snask.toml: {}", e))?;
+    let m: SpsManifest = toml::from_str(&src).map_err(|e| {
+        format!(
+            "SPS: erro ao parsear snask.toml: {}\n\nDica: verifique se as seções existem e estão no formato TOML correto, ex:\n[package]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"main.snask\"\n\n[dependencies]\njson = \"*\"\n",
+            e
+        )
+    })?;
     m.validate()?;
     Ok((m, manifest_path))
 }
@@ -98,6 +104,8 @@ pub fn load_manifest_from(dir: &Path) -> Result<(SpsManifest, PathBuf), String> 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Lockfile {
     pub package: LockPackage,
+    #[serde(default)]
+    pub registry: Option<LockRegistry>,
     pub dependencies: BTreeMap<String, LockedDep>,
 }
 
@@ -108,9 +116,17 @@ pub struct LockPackage {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct LockRegistry {
+    pub git_url: String,
+    pub rev: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct LockedDep {
     pub version: String,
     pub sha256: String,
+    #[serde(default)]
+    pub url: Option<String>,
 }
 
 pub fn lockfile_path(dir: &Path) -> PathBuf {
@@ -120,15 +136,45 @@ pub fn lockfile_path(dir: &Path) -> PathBuf {
 pub fn read_lockfile(dir: &Path) -> Result<Lockfile, String> {
     let p = lockfile_path(dir);
     let s = fs::read_to_string(&p).map_err(|e| format!("SPS: falha ao ler {}: {}", p.display(), e))?;
-    toml::from_str(&s).map_err(|e| format!("SPS: erro ao parsear snask.lock: {}", e))
+    toml::from_str(&s).map_err(|e| {
+        format!(
+            "SPS: erro ao parsear snask.lock: {}\n\nDica: delete `snask.lock` e rode `snask build` para regenerar.",
+            e
+        )
+    })
 }
 
 pub fn write_lockfile(dir: &Path, manifest: &SpsManifest, deps: BTreeMap<String, LockedDep>) -> Result<(), String> {
+    // Best-effort: registra a revisão do registry local (git) para auditoria/debug.
+    // Reprodutibilidade real é garantida por sha256 em cada dep.
+    let registry = registry_head().ok().map(|rev| LockRegistry {
+        git_url: "https://github.com/rancidavi-dotcom/SnaskPackages".to_string(),
+        rev,
+    });
+
     let lf = Lockfile {
         package: LockPackage { name: manifest.package.name.clone(), version: manifest.package.version.clone() },
+        registry,
         dependencies: deps,
     };
     let s = toml::to_string_pretty(&lf).map_err(|e| e.to_string())?;
     fs::write(lockfile_path(dir), s).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+fn registry_head() -> Result<String, String> {
+    let home = dirs::home_dir().ok_or_else(|| "home não encontrado".to_string())?;
+    let repo = home.join(".snask").join("registry");
+    if !repo.join(".git").exists() {
+        return Err("registry git não encontrado".to_string());
+    }
+    let out = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(&repo)
+        .output()
+        .map_err(|e| format!("falha ao executar git rev-parse: {}", e))?;
+    if !out.status.success() {
+        return Err("git rev-parse HEAD falhou".to_string());
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }

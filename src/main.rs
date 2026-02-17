@@ -258,7 +258,7 @@ fn resolve_entry_file(cli_file: Option<String>) -> Result<String, String> {
     if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
         return Ok(m.package.entry);
     }
-    Err("SPS: nenhum arquivo informado. Use `snask build arquivo.snask` ou crie um projeto com `snask init` (snask.toml) e rode `snask build`.".to_string())
+    Err("SPS: nenhum arquivo informado e não encontrei `snask.toml` no diretório atual.\n\nComo resolver:\n- Compile um arquivo direto: `snask build main.snask`\n- Ou crie um projeto SPS: `snask init` e depois `snask build`\n".to_string())
 }
 
 fn build_entry(cli_file: Option<String>, output_name: Option<String>, target: Option<String>) -> Result<(), String> {
@@ -502,13 +502,18 @@ fn sps_resolve_deps_and_lock(dir: &std::path::Path, manifest: &crate::sps::SpsMa
             }
         }
 
+        let url = registry.packages.get(name).map(|p| {
+            let u = p.url().trim();
+            if u.is_empty() { None } else { Some(u.to_string()) }
+        }).flatten();
+
         if !crate::packages::is_package_installed(name) {
             let (ver, sha, _path) = crate::packages::install_package_with_registry(name, &registry)?;
-            locked.insert(name.clone(), crate::sps::LockedDep { version: ver, sha256: sha });
+            locked.insert(name.clone(), crate::sps::LockedDep { version: ver, sha256: sha, url });
         } else {
             let sha = crate::packages::read_installed_package_sha256(name)?;
             let ver = crate::packages::read_installed_package_version_from_registry(name, &registry).unwrap_or_else(|| "unknown".to_string());
-            locked.insert(name.clone(), crate::sps::LockedDep { version: ver, sha256: sha });
+            locked.insert(name.clone(), crate::sps::LockedDep { version: ver, sha256: sha, url });
         }
     }
     crate::sps::write_lockfile(dir, manifest, locked)?;
@@ -554,12 +559,11 @@ fn sps_pin_from_lock(dir: &std::path::Path, manifest: &crate::sps::SpsManifest) 
             let (ver, sha, _path) = crate::packages::install_package_with_registry(name, &registry)?;
             if ver != dep.version || sha != dep.sha256 {
                 return Err(format!(
-                    "SPS: lockfile pede {}@{} sha256={}, mas registry instalou {} sha256={}. Atualize seu lock (`snask build`) ou ajuste dependências.",
-                    name,
-                    dep.version,
-                    dep.sha256,
-                    ver,
-                    sha
+                    "SPS: lockfile pede {name}@{want_ver} sha256={want_sha}, mas o download resultou em {got_ver} sha256={got_sha}.\n\nCausas comuns:\n- O pacote mudou no registry (novo release/arquivo alterado)\n- Seu lock está desatualizado\n\nComo resolver:\n- Se você quer pegar o novo pacote: `snask update {name}` e depois `snask build` (regenera snask.lock)\n- Se você quer manter o lock atual: verifique se o registry voltou a ter o mesmo sha256.\n",
+                    want_ver = dep.version,
+                    want_sha = dep.sha256,
+                    got_ver = ver,
+                    got_sha = sha
                 ));
             }
         }
