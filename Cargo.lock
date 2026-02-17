@@ -1798,6 +1798,7 @@ dependencies = [
  "indicatif",
  "inkwell",
  "lazy_static",
+ "libc",
  "rand",
  "reqwest",
  "rouille",

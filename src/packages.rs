@@ -3,8 +3,12 @@ use std::fs;
 use serde::Deserialize;
 use std::collections::HashMap;
 use sha2::{Digest, Sha256};
+use std::process::Command;
 
-const REGISTRY_URL: &str = "https://raw.githubusercontent.com/rancidavi-dotcom/SnaskPackages/main/registry.json";
+// Opção B (git): o registry é um repositório git local em ~/.snask/registry (clone/pull do SnaskPackages).
+// Isso permite evoluir de um único registry.json para um índice por pacote (index/**/<pkg>.json) sem depender de um servidor.
+const REGISTRY_GIT_URL: &str = "https://github.com/rancidavi-dotcom/SnaskPackages";
+const REGISTRY_HTTP_FALLBACK_URL: &str = "https://raw.githubusercontent.com/rancidavi-dotcom/SnaskPackages/main/registry.json";
 const BASE_PKG_URL: &str = "https://raw.githubusercontent.com/rancidavi-dotcom/SnaskPackages/main/packages/";
 
 #[derive(Deserialize, Debug)]
@@ -27,6 +31,12 @@ pub struct Registry {
     pub packages: HashMap<String, Package>,
 }
 
+fn snask_home_dir() -> Result<PathBuf, String> {
+    dirs::home_dir()
+        .map(|h| h.join(".snask"))
+        .ok_or_else(|| "Não foi possível encontrar o diretório home.".to_string())
+}
+
 pub fn get_packages_dir() -> PathBuf {
     let home = dirs::home_dir().expect("Não foi possível encontrar o diretório home.");
     let dir = home.join(".snask").join("packages");
@@ -36,13 +46,101 @@ pub fn get_packages_dir() -> PathBuf {
     dir
 }
 
-pub fn fetch_registry() -> Result<Registry, String> {
-    let response = reqwest::blocking::get(REGISTRY_URL)
-        .map_err(|e| format!("Falha ao acessar o registry: {}", e))?;
-    if !response.status().is_success() {
-        return Err(format!("Erro ao acessar registry: HTTP {}", response.status()));
+fn registry_repo_dir() -> Result<PathBuf, String> {
+    Ok(snask_home_dir()?.join("registry"))
+}
+
+fn run_git(args: &[&str], cwd: Option<&PathBuf>) -> Result<(), String> {
+    let mut cmd = Command::new("git");
+    cmd.args(args);
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
     }
-    response.json().map_err(|e| format!("Erro ao processar registry.json: {}", e))
+    let out = cmd.output().map_err(|e| format!("Falha ao executar git {:?}: {}", args, e))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        return Err(format!("git {:?} falhou.\nstdout: {}\nstderr: {}", args, stdout.trim(), stderr.trim()));
+    }
+    Ok(())
+}
+
+fn ensure_registry_repo() -> Result<PathBuf, String> {
+    let home = snask_home_dir()?;
+    fs::create_dir_all(&home).map_err(|e| format!("Falha ao criar {}: {}", home.display(), e))?;
+
+    let repo = registry_repo_dir()?;
+    if repo.join(".git").exists() {
+        // Atualiza o registry via git pull.
+        // (Sem rebase para evitar conflitos caso o usuário tenha mexido localmente.)
+        let _ = run_git(&["fetch", "--all", "--prune"], Some(&repo));
+        run_git(&["pull", "--ff-only"], Some(&repo)).map_err(|e| {
+            format!("Falha ao atualizar o registry via git. Dica: apague '{}' e rode novamente.\n{}", repo.display(), e)
+        })?;
+        return Ok(repo);
+    }
+
+    // Primeiro clone
+    run_git(&["clone", "--depth", "1", REGISTRY_GIT_URL, repo.to_string_lossy().as_ref()], None)?;
+    Ok(repo)
+}
+
+fn read_registry_from_repo(repo: &PathBuf) -> Result<Registry, String> {
+    // Preferência: índice por pacote em index/**/<name>.json
+    let index_dir = repo.join("index");
+    if index_dir.exists() {
+        let mut packages: HashMap<String, Package> = HashMap::new();
+        let mut stack = vec![index_dir];
+        while let Some(dir) = stack.pop() {
+            for entry in fs::read_dir(&dir).map_err(|e| format!("Falha ao ler índice {}: {}", dir.display(), e))? {
+                let entry = entry.map_err(|e| e.to_string())?;
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if path.extension().and_then(|s| s.to_str()) != Some("json") {
+                    continue;
+                }
+                let bytes = fs::read(&path).map_err(|e| format!("Falha ao ler {}: {}", path.display(), e))?;
+                let pkg: Package = serde_json::from_slice(&bytes)
+                    .map_err(|e| format!("JSON inválido em {}: {}", path.display(), e))?;
+                // O nome do pacote vem do filename (sem .json), para evitar inconsistências.
+                let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
+                if !name.is_empty() {
+                    packages.insert(name, pkg);
+                }
+            }
+        }
+        return Ok(Registry { packages });
+    }
+
+    // Compatibilidade: registry.json na raiz do repo
+    let legacy = repo.join("registry.json");
+    if legacy.exists() {
+        let bytes = fs::read(&legacy).map_err(|e| format!("Falha ao ler {}: {}", legacy.display(), e))?;
+        return serde_json::from_slice(&bytes).map_err(|e| format!("Erro ao processar registry.json (git): {}", e));
+    }
+
+    Err(format!("Registry inválido: não achei 'index/' nem 'registry.json' em '{}'.", repo.display()))
+}
+
+pub fn fetch_registry() -> Result<Registry, String> {
+    // Primeiro tenta o modo git (opção B). Se falhar, cai no HTTP como fallback.
+    match ensure_registry_repo().and_then(|repo| read_registry_from_repo(&repo)) {
+        Ok(r) => Ok(r),
+        Err(git_err) => {
+            eprintln!("⚠️  Registry via git falhou, usando fallback HTTP. ({})", git_err);
+            let response = reqwest::blocking::get(REGISTRY_HTTP_FALLBACK_URL)
+                .map_err(|e| format!("Falha ao acessar o registry (HTTP): {}", e))?;
+            if !response.status().is_success() {
+                return Err(format!("Erro ao acessar registry (HTTP): HTTP {}", response.status()));
+            }
+            response
+                .json()
+                .map_err(|e| format!("Erro ao processar registry.json (HTTP): {}", e))
+        }
+    }
 }
 
 pub fn is_package_installed(name: &str) -> bool {
@@ -160,11 +258,7 @@ pub fn list_packages() -> Result<(), String> {
 pub fn search_packages(query: &str) -> Result<(), String> {
     println!("🔍 Pesquisando por '{}' no registry...", query);
     
-    let response = reqwest::blocking::get(REGISTRY_URL)
-        .map_err(|e| format!("Falha ao acessar o registry: {}", e))?;
-    
-    let registry: Registry = response.json()
-        .map_err(|e| format!("Erro ao processar registry.json: {}", e))?;
+    let registry: Registry = fetch_registry()?;
 
     let mut found = false;
     for (name, package) in registry.packages {

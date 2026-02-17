@@ -129,6 +129,72 @@ typedef struct {
     int count;
 } SnaskObject;
 
+static int snask_value_strict_eq(SnaskValue* a, SnaskValue* b) {
+    if (!a || !b) return 0;
+    int ta = (int)a->tag;
+    int tb = (int)b->tag;
+    if (ta != tb) return 0;
+    switch (ta) {
+        case SNASK_NIL: return 1;
+        case SNASK_NUM: return a->num == b->num;
+        case SNASK_BOOL: return (a->num != 0.0) == (b->num != 0.0);
+        case SNASK_STR:
+            if (!a->ptr || !b->ptr) return a->ptr == b->ptr;
+            return strcmp((const char*)a->ptr, (const char*)b->ptr) == 0;
+        case SNASK_OBJ:
+            // por enquanto: igualdade estrita de objeto = mesma referência
+            return a->ptr == b->ptr;
+        default:
+            return 0;
+    }
+}
+
+void s_eq_strict(SnaskValue* out, SnaskValue* a, SnaskValue* b) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = snask_value_strict_eq(a, b) ? 1.0 : 0.0;
+}
+
+static int snask_value_eq_loose(SnaskValue* a, SnaskValue* b) {
+    if (!a || !b) return 0;
+    int ta = (int)a->tag;
+    int tb = (int)b->tag;
+
+    // nil
+    if (ta == SNASK_NIL || tb == SNASK_NIL) return ta == tb;
+
+    // numeric-like: NUM and BOOL can be compared by numeric value
+    if ((ta == SNASK_NUM || ta == SNASK_BOOL) && (tb == SNASK_NUM || tb == SNASK_BOOL)) {
+        double av = (ta == SNASK_BOOL) ? (a->num != 0.0 ? 1.0 : 0.0) : a->num;
+        double bv = (tb == SNASK_BOOL) ? (b->num != 0.0 ? 1.0 : 0.0) : b->num;
+        return av == bv;
+    }
+
+    // strings: compare by content
+    if (ta == SNASK_STR && tb == SNASK_STR) {
+        if (!a->ptr || !b->ptr) return a->ptr == b->ptr;
+        return strcmp((const char*)a->ptr, (const char*)b->ptr) == 0;
+    }
+
+    // objects: for now, equality = same reference (fast, predictable)
+    if (ta == SNASK_OBJ && tb == SNASK_OBJ) return a->ptr == b->ptr;
+
+    // different types: not equal
+    return 0;
+}
+
+void s_eq(SnaskValue* out, SnaskValue* a, SnaskValue* b) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = snask_value_eq_loose(a, b) ? 1.0 : 0.0;
+}
+
+void s_ne(SnaskValue* out, SnaskValue* a, SnaskValue* b) {
+    out->tag = (double)SNASK_BOOL;
+    out->ptr = NULL;
+    out->num = snask_value_eq_loose(a, b) ? 0.0 : 1.0;
+}
+
 // Forward decls (usadas por seções posteriores)
 static SnaskValue make_nil(void);
 static SnaskValue make_bool(bool b);
@@ -156,11 +222,19 @@ void s_alloc_obj(SnaskValue* out, SnaskValue* size_val, char** names) {
 void http_request(SnaskValue* out, const char* method, SnaskValue* url, SnaskValue* data) {
     if ((int)url->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
     
+    const char* dbg = getenv("SNASK_HTTP_DEBUG");
     char cmd[4096];
     if (data && (int)data->tag == SNASK_STR) {
-        snprintf(cmd, sizeof(cmd), "curl -s -L -X %s -d '%s' '%s'", method, (char*)data->ptr, (char*)url->ptr);
+        // -f: fail on HTTP errors, -sS: silent but show errors, -L: follow redirects
+        // timeouts avoid hanging the runtime on network issues
+        snprintf(cmd, sizeof(cmd), "curl -f -sS -L --connect-timeout 10 --max-time 30 -X %s -d '%s' '%s' 2>&1", method, (char*)data->ptr, (char*)url->ptr);
     } else {
-        snprintf(cmd, sizeof(cmd), "curl -s -L -X %s '%s'", method, (char*)url->ptr);
+        snprintf(cmd, sizeof(cmd), "curl -f -sS -L --connect-timeout 10 --max-time 30 -X %s '%s' 2>&1", method, (char*)url->ptr);
+    }
+
+    if (dbg && *dbg) {
+        FILE* df = fopen("/tmp/snask_http_debug.log", "a");
+        if (df) { fprintf(df, "CMD=%s\n", cmd); fclose(df); }
     }
     
     FILE *fp = popen(cmd, "r");
@@ -178,7 +252,13 @@ void http_request(SnaskValue* out, const char* method, SnaskValue* url, SnaskVal
         total_len += chunk_len;
     }
     
-    pclose(fp);
+    int rc = pclose(fp);
+    // curl returns non-zero on network errors / HTTP -f failures
+    if (rc != 0 && total_len == 0) { out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return; }
+    if (dbg && *dbg) {
+        FILE* df = fopen("/tmp/snask_http_debug.log", "a");
+        if (df) { fprintf(df, "RC=%d LEN=%zu\n", rc, total_len); fclose(df); }
+    }
     out->tag = (double)SNASK_STR;
     out->ptr = response;
     out->num = 0;
@@ -1460,6 +1540,30 @@ void s_concat(SnaskValue* out, SnaskValue* s1, SnaskValue* s2) {
     out->tag = (double)SNASK_STR; out->ptr = new_str; out->num = 0;
 }
 
+// substring(str, start, len) -> string
+void substring(SnaskValue* out, SnaskValue* s, SnaskValue* start_v, SnaskValue* len_v) {
+    if (!s || (int)s->tag != SNASK_STR || !s->ptr || !start_v || (int)start_v->tag != SNASK_NUM || !len_v || (int)len_v->tag != SNASK_NUM) {
+        out->tag = (double)SNASK_NIL;
+        out->ptr = NULL;
+        out->num = 0;
+        return;
+    }
+    const char* src = (const char*)s->ptr;
+    int start = (int)start_v->num;
+    int len = (int)len_v->num;
+    int slen = (int)strlen(src);
+    if (start < 0) start = 0;
+    if (len < 0) len = 0;
+    if (start > slen) start = slen;
+    if (start + len > slen) len = slen - start;
+    char* dst = (char*)snask_gc_malloc((size_t)len + 1);
+    memcpy(dst, src + start, (size_t)len);
+    dst[len] = '\0';
+    out->tag = (double)SNASK_STR;
+    out->ptr = dst;
+    out->num = 0;
+}
+
 // ---------------- GUI (GTK3) ----------------
 #ifdef SNASK_GUI_GTK
 
@@ -1535,9 +1639,11 @@ static void gui_on_button_clicked(GtkWidget* _widget, gpointer user_data) {
 void gui_init(SnaskValue* out) {
     int argc = 0;
     char** argv = NULL;
-    gtk_init(&argc, &argv);
+    // gtk_init() termina o processo se não houver display. Preferimos não abortar:
+    // retorne false e deixe o app lidar com isso.
+    gboolean ok = gtk_init_check(&argc, &argv);
     out->tag = (double)SNASK_BOOL;
-    out->num = 1.0;
+    out->num = ok ? 1.0 : 0.0;
     out->ptr = NULL;
 }
 
@@ -1598,6 +1704,64 @@ void gui_hbox(SnaskValue* out) {
     out->tag = (double)SNASK_STR;
     out->ptr = gui_ptr_to_handle(box);
     out->num = 0;
+}
+
+void gui_scrolled(SnaskValue* out) {
+    GtkWidget* sw = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(sw);
+    out->num = 0;
+}
+
+void gui_listbox(SnaskValue* out) {
+    GtkWidget* lb = gtk_list_box_new();
+    gtk_list_box_set_selection_mode(GTK_LIST_BOX(lb), GTK_SELECTION_SINGLE);
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(lb);
+    out->num = 0;
+}
+
+void gui_list_add_text(SnaskValue* out, SnaskValue* list_h, SnaskValue* text) {
+    if ((int)list_h->tag != SNASK_STR || (int)text->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)list_h->ptr);
+    if (!w || !GTK_IS_LIST_BOX(w)) { out->tag = (double)SNASK_NIL; return; }
+
+    GtkWidget* lbl = gtk_label_new((const char*)text->ptr);
+    gtk_widget_set_halign(lbl, GTK_ALIGN_START);
+
+    GtkWidget* row = gtk_list_box_row_new();
+    gtk_container_add(GTK_CONTAINER(row), lbl);
+    gtk_widget_show_all(row);
+    gtk_list_box_insert(GTK_LIST_BOX(w), row, -1);
+    g_object_set_data_full(G_OBJECT(row), "snask_pkg", strdup((const char*)text->ptr), free);
+
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(row);
+    out->num = 0;
+}
+
+static void gui_on_list_selected(GtkListBox* _box, GtkListBoxRow* row, gpointer user_data) {
+    (void)_box;
+    GuiCallbackCtx* ctx = (GuiCallbackCtx*)user_data;
+    if (!ctx) return;
+    if (!row) return;
+    const char* pkg = (const char*)g_object_get_data(G_OBJECT(row), "snask_pkg");
+    if (!pkg) pkg = "";
+    if (ctx->ctx) (void)gui_call_handler_2(ctx->handler_name, pkg, ctx->ctx);
+    else (void)gui_call_handler_1(ctx->handler_name, pkg);
+}
+
+void gui_on_select_ctx(SnaskValue* out, SnaskValue* list_h, SnaskValue* handler_name, SnaskValue* ctx_str) {
+    if ((int)list_h->tag != SNASK_STR || (int)handler_name->tag != SNASK_STR || (int)ctx_str->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)list_h->ptr);
+    if (!w || !GTK_IS_LIST_BOX(w)) { out->tag = (double)SNASK_NIL; return; }
+    GuiCallbackCtx* ctx = (GuiCallbackCtx*)calloc(1, sizeof(GuiCallbackCtx));
+    ctx->handler_name = strdup((const char*)handler_name->ptr);
+    ctx->widget_handle = strdup((const char*)list_h->ptr);
+    ctx->ctx = strdup((const char*)ctx_str->ptr);
+    g_signal_connect_data(w, "row-selected", G_CALLBACK(gui_on_list_selected), ctx, (GClosureNotify)gui_free_ctx, 0);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
 }
 
 void gui_set_child(SnaskValue* out, SnaskValue* parent_h, SnaskValue* child_h) {
@@ -1788,6 +1952,10 @@ void gui_set_resizable(SnaskValue* out, SnaskValue* _w, SnaskValue* _b) { (void)
 void gui_autosize(SnaskValue* out, SnaskValue* _w) { (void)_w; out->tag = (double)SNASK_NIL; }
 void gui_vbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_hbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_scrolled(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_listbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_list_add_text(SnaskValue* out, SnaskValue* _l, SnaskValue* _t) { (void)_l; (void)_t; out->tag = (double)SNASK_NIL; }
+void gui_on_select_ctx(SnaskValue* out, SnaskValue* _l, SnaskValue* _h, SnaskValue* _c) { (void)_l; (void)_h; (void)_c; out->tag = (double)SNASK_NIL; }
 void gui_set_child(SnaskValue* out, SnaskValue* _p, SnaskValue* _c) { (void)_p; (void)_c; out->tag = (double)SNASK_NIL; }
 void gui_add(SnaskValue* out, SnaskValue* _b, SnaskValue* _c) { (void)_b; (void)_c; out->tag = (double)SNASK_NIL; }
 void gui_add_expand(SnaskValue* out, SnaskValue* _b, SnaskValue* _c) { (void)_b; (void)_c; out->tag = (double)SNASK_NIL; }
@@ -2649,6 +2817,18 @@ void json_set(SnaskValue* out, SnaskValue* obj_val, SnaskValue* key_val, SnaskVa
     obj->values[new_count - 1] = *value;
     obj->count = new_count;
     out->num = 1.0;
+}
+
+void json_keys(SnaskValue* out, SnaskValue* obj_val) {
+    if ((int)obj_val->tag != SNASK_OBJ) { out->tag = (double)SNASK_NIL; out->ptr = NULL; out->num = 0; return; }
+    SnaskObject* obj = (SnaskObject*)obj_val->ptr;
+    int n = obj ? obj->count : 0;
+    SnaskObject* arr = obj_new(n);
+    for (int i = 0; obj && i < n; i++) {
+        arr->names[i] = NULL;
+        arr->values[i] = make_str(snask_gc_strdup(obj->names[i] ? obj->names[i] : ""));
+    }
+    *out = make_obj(arr);
 }
 
 void s_get_member(SnaskValue* out, SnaskValue* v_obj, SnaskValue* index_val) {

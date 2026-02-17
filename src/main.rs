@@ -22,6 +22,7 @@ use inkwell::context::Context;
 use crate::ast::{Program, StmtKind};
 use crate::modules::load_module;
 use indicatif::{ProgressBar, ProgressStyle};
+use std::time::{Duration, Instant};
 
 #[derive(ClapParser)]
 #[command(author, version, about, long_about = None)]
@@ -38,6 +39,7 @@ enum Commands {
     Add { name: String, version: Option<String> },
     Remove { name: String },
     Setup { #[arg(long)] target: Option<String> },
+    Store,
     Install { name: String },
     Uninstall { name: Option<String> },
     Update { name: Option<String> },
@@ -133,6 +135,11 @@ fn main() {
                 eprintln!("Erro durante o setup: {}", e);
             }
         },
+        Commands::Store => {
+            if let Err(e) = run_store_gui() {
+                eprintln!("Erro ao abrir Snask Store: {}", e);
+            }
+        },
         Commands::Install { name } => {
             if let Err(e) = packages::install_package(name) {
                 eprintln!("Erro ao instalar pacote: {}", e);
@@ -174,6 +181,24 @@ fn main() {
             }
         },
     }
+}
+
+fn run_store_gui() -> Result<(), String> {
+    let dev_path = std::path::PathBuf::from("tools/snask_store/snask_store.py");
+    if dev_path.exists() {
+        let status = Command::new("python3").arg(dev_path).status().map_err(|e| format!("Falha ao executar python3: {}", e))?;
+        if !status.success() { return Err(format!("Snask Store saiu com status {}", status)); }
+        return Ok(());
+    }
+
+    let home = std::env::var("HOME").map_err(|_| "Variável HOME não encontrada.".to_string())?;
+    let installed = std::path::PathBuf::from(home).join(".snask").join("tools").join("snask_store").join("snask_store.py");
+    if !installed.exists() {
+        return Err(format!("Store GUI não encontrado em '{}' (dev) nem em '{}' (instalado).", "tools/snask_store/snask_store.py", installed.display()));
+    }
+    let status = Command::new("python3").arg(installed).status().map_err(|e| format!("Falha ao executar python3: {}", e))?;
+    if !status.success() { return Err(format!("Snask Store saiu com status {}", status)); }
+    Ok(())
 }
 
 fn resolve_entry_file(cli_file: Option<String>) -> Result<String, String> {
@@ -329,6 +354,8 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
         // Necessário para blaze (dlsym handlers) e para expor símbolos do binário
         .arg("-ldl")
         .arg("-Wl,--export-dynamic")
+        // Alguns toolchains precisam de -rdynamic para dlsym() enxergar símbolos do executável
+        .arg("-rdynamic")
         // Link args requeridos pelo runtime (ex.: gtk/sqlite se habilitados no setup)
         .args(get_runtime_linkargs(target.as_deref()))
         .status()
@@ -638,7 +665,8 @@ fn run_setup(target: Option<String>) -> Result<(), String> {
 
     println!("🚚 Instalando binário em {}...", snask_bin);
     let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    fs::copy(current_exe, format!("{}/snask", snask_bin)).map_err(|e| e.to_string())?;
+    let dest_path = std::path::PathBuf::from(&snask_bin).join("snask");
+    install_self_binary(&current_exe, &dest_path)?;
 
     println!("🌐 Configurando o PATH...");
     let shell_configs = vec![format!("{}/.bashrc", home), format!("{}/.zshrc", home)];
@@ -660,6 +688,101 @@ fn run_setup(target: Option<String>) -> Result<(), String> {
     println!("Dica: Reinicie seu terminal ou rode 'source ~/.bashrc' para começar a usar o comando 'snask' de qualquer lugar.");
     
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn kill_processes_using_exe_path(dest_path: &std::path::Path) -> Result<usize, String> {
+    let mut killed = 0usize;
+    let me = std::process::id() as i32;
+    let dest = dest_path.to_path_buf();
+
+    let proc = std::path::Path::new("/proc");
+    if !proc.exists() {
+        return Ok(0);
+    }
+
+    for entry in std::fs::read_dir(proc).map_err(|e| e.to_string())? {
+        let Ok(entry) = entry else { continue };
+        let fname = entry.file_name();
+        let Ok(pid_str) = fname.to_string_lossy().parse::<u32>() else { continue };
+        let pid = pid_str as i32;
+        if pid == me { continue; }
+
+        let exe_link = entry.path().join("exe");
+        let Ok(exe) = std::fs::read_link(&exe_link) else { continue };
+        if exe != dest { continue; }
+
+        unsafe {
+            libc::kill(pid, libc::SIGTERM);
+        }
+        killed += 1;
+    }
+
+    if killed == 0 {
+        return Ok(0);
+    }
+
+    let deadline = Instant::now() + Duration::from_millis(800);
+    while Instant::now() < deadline {
+        let mut any_alive = false;
+        for entry in std::fs::read_dir(proc).map_err(|e| e.to_string())? {
+            let Ok(entry) = entry else { continue };
+            let fname = entry.file_name();
+            let Ok(pid_str) = fname.to_string_lossy().parse::<u32>() else { continue };
+            let pid = pid_str as i32;
+            if pid == me { continue; }
+            let exe_link = entry.path().join("exe");
+            let Ok(exe) = std::fs::read_link(&exe_link) else { continue };
+            if exe == dest { any_alive = true; break; }
+        }
+        if !any_alive { break; }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+
+    for entry in std::fs::read_dir(proc).map_err(|e| e.to_string())? {
+        let Ok(entry) = entry else { continue };
+        let fname = entry.file_name();
+        let Ok(pid_str) = fname.to_string_lossy().parse::<u32>() else { continue };
+        let pid = pid_str as i32;
+        if pid == me { continue; }
+        let exe_link = entry.path().join("exe");
+        let Ok(exe) = std::fs::read_link(&exe_link) else { continue };
+        if exe != dest { continue; }
+        unsafe {
+            libc::kill(pid, libc::SIGKILL);
+        }
+    }
+
+    Ok(killed)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn kill_processes_using_exe_path(_dest_path: &std::path::Path) -> Result<usize, String> {
+    Ok(0)
+}
+
+fn install_self_binary(current_exe: &std::path::Path, dest_path: &std::path::Path) -> Result<(), String> {
+    let tmp_path = dest_path.with_extension("tmp");
+    let _ = std::fs::remove_file(&tmp_path);
+
+    std::fs::copy(current_exe, &tmp_path).map_err(|e| format!("Falha ao copiar binário: {}", e))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&tmp_path).map_err(|e| e.to_string())?.permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&tmp_path, perms).map_err(|e| e.to_string())?;
+    }
+
+    match std::fs::rename(&tmp_path, dest_path) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            let _ = kill_processes_using_exe_path(dest_path);
+            std::fs::rename(&tmp_path, dest_path).map_err(|e2| format!("Erro durante o setup: {} (orig: {})", e2, e))?;
+            Ok(())
+        }
+    }
 }
 
 fn run_uninstall() -> Result<(), String> {

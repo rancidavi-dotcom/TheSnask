@@ -35,12 +35,25 @@ Biblioteca HTTP simples para comunicação em rede e integração com APIs Web (
 ```snask
 import "requests"
 
-// Buscando o registro oficial de pacotes
+// Exemplo simples de download HTTP (o package manager do Snask usa o registry via git)
 let url = "https://raw.githubusercontent.com/rancidavi-dotcom/SnaskPackages/main/registry.json";
 let resposta = requests::get(url);
 
 print("Conteúdo do Registry:", resposta);
 ```
+
+---
+
+## Registry de pacotes (opção B: Git)
+
+O `snask install/add/search/update` sincroniza o registry como um **repositório git local** em:
+
+- `~/.snask/registry` (clone/pull do `rancidavi-dotcom/SnaskPackages`)
+
+Formato suportado:
+
+- Preferencial: índice por pacote em `index/**/<pacote>.json`
+- Compatibilidade: `registry.json` na raiz do repo
 
 ---
 

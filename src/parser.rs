@@ -52,12 +52,14 @@ pub enum Token {
     Minus(Location),
     Star(Location),
     Slash(Location),
+    DoubleSlash(Location),
     PlusEqual(Location),
     MinusEqual(Location),
     StarEqual(Location),
     SlashEqual(Location),
     Equal(Location),
     EqualEqual(Location),
+    TripleEqual(Location),
     BangEqual(Location),
 
     Less(Location),
@@ -119,12 +121,14 @@ impl Token {
             Token::Minus(loc) |
             Token::Star(loc) |
             Token::Slash(loc) |
+            Token::DoubleSlash(loc) |
             Token::PlusEqual(loc) |
             Token::MinusEqual(loc) |
             Token::StarEqual(loc) |
             Token::SlashEqual(loc) |
             Token::Equal(loc) |
             Token::EqualEqual(loc) |
+            Token::TripleEqual(loc) |
             Token::BangEqual(loc) |
             Token::Less(loc) |
             Token::LessEqual(loc) |
@@ -181,12 +185,14 @@ impl Token {
             Token::Minus(_) => "'-'".to_string(),
             Token::Star(_) => "'*'".to_string(),
             Token::Slash(_) => "'/'".to_string(),
+            Token::DoubleSlash(_) => "'//'".to_string(),
             Token::PlusEqual(_) => "'+='".to_string(),
             Token::MinusEqual(_) => "'-='".to_string(),
             Token::StarEqual(_) => "'*='".to_string(),
             Token::SlashEqual(_) => "'/='".to_string(),
             Token::Equal(_) => "'='".to_string(),
             Token::EqualEqual(_) => "'=='".to_string(),
+            Token::TripleEqual(_) => "'==='".to_string(),
             Token::BangEqual(_) => "'!='".to_string(),
             Token::Less(_) => "'<'".to_string(),
             Token::LessEqual(_) => "'<='".to_string(),
@@ -377,11 +383,22 @@ impl<'a> Tokenizer<'a> {
                     if self.match_char('=') { Token::StarEqual(loc) } else { Token::Star(loc) }
                 },
                 '/' => {
-                    if self.match_char('=') { Token::SlashEqual(loc) } else { Token::Slash(loc) }
+                    if let Some('/') = self.peek() {
+                        self.advance();
+                        Token::DoubleSlash(loc)
+                    } else if self.match_char('=') {
+                        Token::SlashEqual(loc)
+                    } else {
+                        Token::Slash(loc)
+                    }
                 },
                 '=' => {
                     if self.match_char('=') {
-                        Token::EqualEqual(loc)
+                        if self.match_char('=') {
+                            Token::TripleEqual(loc)
+                        } else {
+                            Token::EqualEqual(loc)
+                        }
                     } else {
                         Token::Equal(loc)
                     }
@@ -1007,10 +1024,10 @@ impl<'a> Parser<'a> {
             Token::Equal(_) => Precedence::Assignment,
             Token::Or(_) => Precedence::Or,
             Token::And(_) => Precedence::And,
-            Token::EqualEqual(_) | Token::BangEqual(_) => Precedence::Equality,
+            Token::EqualEqual(_) | Token::TripleEqual(_) | Token::BangEqual(_) => Precedence::Equality,
             Token::Less(_) | Token::LessEqual(_) | Token::Greater(_) | Token::GreaterEqual(_) => Precedence::Comparison,
             Token::Plus(_) | Token::Minus(_) => Precedence::Term,
-            Token::Star(_) | Token::Slash(_) => Precedence::Factor,
+            Token::Star(_) | Token::Slash(_) | Token::DoubleSlash(_) => Precedence::Factor,
             Token::LeftParen(_) => Precedence::Call,
             Token::LeftBracket(_) => Precedence::Index,
             Token::Dot(_) | Token::DoubleColon(_) => Precedence::Call, // Set Dot and DoubleColon precedence
@@ -1024,9 +1041,11 @@ impl<'a> Parser<'a> {
             Token::Minus(_) => Ok(BinaryOp::Subtract),
             Token::Star(_) => Ok(BinaryOp::Multiply),
             Token::Slash(_) => Ok(BinaryOp::Divide),
+            Token::DoubleSlash(_) => Ok(BinaryOp::IntDivide),
             Token::And(_) => Ok(BinaryOp::And),
             Token::Or(_) => Ok(BinaryOp::Or),
             Token::EqualEqual(_) => Ok(BinaryOp::Equals),
+            Token::TripleEqual(_) => Ok(BinaryOp::StrictEquals),
             Token::BangEqual(_) => Ok(BinaryOp::NotEquals),
             Token::Less(_) => Ok(BinaryOp::LessThan),
             Token::LessEqual(_) => Ok(BinaryOp::LessThanOrEquals),
@@ -1123,9 +1142,9 @@ impl<'a> Parser<'a> {
     fn parse_infix(&mut self, left: Expr) -> Result<Expr, String> {
         let loc = self.current_token.get_location().clone();
         match self.current_token.clone() {
-            Token::Plus(_) | Token::Minus(_) | Token::Star(_) | Token::Slash(_) |
+            Token::Plus(_) | Token::Minus(_) | Token::Star(_) | Token::Slash(_) | Token::DoubleSlash(_) |
             Token::And(_) | Token::Or(_) |
-            Token::EqualEqual(_) | Token::BangEqual(_) | Token::Less(_) |
+            Token::EqualEqual(_) | Token::TripleEqual(_) | Token::BangEqual(_) | Token::Less(_) |
             Token::LessEqual(_) | Token::Greater(_) | Token::GreaterEqual(_) => {
                 let op = self.binary_op_from_token(&self.current_token)?;
                 let precedence = self.get_precedence(&self.current_token);

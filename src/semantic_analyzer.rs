@@ -200,6 +200,7 @@ impl SemanticAnalyzer {
         self.define_builtin("json_len", vec![Type::Any], Type::Float, false);
         self.define_builtin("json_index", vec![Type::Any, Type::Float], Type::Any, false);
         self.define_builtin("json_set", vec![Type::Any, Type::String, Type::Any], Type::Bool, false);
+        self.define_builtin("json_keys", vec![Type::Any], Type::Any, false);
 
         // Sjson
         self.define_builtin("sjson_new_object", vec![], Type::Any, false);
@@ -298,6 +299,10 @@ impl SemanticAnalyzer {
         self.define_builtin("gui_autosize", vec![Type::String], Type::Bool, false);
         self.define_builtin("gui_vbox", vec![], Type::String, false);
         self.define_builtin("gui_hbox", vec![], Type::String, false);
+        self.define_builtin("gui_scrolled", vec![], Type::String, false);
+        self.define_builtin("gui_listbox", vec![], Type::String, false);
+        self.define_builtin("gui_list_add_text", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin("gui_on_select_ctx", vec![Type::String, Type::String, Type::String], Type::Bool, false);
         self.define_builtin("gui_set_child", vec![Type::String, Type::String], Type::Bool, false);
         self.define_builtin("gui_add", vec![Type::String, Type::String], Type::Bool, false);
         self.define_builtin("gui_add_expand", vec![Type::String, Type::String], Type::Bool, false);
@@ -705,7 +710,7 @@ impl SemanticAnalyzer {
                             Err(SemanticError::InvalidOperation { op: format!("{:?}", op), type1: left_type, type2: Some(right_type) })
                         }
                     }
-                    BinaryOp::Subtract | BinaryOp::Multiply | BinaryOp::Divide => {
+                    BinaryOp::Subtract | BinaryOp::Multiply | BinaryOp::Divide | BinaryOp::IntDivide => {
                         if left_type == Type::Any || right_type == Type::Any {
                             Ok(Type::Any)
                         } else if left_type.is_numeric() && right_type.is_numeric() {
@@ -714,7 +719,7 @@ impl SemanticAnalyzer {
                             Err(SemanticError::InvalidOperation { op: format!("{:?}", op), type1: left_type, type2: Some(right_type) })
                         }
                     }
-                    BinaryOp::Equals | BinaryOp::NotEquals | BinaryOp::GreaterThan | BinaryOp::LessThan | BinaryOp::GreaterThanOrEquals | BinaryOp::LessThanOrEquals => {
+                    BinaryOp::Equals | BinaryOp::StrictEquals | BinaryOp::NotEquals | BinaryOp::GreaterThan | BinaryOp::LessThan | BinaryOp::GreaterThanOrEquals | BinaryOp::LessThanOrEquals => {
                         if self.is_compatible(&left_type, &right_type) || self.is_compatible(&right_type, &left_type) { Ok(Type::Bool) } else {
                              Err(SemanticError::InvalidOperation { op: format!("{:?}", op), type1: left_type, type2: Some(right_type) })
                         }

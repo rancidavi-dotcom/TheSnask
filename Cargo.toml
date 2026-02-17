@@ -24,3 +24,4 @@ bcrypt = "0.15"
 uuid = { version = "1.6", features = ["v4"] }
 rand = "0.8"
 rusqlite = { version = "0.31.0", features = ["bundled"] } # Adicione esta linha
+libc = "0.2"

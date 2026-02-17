@@ -62,6 +62,14 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.builder.position_at_end(entry);
         self.current_func = Some(main_func);
 
+        // Sempre executa top-level statements (globals) antes do start.
+        // Isso permite que módulos importados inicializem estado (mut/let/const) mesmo quando existe main::start.
+        for stmt in &program {
+            if !matches!(stmt.kind, StmtKind::FuncDeclaration(_) | StmtKind::ClassDeclaration(_)) {
+                self.generate_statement(stmt.clone())?;
+            }
+        }
+
         // Se houver uma class main com método start, chama ele!
         let mut has_start = false;
         for stmt in &program {
@@ -82,15 +90,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 }
             }
         }
-
-        if !has_start {
-            // Se não tiver main::start, executa top-level statements
-            for stmt in &program { 
-                if !matches!(stmt.kind, StmtKind::FuncDeclaration(_) | StmtKind::ClassDeclaration(_)) { 
-                    self.generate_statement(stmt.clone())?; 
-                } 
-            }
-        }
+        let _ = has_start;
         
         if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
             self.builder.build_return(Some(&i32_type.const_int(0, false))).unwrap();
@@ -160,9 +160,17 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("s_len".to_string(), f_len);
         self.functions.insert("len".to_string(), f_len);
 
+        // strict equality helper (===)
+        self.functions.insert("s_eq_strict".to_string(), self.module.add_function("s_eq_strict", fn_2, None));
+        // value equality helpers (== / !=)
+        self.functions.insert("s_eq".to_string(), self.module.add_function("s_eq", fn_2, None));
+        self.functions.insert("s_ne".to_string(), self.module.add_function("s_ne", fn_2, None));
+
         let f_upper = self.module.add_function("s_upper", fn_1, None);
         self.functions.insert("s_upper".to_string(), f_upper);
         self.functions.insert("upper".to_string(), f_upper);
+
+        self.functions.insert("substring".to_string(), self.module.add_function("substring", fn_3, None));
 
         let f_time = self.module.add_function("s_time", void_type.fn_type(&[self.ptr_type.into()], false), None);
         self.functions.insert("s_time".to_string(), f_time);
@@ -220,6 +228,10 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("gui_autosize".to_string(), self.module.add_function("gui_autosize", fn_1, None));
         self.functions.insert("gui_vbox".to_string(), self.module.add_function("gui_vbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("gui_hbox".to_string(), self.module.add_function("gui_hbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_scrolled".to_string(), self.module.add_function("gui_scrolled", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_listbox".to_string(), self.module.add_function("gui_listbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_list_add_text".to_string(), self.module.add_function("gui_list_add_text", fn_2, None));
+        self.functions.insert("gui_on_select_ctx".to_string(), self.module.add_function("gui_on_select_ctx", fn_3, None));
         self.functions.insert("gui_set_child".to_string(), self.module.add_function("gui_set_child", fn_2, None));
         self.functions.insert("gui_add".to_string(), self.module.add_function("gui_add", fn_2, None));
         self.functions.insert("gui_add_expand".to_string(), self.module.add_function("gui_add_expand", fn_2, None));
@@ -275,6 +287,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("json_len".to_string(), self.module.add_function("json_len", fn_1, None));
         self.functions.insert("json_index".to_string(), self.module.add_function("json_index", fn_2, None));
         self.functions.insert("json_set".to_string(), self.module.add_function("json_set", fn_3, None));
+        self.functions.insert("json_keys".to_string(), self.module.add_function("json_keys", fn_1, None));
         self.functions.insert("sjson_new_object".to_string(), self.module.add_function("sjson_new_object", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("sjson_new_array".to_string(), self.module.add_function("sjson_new_array", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("sjson_type".to_string(), self.module.add_function("sjson_type", fn_1, None));
@@ -331,24 +344,64 @@ impl<'ctx> LLVMGenerator<'ctx> {
         match stmt.kind {
             StmtKind::VarDeclaration(d) => {
                 let v = self.evaluate_expression(d.value)?;
-                let a = self.builder.build_alloca(self.value_type, &d.name).unwrap();
-                self.builder.build_store(a, v).unwrap();
-                if self.current_func.unwrap().get_name().to_str().unwrap() == "main" { self.variables.insert(d.name, a); }
-                else { self.local_vars.insert(d.name, a); }
+                if self.current_func.unwrap().get_name().to_str().unwrap() == "main" {
+                    // Top-level globals: usa GlobalValue para permitir acesso em outras funções.
+                    let f64_type = self.context.f64_type();
+                    let init = self.value_type.const_named_struct(&[
+                        f64_type.const_float(TYPE_NIL as f64).into(),
+                        f64_type.const_float(0.0).into(),
+                        self.ptr_type.const_null().into(),
+                    ]);
+                    let gv = self.module.add_global(self.value_type, None, &format!("g_{}", d.name));
+                    gv.set_initializer(&init);
+                    let p = gv.as_pointer_value();
+                    self.builder.build_store(p, v).unwrap();
+                    self.variables.insert(d.name, p);
+                } else {
+                    let a = self.builder.build_alloca(self.value_type, &d.name).unwrap();
+                    self.builder.build_store(a, v).unwrap();
+                    self.local_vars.insert(d.name, a);
+                }
             }
             StmtKind::MutDeclaration(d) => {
                 let v = self.evaluate_expression(d.value)?;
-                let a = self.builder.build_alloca(self.value_type, &d.name).unwrap();
-                self.builder.build_store(a, v).unwrap();
-                if self.current_func.unwrap().get_name().to_str().unwrap() == "main" { self.variables.insert(d.name, a); }
-                else { self.local_vars.insert(d.name, a); }
+                if self.current_func.unwrap().get_name().to_str().unwrap() == "main" {
+                    let f64_type = self.context.f64_type();
+                    let init = self.value_type.const_named_struct(&[
+                        f64_type.const_float(TYPE_NIL as f64).into(),
+                        f64_type.const_float(0.0).into(),
+                        self.ptr_type.const_null().into(),
+                    ]);
+                    let gv = self.module.add_global(self.value_type, None, &format!("g_{}", d.name));
+                    gv.set_initializer(&init);
+                    let p = gv.as_pointer_value();
+                    self.builder.build_store(p, v).unwrap();
+                    self.variables.insert(d.name, p);
+                } else {
+                    let a = self.builder.build_alloca(self.value_type, &d.name).unwrap();
+                    self.builder.build_store(a, v).unwrap();
+                    self.local_vars.insert(d.name, a);
+                }
             }
             StmtKind::ConstDeclaration(d) => {
                 let v = self.evaluate_expression(d.value)?;
-                let a = self.builder.build_alloca(self.value_type, &d.name).unwrap();
-                self.builder.build_store(a, v).unwrap();
-                if self.current_func.unwrap().get_name().to_str().unwrap() == "main" { self.variables.insert(d.name, a); }
-                else { self.local_vars.insert(d.name, a); }
+                if self.current_func.unwrap().get_name().to_str().unwrap() == "main" {
+                    let f64_type = self.context.f64_type();
+                    let init = self.value_type.const_named_struct(&[
+                        f64_type.const_float(TYPE_NIL as f64).into(),
+                        f64_type.const_float(0.0).into(),
+                        self.ptr_type.const_null().into(),
+                    ]);
+                    let gv = self.module.add_global(self.value_type, None, &format!("g_{}", d.name));
+                    gv.set_initializer(&init);
+                    let p = gv.as_pointer_value();
+                    self.builder.build_store(p, v).unwrap();
+                    self.variables.insert(d.name, p);
+                } else {
+                    let a = self.builder.build_alloca(self.value_type, &d.name).unwrap();
+                    self.builder.build_store(a, v).unwrap();
+                    self.local_vars.insert(d.name, a);
+                }
             }
             StmtKind::VarAssignment(s) => {
                 let v = self.evaluate_expression(s.value)?;
@@ -406,6 +459,40 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 }
 
                 self.builder.position_at_end(merge_bb);
+            }
+            StmtKind::Loop(l) => {
+                match l {
+                    crate::ast::LoopStmt::While { condition, body } => {
+                        let parent = self.current_func.unwrap();
+                        let cond_bb = self.context.append_basic_block(parent, "while_cond");
+                        let body_bb = self.context.append_basic_block(parent, "while_body");
+                        let end_bb = self.context.append_basic_block(parent, "while_end");
+
+                        self.builder.build_unconditional_branch(cond_bb).unwrap();
+
+                        self.builder.position_at_end(cond_bb);
+                        let cond_val = self.evaluate_expression(condition)?;
+                        let n = self.builder.build_extract_value(cond_val, 1, "wn").unwrap().into_float_value();
+                        let is_true = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, n, self.context.f64_type().const_float(0.0), "wtrue").unwrap();
+                        self.builder.build_conditional_branch(is_true, body_bb, end_bb).unwrap();
+
+                        self.builder.position_at_end(body_bb);
+                        for s in body {
+                            self.generate_statement(s)?;
+                            if self.builder.get_insert_block().unwrap().get_terminator().is_some() {
+                                break;
+                            }
+                        }
+                        if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
+                            self.builder.build_unconditional_branch(cond_bb).unwrap();
+                        }
+
+                        self.builder.position_at_end(end_bb);
+                    }
+                    crate::ast::LoopStmt::For { .. } => {
+                        return Err("Loop for ainda não suportado no backend LLVM.".to_string());
+                    }
+                }
             }
             StmtKind::FuncCall(expr) => {
                 self.evaluate_expression(expr)?;
@@ -504,6 +591,12 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     BinaryOp::Subtract => self.builder.build_float_sub(lv, rv, "s").unwrap(),
                     BinaryOp::Multiply => self.builder.build_float_mul(lv, rv, "m").unwrap(),
                     BinaryOp::Divide => self.builder.build_float_div(lv, rv, "d").unwrap(),
+                    BinaryOp::IntDivide => {
+                        let div = self.builder.build_float_div(lv, rv, "idiv").unwrap();
+                        let i64t = self.context.i64_type();
+                        let as_i = self.builder.build_float_to_signed_int(div, i64t, "idiv_i").unwrap();
+                        self.builder.build_signed_int_to_float(as_i, self.context.f64_type(), "idiv_f").unwrap()
+                    }
                     BinaryOp::And => {
                         let lz = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, lv, self.context.f64_type().const_float(0.0), "lz").unwrap();
                         let rz = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, rv, self.context.f64_type().const_float(0.0), "rz").unwrap();
@@ -533,8 +626,37 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         self.builder.build_unsigned_int_to_float(cmp, self.context.f64_type(), "bf").unwrap()
                     }
                     BinaryOp::Equals => {
-                        let cmp = self.builder.build_float_compare(inkwell::FloatPredicate::OEQ, lv, rv, "eq").unwrap();
-                        self.builder.build_unsigned_int_to_float(cmp, self.context.f64_type(), "bf").unwrap()
+                        let f = *self.functions.get("s_eq").unwrap();
+                        let lp = self.builder.build_alloca(self.value_type, "lp").unwrap();
+                        let rp = self.builder.build_alloca(self.value_type, "rp").unwrap();
+                        self.builder.build_store(lp, lhs).unwrap();
+                        self.builder.build_store(rp, rhs).unwrap();
+                        let outp = self.builder.build_alloca(self.value_type, "op").unwrap();
+                        self.builder.build_call(f, &[outp.into(), lp.into(), rp.into()], "eq").unwrap();
+                        let outv = self.builder.build_load(self.value_type, outp, "ov").unwrap().into_struct_value();
+                        self.builder.build_extract_value(outv, 1, "b").unwrap().into_float_value()
+                    }
+                    BinaryOp::NotEquals => {
+                        let f = *self.functions.get("s_ne").unwrap();
+                        let lp = self.builder.build_alloca(self.value_type, "lp").unwrap();
+                        let rp = self.builder.build_alloca(self.value_type, "rp").unwrap();
+                        self.builder.build_store(lp, lhs).unwrap();
+                        self.builder.build_store(rp, rhs).unwrap();
+                        let outp = self.builder.build_alloca(self.value_type, "op").unwrap();
+                        self.builder.build_call(f, &[outp.into(), lp.into(), rp.into()], "ne").unwrap();
+                        let outv = self.builder.build_load(self.value_type, outp, "ov").unwrap().into_struct_value();
+                        self.builder.build_extract_value(outv, 1, "b").unwrap().into_float_value()
+                    }
+                    BinaryOp::StrictEquals => {
+                        let f = *self.functions.get("s_eq_strict").unwrap();
+                        let lp = self.builder.build_alloca(self.value_type, "lp").unwrap();
+                        let rp = self.builder.build_alloca(self.value_type, "rp").unwrap();
+                        self.builder.build_store(lp, lhs).unwrap();
+                        self.builder.build_store(rp, rhs).unwrap();
+                        let outp = self.builder.build_alloca(self.value_type, "op").unwrap();
+                        self.builder.build_call(f, &[outp.into(), lp.into(), rp.into()], "se").unwrap();
+                        let outv = self.builder.build_load(self.value_type, outp, "ov").unwrap().into_struct_value();
+                        self.builder.build_extract_value(outv, 1, "b").unwrap().into_float_value()
                     }
                     _ => self.context.f64_type().const_float(0.0),
                 };
