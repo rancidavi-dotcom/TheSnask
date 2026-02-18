@@ -1,6 +1,0 @@
-// Helpers extras de JSON usados pelo Snask Store.
-// Mantém o app compatível mesmo se a lib json não expor algumas funções.
-
-fun keys(obj)
-    return json_keys(obj);
-
