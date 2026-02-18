@@ -5,6 +5,41 @@ use std::collections::HashSet;
 pub struct CGenerator {
 }
 
+fn is_library_native(name: &str) -> bool {
+    if name.contains("::") {
+        return false;
+    }
+    name.starts_with("sqlite_")
+        || name.starts_with("gui_")
+        || name.starts_with("blaze_")
+        || name.starts_with("auth_")
+        || name.starts_with("sfs_")
+        || name.starts_with("path_")
+        || name.starts_with("os_")
+        || name.starts_with("s_http_")
+        || name.starts_with("thread_")
+        || name.starts_with("json_")
+        || name.starts_with("sjson_")
+        || name.starts_with("snif_")
+        || name.starts_with("string_")
+}
+
+fn library_native_lib(name: &str) -> &'static str {
+    if name.starts_with("sqlite_") { "sqlite" }
+    else if name.starts_with("gui_") { "gui" }
+    else if name.starts_with("blaze_") { "blaze" }
+    else if name.starts_with("auth_") { "blaze_auth" }
+    else if name.starts_with("sfs_") || name.starts_with("path_") { "sfs" }
+    else if name.starts_with("os_") { "os" }
+    else if name.starts_with("s_http_") { "requests" }
+    else if name.starts_with("thread_") { "os" }
+    else if name.starts_with("json_") { "json" }
+    else if name.starts_with("sjson_") { "sjson" }
+    else if name.starts_with("snif_") { "snif" }
+    else if name.starts_with("string_") { "string" }
+    else { "a library" }
+}
+
 impl CGenerator {
     pub fn new() -> Self {
         CGenerator { }
@@ -96,6 +131,11 @@ impl CGenerator {
         out.push_str("    } as;\n");
         out.push_str("} SnaskValue;\n\n");
 
+        out.push_str("static SnaskValue snask__restricted_native(const char* name, const char* lib) {\n");
+        out.push_str("    fprintf(stderr, \"Compilation error: Native function '%s' is reserved for libraries.\\\\n\\\\nHow to fix:\\\\n- Use import \\\"%s\\\" and call functions via the module namespace (e.g. %s::...).\\\\n\", name, lib, lib);\n");
+        out.push_str("    exit(1);\n");
+        out.push_str("    return (SnaskValue){.type = SNASK_NIL};\n");
+        out.push_str("}\n\n");
         // Helpers
         out.push_str("void print_value(SnaskValue v) {\n");
         out.push_str("    switch(v.type) {\n");
@@ -301,6 +341,10 @@ impl CGenerator {
             }
             ExprKind::FunctionCall { callee, args } => {
                 if let ExprKind::Variable(name) = callee.kind {
+                    if !name.starts_with("__") && is_library_native(name.as_str()) {
+                        let lib = library_native_lib(name.as_str());
+                        return format!("snask__restricted_native(\"{}\", \"{}\")", name, lib);
+                    }
                     let mut call = format!("{}(", name);
                     for (i, arg) in args.iter().enumerate() {
                         call.push_str(&self.emit_expression_val(arg.clone()));

@@ -11,7 +11,7 @@ pub fn register(globals: &mut SymbolTable) {
             Value::String(json_str) => {
                 match serde_json::from_str::<serde_json::Value>(json_str) {
                     Ok(json_value) => Ok(json_to_value(&json_value)),
-                    Err(e) => Err(format!("Erro ao parsear JSON: {}", e)),
+                    Err(e) => Err(format!("Failed to parse JSON: {}", e)),
                 }
             },
             _ => Err("json_parse espera uma string".to_string()),
@@ -24,7 +24,7 @@ pub fn register(globals: &mut SymbolTable) {
         let json_value = value_to_json(&args[0]);
         match serde_json::to_string(&json_value) {
             Ok(json_str) => Ok(Value::String(json_str)),
-            Err(e) => Err(format!("Erro ao converter para JSON: {}", e)),
+            Err(e) => Err(format!("Failed to convert to JSON: {}", e)),
         }
     });
 
@@ -34,7 +34,7 @@ pub fn register(globals: &mut SymbolTable) {
         let json_value = value_to_json(&args[0]);
         match serde_json::to_string_pretty(&json_value) {
             Ok(json_str) => Ok(Value::String(json_str)),
-            Err(e) => Err(format!("Erro ao converter para JSON: {}", e)),
+            Err(e) => Err(format!("Failed to convert to JSON: {}", e)),
         }
     });
 }

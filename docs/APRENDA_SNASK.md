@@ -1,80 +1,59 @@
-# 🎓 Aprenda Snask: Trilha de Aprendizado Passo a Passo
+# Learn Snask (Step-by-step)
 
-Este guia contém exemplos práticos e testados para você dominar a sintaxe e a estabilidade do Snask.
+This guide is a practical path for learning Snask with small, tested examples.
 
----
-
-## 1. Olá Mundo
+## 1) Hello world
 ```snask
-print("Olá, Snask!");
-```
-*   O Snask v0.2.1 garante saída limpa e sem falhas de segmentação no encerramento do programa.
-*   O Snask v0.3.0 mantém essa estabilidade e adiciona SPS (`snask.toml`) para projetos.
-
----
-
-## 2. Variáveis e Segurança
-```snask
-let nome = "Davi";     // Imutável
-mut idade = 25;        // Mutável
-
-idade = 26;            // Permitido
-print(nome, "tem", idade, "anos.");
+class main
+    fun start()
+        print("Hello, Snask!");
 ```
 
----
-
-## 3. Lógica e Matemática
-O Snask suporta todos os operadores de comparação (`>`, `<`, `==`, `>=`, `<=`).
-
+## 2) Variables
 ```snask
-let nota = 8.5;
-
-if nota >= 7.0
-    print("Aprovado!");
-else
-    print("Reprovado.");
-
-mut contador = 1;
-while contador <= 3
-    print("Passo:", contador);
-    contador = contador + 1;
+class main
+    fun start()
+        let name = "Davi";   // immutable
+        mut age = 25;        // mutable
+        age = 26;
+        print(name, "age", age);
 ```
 
----
-
-## 4. Funções Reutilizáveis
-Funções no Snask são rápidas e suportam recursão.
-
+## 3) Conditions and loops
 ```snask
-fun somar(a, b)
+class main
+    fun start()
+        let score = 8.5;
+        if score >= 7.0
+            print("Approved");
+        else
+            print("Failed");
+
+        mut i = 1;
+        while i <= 3
+            print("Step:", i);
+            i = i + 1;
+```
+
+## 4) Functions (recursion works)
+```snask
+fun add(a, b)
     return a + b;
 
-print("Soma:", somar(10, 20));
-
-fun fatorial(n)
+fun fact(n)
     if n <= 1
         return 1;
-    return n * fatorial(n - 1);
+    return n * fact(n - 1);
 
-print("Fatorial de 5:", fatorial(5));
+class main
+    fun start()
+        print("sum:", add(10, 20));
+        print("fact(5):", fact(5));
 ```
 
----
-
-## 5. Falando com o Disco (SFS)
-Use as funções `sfs_` para manipular arquivos com o desempenho do C.
-
-```snask
-let arquivo = "teste.txt";
-sfs_write(arquivo, "Escrito via Snask!");
-
-if sfs_exists(arquivo)
-    let dados = sfs_read(arquivo);
-    print("Conteúdo:", dados);
+## 5) SPS projects
+```bash
+snask init
+snask build
 ```
 
----
-
-💡 **Como rodar:** Salve em um arquivo `.snask` e execute:
-`./snask build arquivo.snask && ./arquivo`

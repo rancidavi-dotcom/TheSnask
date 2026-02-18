@@ -31,13 +31,13 @@ pub fn create_module() -> Value {
                                     );
                                 },
                                 Err(e) => {
-                                    return Err(format!("Erro ao ler resposta: {}", e));
+                                    return Err(format!("Failed to read response: {}", e));
                                 }
                             }
 
                             Ok(Value::Dict(result))
                         },
-                        Err(e) => Err(format!("Erro na requisição HTTP: {}", e)),
+                        Err(e) => Err(format!("HTTP request error: {}", e)),
                     }
                 }
                 
@@ -75,13 +75,13 @@ pub fn create_module() -> Value {
                                     );
                                 },
                                 Err(e) => {
-                                    return Err(format!("Erro ao ler resposta: {}", e));
+                                    return Err(format!("Failed to read response: {}", e));
                                 }
                             }
 
                             Ok(Value::Dict(result))
                         },
-                        Err(e) => Err(format!("Erro na requisição HTTP: {}", e)),
+                        Err(e) => Err(format!("HTTP request error: {}", e)),
                     }
                 }
                 

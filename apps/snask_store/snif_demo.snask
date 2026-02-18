@@ -1,0 +1,37 @@
+import "snif";
+import "json";
+import "os";
+
+class main
+    fun start()
+        let txt = "{ user:{ name:'Davi', age: 22, }, tags:['dev', 'snask',], big:9007199254740993, ok:true, when:@date\"2026-02-18T00:00:00Z\" }";
+        let r = snif::parse_safe(txt);
+        if json::get(r, "ok") == false
+            print("parse error:", json::get(r, "error"));
+            return nil;
+
+        let root = json::get(r, "value");
+        let name = snif::path_or(root, "user.name", "unknown");
+        let age = snif::path_or(root, "user.age", 0);
+        let tag0 = snif::path_or(root, "tags.0", "none");
+        let big = snif::path_or(root, "big.$i64", "missing");
+        let when = snif::path_or(root, "when.$date", "missing");
+
+        print("name=", name);
+        print("age=", age);
+        print("tag0=", tag0);
+        print("big_i64=", big);
+        print("when=", when);
+
+        // Reference demo: same object used twice.
+        let ref_txt = "{ a:&x{ v: 1 }, b:*x }";
+        let rr = snif::parse_safe(ref_txt);
+        if json::get(rr, "ok")
+            let v = json::get(rr, "value");
+            print("ref a.v=", snif::path_or(v, "a.v", 0), " b.v=", snif::path_or(v, "b.v", 0));
+
+        // .snif file demo
+        let path = "demo.snif";
+        os::write_file(path, txt);
+        let from_file = snif::read_snif_safe(path);
+        print("file ok=", json::get(from_file, "ok"));

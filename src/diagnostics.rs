@@ -13,10 +13,10 @@ pub enum Severity {
 impl fmt::Display for Severity {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Severity::Error => write!(f, "erro"),
-            Severity::Warning => write!(f, "aviso"),
+            Severity::Error => write!(f, "error"),
+            Severity::Warning => write!(f, "warning"),
             Severity::Info => write!(f, "info"),
-            Severity::Hint => write!(f, "dica"),
+            Severity::Hint => write!(f, "help"),
         }
     }
 }
@@ -123,7 +123,7 @@ impl Diagnostic {
     pub fn render(&self, filename: &str, source: &str) -> String {
         let mut output = String::new();
 
-        // Cabeçalho: erro[E0001]: mensagem
+        // Header: error[E0001]: message
         output.push_str(&format!(
             "{}{}{}: {}",
             self.severity.bold_color(),
@@ -137,7 +137,7 @@ impl Diagnostic {
         ));
         output.push_str(&format!("{}{}{}\n", BOLD, self.message, RESET));
 
-        // Localização: --> arquivo.snask:linha:coluna
+        // Location: --> file.snask:line:column
         if let Some(first_annotation) = self.annotations.first() {
             output.push_str(&format!(
                 "  {}--> {}{}:{}:{}\n",
@@ -154,10 +154,10 @@ impl Diagnostic {
             output.push_str(&self.render_annotation(annotation, source));
         }
 
-        // Notas adicionais
+        // Notes
         for note in &self.notes {
             output.push_str(&format!(
-                "  {}{} = nota:{} {}\n",
+                "  {}{} = note:{} {}\n",
                 DIM,
                 BOLD,
                 RESET,
@@ -165,10 +165,10 @@ impl Diagnostic {
             ));
         }
 
-        // Ajuda/sugestão
+        // Help
         if let Some(ref help) = self.help {
             output.push_str(&format!(
-                "  {}{} = ajuda:{} {}\n",
+                "  {}{} = help:{} {}\n",
                 DIM,
                 BOLD,
                 RESET,
@@ -294,14 +294,14 @@ impl DiagnosticBag {
             output.push('\n');
         }
 
-        // Resumo final
+        // Summary
         if !self.diagnostics.is_empty() {
             let errors = self.error_count();
             let warnings = self.warning_count();
 
             if errors > 0 || warnings > 0 {
                 output.push_str(&format!(
-                    "{}erro{}: {} gerado{}, {} aviso{} emitido{}\n",
+                    "{}error{}: {} generated{}, {} warning{} emitted{}\n",
                     BOLD,
                     RESET,
                     errors,

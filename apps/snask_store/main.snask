@@ -1,0 +1,281 @@
+import "gui";
+import "gui_app";
+import "gui_layout";
+import "gui_widgets";
+import "json";
+import "os";
+import "string";
+import "store_json";
+import "store_gui";
+
+mut g_registry = nil;
+mut g_pkgs = nil;
+mut g_status_lbl = "";
+mut g_content_vbox = "";
+mut g_sc = "";
+mut g_current_tab = "home";
+mut g_search_entry = "";
+mut g_search_text = "";
+
+// --- Protótipos/Lógica Base ---
+
+fun is_installed(pkg)
+    let home = os::getenv("HOME");
+    if home == nil
+        return false;
+    let p1 = os::join(home, ".snask");
+    let p2 = os::join(p1, "packages");
+    let p3 = os::join(p2, pkg + ".snask");
+    return os::exists(p3);
+
+fun get_category(name)
+    if name == "gui" or name == "colors" or name == "gui_app" or name == "gui_layout" or name == "gui_widgets"
+        return "Interface";
+    if name == "json" or name == "sjson" or name == "sqlite" or name == "requests" or name == "blaze" or name == "blaze_auth"
+        return "Web & Dados";
+    if name == "os" or name == "sfs" or name == "prelude" or name == "utils" or name == "datetime" or name == "string"
+        return "Sistema";
+    return "Desenvolvimento";
+
+// --- UI Components ---
+
+fun add_app_card(parent, name, info)
+    let ver_raw = json::get(info, "version");
+    mut ver = "1.0.0";
+    if ver_raw != nil
+        ver = ver_raw;
+
+    let installed = is_installed(name);
+    let tap = store_gui::eventbox();
+    store_gui::add_class(tap, "app-card");
+    store_gui::flow_add(parent, tap);
+
+    let card = gui::vbox();
+    gui::set_child(tap, card);
+
+    mut ic_name = "package-x-generic-symbolic";
+    if name == "gui"
+        ic_name = "applications-graphics-symbolic";
+    if name == "os"
+        ic_name = "computer-symbolic";
+    if name == "json"
+        ic_name = "text-x-script-symbolic";
+    if name == "string"
+        ic_name = "format-text-bold-symbolic";
+    
+    let ic = store_gui::icon(ic_name, 48);
+    store_gui::add_class(ic, "app-icon");
+    gui::add(card, ic);
+
+    let title = gui::label(name);
+    store_gui::add_class(title, "app-title");
+    gui::add(card, title);
+
+    let v = gui::label("v" + ver);
+    store_gui::add_class(v, "app-ver");
+    gui::add(card, v);
+
+    mut btn_text = "INSTALAR";
+    if installed
+        btn_text = "REMOVER";
+    
+    let btn = gui::button(btn_text);
+    if installed
+        store_gui::add_class(btn, "btn-remove");
+        gui::on_click_ctx(btn, "on_uninstall_pkg", name);
+    else
+        store_gui::add_class(btn, "btn-install");
+        gui::on_click_ctx(btn, "on_install_pkg", name);
+    gui::add(card, btn);
+
+fun add_section(parent, title_text, category_filter, tab_filter)
+    let names = store_json::keys(g_pkgs);
+    let n = json::len(names);
+    
+    let header = gui::vbox();
+    store_gui::add_class(header, "section-header");
+    gui::add(parent, header);
+    
+    let lbl = gui::label(title_text);
+    store_gui::add_class(lbl, "section-title");
+    gui::add(header, lbl);
+
+    let grid = store_gui::flowbox();
+    store_gui::add_class(grid, "apps-grid");
+    gui::add(parent, grid);
+
+    mut count = 0;
+    mut i = 0;
+    while i < n
+        let name = json::index(names, i);
+        let info = json::get(g_pkgs, name);
+        let cat = get_category(name);
+        let inst = is_installed(name);
+
+        mut show = false;
+        if tab_filter == "home"
+            show = true;
+        if tab_filter == "installed" and inst
+            show = true;
+        if tab_filter == "cat" and cat == category_filter
+            show = true;
+        
+        // Filtro de Busca
+        if g_search_text != ""
+            if string::contains(name, g_search_text) == false
+                show = false;
+
+        if show
+            add_app_card(grid, name, info);
+            count = count + 1;
+        i = i + 1;
+    
+    if count == 0
+        gui::set_visible(header, false);
+        gui::set_visible(grid, false);
+
+// --- Core Render ---
+
+fun render_page(tab)
+    g_current_tab = tab;
+    let page = gui::vbox();
+    store_gui::add_class(page, "page-container");
+
+    if tab == "home"
+        let banner = gui::vbox();
+        store_gui::add_class(banner, "hero-banner");
+        gui::add(page, banner);
+        let h1 = gui::label("Descubra o Snask");
+        store_gui::add_class(h1, "hero-title");
+        gui::add(banner, h1);
+        let p = gui::label("As melhores bibliotecas para seu projeto.");
+        store_gui::add_class(p, "hero-subtitle");
+        gui::add(banner, p);
+        add_section(page, "Recomendados", "", "home");
+    
+    if tab == "installed"
+        add_section(page, "Meus Pacotes", "", "installed");
+    if tab == "interface"
+        add_section(page, "Interface e Gráficos", "Interface", "cat");
+    if tab == "web"
+        add_section(page, "Web e Banco de Dados", "Web & Dados", "cat");
+    if tab == "sys"
+        add_section(page, "Sistema e Core", "Sistema", "cat");
+
+    gui::set_child(g_sc, page);
+
+// --- Callbacks ---
+
+fun on_install_pkg(_w, pkg)
+    gui::set_text(g_status_lbl, "Instalando: " + pkg);
+    s_system("snask install " + pkg);
+    render_page(g_current_tab);
+
+fun on_uninstall_pkg(_w, pkg)
+    gui::set_text(g_status_lbl, "Removendo: " + pkg);
+    s_system("snask uninstall " + pkg);
+    render_page(g_current_tab);
+
+fun on_tab_home(_w)
+    g_search_text = "";
+    gui::set_text(g_search_entry, "");
+    render_page("home");
+fun on_tab_installed(_w)
+    g_search_text = "";
+    gui::set_text(g_search_entry, "");
+    render_page("installed");
+fun on_tab_interface(_w)
+    g_search_text = "";
+    gui::set_text(g_search_entry, "");
+    render_page("interface");
+fun on_tab_web(_w)
+    g_search_text = "";
+    gui::set_text(g_search_entry, "");
+    render_page("web");
+fun on_tab_sys(_w)
+    g_search_text = "";
+    gui::set_text(g_search_entry, "");
+    render_page("sys");
+
+fun on_refresh(_w)
+    gui::set_text(g_status_lbl, "Sincronizando registro...");
+    s_system("snask list");
+    render_page(g_current_tab);
+
+fun on_search(_w)
+    g_search_text = gui::get_text(g_search_entry);
+    render_page(g_current_tab);
+
+fun apply_theme()
+    store_gui::css(".main-win { background: #1e1e1e; } .sidebar { background: #262626; padding: 24px 12px; border-right: 1px solid #333; width: 220px; } .side-logo { color: #48b9c7; font-size: 22px; font-weight: 900; margin-bottom: 32px; letter-spacing: 1px; padding-left: 12px; } .nav-btn { background: transparent; color: #dcdcdc; font-size: 14px; padding: 10px 16px; border-radius: 8px; text-align: left; font-weight: 500; margin-bottom: 4px; border: none; } .nav-btn:hover { background: #363636; color: #48b9c7; } .top-bar { padding: 16px 32px; background: #1e1e1e; border-bottom: 1px solid #333; } .search-entry { background: #2d2d2d; color: #fff; border: 1px solid #404040; border-radius: 10px; padding: 8px 16px; font-size: 14px; margin-bottom: 8px; } .search-entry:focus { border-color: #48b9c7; } .page-container { padding: 0; } .hero-banner { background: linear-gradient(135deg, #3c7bec, #48b9c7); padding: 50px 40px; } .hero-title { font-size: 36px; font-weight: 800; color: #fff; letter-spacing: -1px; } .hero-subtitle { font-size: 16px; color: rgba(255,255,255,0.9); margin-top: 8px; } .section-header { padding: 32px 40px 12px 40px; } .section-title { font-size: 22px; font-weight: 700; color: #f0f0f0; } .apps-grid { padding: 8px 32px; } .app-card { background: #262626; border-radius: 12px; padding: 24px 16px; margin: 10px; width: 180px; border: 1px solid #333; } .app-card:hover { border-color: #48b9c7; background: #2d2d2d; } .app-icon { color: #48b9c7; margin-bottom: 16px; } .app-title { font-size: 15px; font-weight: 600; color: #fff; text-align: center; } .app-ver { font-size: 12px; color: #888; text-align: center; margin-bottom: 16px; } .btn-install { background: #48b9c7; color: #1e1e1e; padding: 8px; border-radius: 6px; font-weight: 700; } .btn-install:hover { background: #5bc5d3; } .btn-remove { background: #363636; color: #f66151; padding: 8px; border-radius: 6px; font-weight: 700; } .btn-sync { background: #363636; color: #fff; border-radius: 8px; padding: 8px 16px; font-weight: 600; } .btn-sync:hover { background: #48b9c7; color: #1e1e1e; } .status-bar { background: #1e1e1e; padding: 8px 32px; color: #666; font-size: 11px; border-top: 1px solid #333; }");
+
+class main
+    fun start()
+        if gui_app::init() == false
+            return nil;
+        apply_theme();
+        let home = os::getenv("HOME");
+        let p3 = os::join(os::join(os::join(home, ".snask"), "registry"), "registry.json");
+        if os::exists(p3) == false
+            s_system("snask list");
+        let raw = os::read_file(p3);
+        if raw == nil
+            return nil;
+        g_registry = json::parse(raw);
+        g_pkgs = json::get(g_registry, "packages");
+        let win = gui_app::window("Snask Store", 1200, 800, true);
+        let root = gui::hbox();
+        store_gui::add_class(root, "main-win");
+        gui::set_child(win, root);
+        let side = gui::vbox();
+        store_gui::add_class(side, "sidebar");
+        gui::add(root, side);
+        let logo = gui::label("SNASK");
+        store_gui::add_class(logo, "side-logo");
+        gui::add(side, logo);
+        let b1 = gui::button("Início");
+        store_gui::add_class(b1, "nav-btn");
+        gui::on_click(b1, "on_tab_home");
+        gui::add(side, b1);
+        let b2 = gui::button("Interface");
+        store_gui::add_class(b2, "nav-btn");
+        gui::on_click(b2, "on_tab_interface");
+        gui::add(side, b2);
+        let b3 = gui::button("Web & Dados");
+        store_gui::add_class(b3, "nav-btn");
+        gui::on_click(b3, "on_tab_web");
+        gui::add(side, b3);
+        let b4 = gui::button("Sistema");
+        store_gui::add_class(b4, "nav-btn");
+        gui::on_click(b4, "on_tab_sys");
+        gui::add(side, b4);
+        let b5 = gui::button("Instalados");
+        store_gui::add_class(b5, "nav-btn");
+        gui::on_click(b5, "on_tab_installed");
+        gui::add(side, b5);
+        gui::add_expand(side, gui::label(""));
+        let b_up = gui::button("Sincronizar");
+        store_gui::add_class(b_up, "btn-sync");
+        gui::on_click(b_up, "on_refresh");
+        gui::add(side, b_up);
+        let main_vbox = gui::vbox();
+        gui::add_expand(root, main_vbox);
+        let top_bar = gui::hbox();
+        store_gui::add_class(top_bar, "top-bar");
+        gui::add(main_vbox, top_bar);
+        g_search_entry = gui::entry();
+        store_gui::add_class(g_search_entry, "search-entry");
+        gui::set_placeholder(g_search_entry, "Pesquisar bibliotecas...");
+        gui::add_expand(top_bar, g_search_entry);
+        let search_btn = gui::button("Buscar");
+        store_gui::add_class(search_btn, "btn-sync");
+        gui::on_click(search_btn, "on_search");
+        gui::add(top_bar, search_btn);
+        g_sc = store_gui::scrolled();
+        gui::add_expand(main_vbox, g_sc);
+        g_status_lbl = gui::label("Pronto.");
+        store_gui::add_class(g_status_lbl, "status-bar");
+        gui::add(main_vbox, g_status_lbl);
+        render_page("home");
+        gui_app::show(win);
+        gui_app::run();

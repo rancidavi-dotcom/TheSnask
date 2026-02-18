@@ -19,12 +19,12 @@ impl Repl {
 
     pub fn run(&mut self) {
         println!("╔═══════════════════════════════════════════════════════════╗");
-        println!("║   Snask REPL v0.2.0 - Linguagem de Programação Moderna   ║");
+        println!("║          Snask REPL v0.2.0 - Interactive Shell           ║");
         println!("╚═══════════════════════════════════════════════════════════╝");
         println!();
-        println!("Digite 'exit' ou 'quit' para sair");
-        println!("Digite 'help' para ver comandos disponíveis");
-        println!("Digite 'clear' para limpar histórico");
+        println!("Type 'exit' or 'quit' to leave");
+        println!("Type 'help' to see available commands");
+        println!("Type 'clear' to clear history");
         println!();
 
         loop {
@@ -33,7 +33,7 @@ impl Repl {
 
             let mut input = String::new();
             if io::stdin().read_line(&mut input).is_err() {
-                eprintln!("Erro ao ler entrada");
+                eprintln!("Failed to read input");
                 continue;
             }
 
@@ -46,7 +46,7 @@ impl Repl {
             // Comandos especiais
             match input {
                 "exit" | "quit" => {
-                    println!("Até logo!");
+                    println!("Bye!");
                     break;
                 }
                 "help" => {
@@ -55,7 +55,7 @@ impl Repl {
                 }
                 "clear" => {
                     self.history.clear();
-                    println!("Histórico limpo");
+                    println!("History cleared");
                     continue;
                 }
                 "history" => {
@@ -89,12 +89,12 @@ impl Repl {
                         // Sucesso silencioso
                     }
                     crate::interpreter::InterpretResult::RuntimeError(msg) => {
-                        eprintln!("❌ Erro de execução: {}", msg);
+                        eprintln!("❌ Runtime error: {}", msg);
                     }
                 }
             }
             Err(e) => {
-                eprintln!("❌ Erro de sintaxe: {}", e);
+                eprintln!("❌ Syntax error: {}", e);
             }
         }
     }
@@ -108,10 +108,10 @@ impl Repl {
         println!("║  clear         - Limpar histórico                         ║");
         println!("║  history       - Mostrar histórico de comandos            ║");
         println!("╠═══════════════════════════════════════════════════════════╣");
-        println!("║                   Exemplos de Código                      ║");
+        println!("║                        Code Examples                      ║");
         println!("╠═══════════════════════════════════════════════════════════╣");
         println!("║  let x = 10                                               ║");
-        println!("║  print(\"Olá, Snask!\")                                     ║");
+        println!("║  print(\"Hello, Snask!\")                                   ║");
         println!("║  fun add(a, b) {{ return a + b; }}                        ║");
         println!("║  sqrt(16)                                                 ║");
         println!("║  range(10)                                                ║");
@@ -120,12 +120,12 @@ impl Repl {
 
     fn show_history(&self) {
         if self.history.is_empty() {
-            println!("Histórico vazio");
+            println!("(empty)");
             return;
         }
 
         println!("╔═══════════════════════════════════════════════════════════╗");
-        println!("║                    Histórico de Comandos                  ║");
+        println!("║                       Command History                     ║");
         println!("╚═══════════════════════════════════════════════════════════╝");
         
         for (i, cmd) in self.history.iter().enumerate() {

@@ -1,239 +1,28 @@
-# 🧩 Criando Bibliotecas em Snask (sem alterar o compilador)
+# Creating Libraries in Snask (without changing the compiler)
 
-Este guia explica como criar e distribuir bibliotecas **100% em Snask** (arquivos `.snask`), usando apenas o sistema de `import` e o namespace `modulo::funcao()` — **sem mexer no código-fonte do compilador**.
+This guide explains how to create and share libraries written **100% in Snask** (`.snask` files) using `import` and the `module::function()` namespace — **without modifying the compiler source**.
 
-> Observação: bibliotecas que dependem de novas *builtins* (funções nativas do runtime/LLVM) ainda exigem mudanças no compilador/runtime. A proposta aqui é: **tudo que for possível em Snask puro vira biblioteca**, e o compilador fica estável.
+## Library layout (recommended)
+Required files:
+- `package.json` — metadata (name, version, description, etc.)
+- `package.snask` — the library code
+- `README.md` — documentation for developers
 
-Exemplos no repositório:
-- Bibliotecas Snask puro: `utils.snask`, `requests.snask`
-- Bibliotecas que usam builtins do runtime: `json.snask`, `os.snask`, `blaze.snask`, `blaze_auth.snask`
-
----
-
-## 1) O que é uma “biblioteca” no Snask?
-
-Uma biblioteca é só um **módulo**: um arquivo `nome.snask` com funções/classes reutilizáveis.
-
-Quando você faz:
-
+## Usage in an app
 ```snask
-import "minha_lib";
-```
-
-o compilador:
-
-1. procura `minha_lib.snask` no diretório do projeto;
-2. se não achar, procura em `~/.snask/packages/minha_lib.snask`;
-3. e automaticamente aplica namespace: funções viram `minha_lib::minha_funcao()`.
-
----
-
-## 2) Estrutura mínima de uma biblioteca
-
-No fluxo atual, uma biblioteca tem **3 arquivos obrigatórios** no diretório de trabalho:
-
-- `NOME.snask` (código)
-- `package.json` (metadados: nome, versão, descrição)
-- `README.md` (documentação)
-
-Crie uma lib com o template oficial:
-
-```bash
-snask lib init math_extra --version 0.1.0 --description "Funções matemáticas extras"
-```
-
-Isso gera `math_extra.snask`, `package.json` e `README.md`.
-
-Exemplo de código (arquivo `math_extra.snask`):
-
-```snask
-fun dobro(x)
-    return x * 2;
-
-fun soma3(a, b, c)
-    return a + b + c;
-```
-
-Uso no seu app:
-
-```snask
-import "math_extra";
+import "your_lib";
 
 class main
     fun start()
-        print(math_extra::dobro(21));
-        print(math_extra::soma3(1, 2, 3));
+        your_lib::hello();
 ```
 
-Regra prática:
-- **defina funções top-level** (`fun nome(...)`) para a API pública;
-- se quiser, use `class` internamente, mas exponha funções simples quando possível.
+## Import-only native APIs
+If a library uses low-level native entrypoints (runtime/LLVM builtins), those names are reserved and cannot be called directly from user apps. Wrap them in a `.snask` package and expose a clean `lib::...` API.
 
----
+## Publishing (workflow)
+Recommended workflow:
+1. Create your library repo (or a fork).
+2. Include the required files above.
+3. Submit a PR to the registry repository.
 
-## 3) Convenções recomendadas (para evitar dor)
-
-### 3.1 Namespace sempre
-Prefira sempre o padrão:
-- `minha_lib::funcao()`
-
-Isso evita colisão de nomes com outras libs e com o seu código.
-
-### 3.2 Uma biblioteca = um arquivo
-No modelo atual, o `import` carrega **um arquivo por vez**. Então, se sua lib for grande:
-- crie arquivos separados (ex.: `http_client.snask`, `http_json.snask`)
-- e importe os dois no projeto.
-
-### 3.3 Sem estado global “mágico”
-Evite depender de variáveis globais compartilhadas entre arquivos. Prefira:
-- funções puras (entrada → saída)
-- receber valores como parâmetros
-
----
-
-## 4) Onde colocar a biblioteca
-
-### Opção A: Local (por projeto)
-Coloque `minha_lib.snask` na raiz do projeto (ou ajuste o path no import).
-
-Exemplo:
-- `./minha_lib.snask`
-- `import "minha_lib"`
-
-### Opção B: Global (na sua máquina)
-Coloque o arquivo em:
-- `~/.snask/packages/minha_lib.snask`
-
-Agora qualquer projeto pode:
-- `import "minha_lib"`
-
----
-
-## 5) Publicando para outras pessoas (sistema de pacotes)
-
-O Snask já tem um mecanismo de “registry” e instalação via `snask install ...`.
-No formato atual, o fluxo típico é:
-
-1. disponibilizar `minha_lib.snask` em um repositório/URL
-2. cadastrar no registry (JSON) com nome/descrição/url
-3. o usuário instala com `snask install minha_lib`
-
-Se você já usa um registry interno, mantenha o padrão dele. Se quiser, eu posso:
-- revisar o formato do seu `registry.json` e
-- sugerir um template de entrada para novas libs.
-
----
-
-## 5.1) Ferramentas oficiais (CLI)
-
-O Snask tem comandos para **criar** e **publicar** bibliotecas no registry oficial (SnaskPackages) sem mexer no compilador.
-
-### Criar template
-
-```bash
-snask lib init minha_lib --version 0.1.0 --description "Minha lib de exemplo"
-```
-
-Isso gera no diretório atual:
-- `minha_lib.snask`
-- `package.json`
-- `README.md`
-
-### Publicar no registry (SnaskPackages)
-
-Pré-requisito: o registry precisa estar clonado em `~/.snask/registry`.
-Se ainda não estiver, rode uma vez:
-
-```bash
-snask search json
-```
-
-Depois publique:
-
-```bash
-snask lib publish minha_lib --push
-```
-
-O publish:
-- copia `minha_lib.snask` para `~/.snask/registry/packages/minha_lib.snask`
-- cria/atualiza `~/.snask/registry/index/m/minha_lib.json`
-- faz `git commit` e (se `--push`) `git push origin main`
-- e também salva o “pacote fonte” versionado em `~/.snask/registry/packages_src/<nome>/<versao>/`
-
-### Publicar sem permissão no repo (Fork + Pull Request)
-
-Se você não tem permissão de escrita no `rancidavi-dotcom/SnaskPackages`, faça via fork:
-
-1) Faça um fork no GitHub: `SnaskPackages`
-2) Publique em uma branch do seu fork:
-
-```bash
-snask lib publish minha_lib --pr --fork "https://github.com/rancidavi-dotcom/SnaskPackages"
-```
-
-Se você quiser publicar diretamente no registry oficial (somente mantenedores/collaborators), use:
-
-```bash
-snask lib publish minha_lib --push
-```
-
-Isso:
-- cria uma branch `pkg/minha_lib-v0.1.0` no seu fork
-- faz push para o remote `fork`
-- e te pede para abrir um Pull Request no GitHub
-
----
-
-## 6) Template pronto (copiar e começar)
-
-Crie `minha_lib.snask`:
-
-```snask
-// API pública
-fun version()
-    return "0.1.0";
-
-fun hello(nome)
-    return "Olá, " + nome;
-
-// Implementação interna (por convenção: prefixo _)
-fun _clamp(n, a, b)
-    if n < a
-        return a;
-    if n > b
-        return b;
-    return n;
-```
-
-Uso:
-
-```snask
-import "minha_lib";
-
-class main
-    fun start()
-        print("Versão:", minha_lib::version());
-        print(minha_lib::hello("dev"));
-```
-
----
-
-## 7) Checklist rápido de “pronto pra distribuir”
-
-- O arquivo tem nome simples: `minha_lib.snask`
-- Funções públicas têm nomes claros
-- Você testou import local e global
-- Você evitou dependências de runtime/builtins novas
-- Você colocou exemplos mínimos de uso
-
----
-
-## 8) Limitações atuais (importante)
-
-Algumas coisas ainda não existem como “biblioteca pura” sem tocar no compilador:
-- adicionar novas funções nativas (ex.: criptografia “de verdade”, sockets, etc.)
-- adicionar novos tipos/representações no backend LLVM
-
-Nesses casos, a alternativa é:
-- expor o que der via Snask puro agora
-- e só quando for *essencial*, propor uma builtin nova (mudança de runtime/compilador).

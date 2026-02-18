@@ -15,7 +15,7 @@ class main
 
         let win = gui_app::window("Hello Snask (GUI)", 520, 300, true);
 
-        // root
+        // root :]
         let root = gui::vbox();
         gui::set_child(win, root);
 
@@ -26,7 +26,7 @@ class main
 
         g_entry = gui_widgets::labeled_entry(root, "Mensagem:", "Digite algo...");
 
-        let b1 = gui::button("+1");
+        let b1 = gui::button("+2");
         gui::on_click(b1, "on_inc");
         let b2 = gui::button("Mostrar msg");
         gui::on_click(b2, "on_show");
@@ -38,7 +38,7 @@ class main
         gui_app::run();
 
 fun on_inc(_widget)
-    g_count = g_count + 1;
+    g_count = g_count + 2;
     gui::set_text(g_lbl, "Contador: " + num_to_str(g_count));
 
 fun on_show(_widget)

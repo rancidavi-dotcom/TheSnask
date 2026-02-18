@@ -26,7 +26,7 @@ pub fn create_module() -> Value {
             let result = interpreter.call_function_by_value(Value::Function(func_to_apply.clone()), vec![element.clone()]);
             match result {
                 Ok(val) => new_list.push(val),
-                Err(e) => return Err(format!("Erro ao aplicar função em map: {}", e)),
+                Err(e) => return Err(format!("Failed to apply function in map: {}", e)),
             }
         }
         Ok(Value::List(new_list))

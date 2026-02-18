@@ -175,11 +175,11 @@ impl Token {
             Token::And(_) => "'and'".to_string(),
             Token::Or(_) => "'or'".to_string(),
             Token::Not(_) => "'not'".to_string(),
-            Token::Indent(_) => "indentação".to_string(),
-            Token::Dedent(_) => "redução de indentação".to_string(),
-            Token::Newline(_) => "nova linha".to_string(),
-            Token::Identifier(name, _) => format!("identificador '{}'", name),
-            Token::Number(n, _) => format!("número '{}'", n),
+            Token::Indent(_) => "indent".to_string(),
+            Token::Dedent(_) => "dedent".to_string(),
+            Token::Newline(_) => "newline".to_string(),
+            Token::Identifier(name, _) => format!("identifier '{}'", name),
+            Token::Number(n, _) => format!("number '{}'", n),
             Token::String(s, _) => format!("string \"{}\"", s),
             Token::Plus(_) => "'+'".to_string(),
             Token::Minus(_) => "'-'".to_string(),
@@ -209,7 +209,7 @@ impl Token {
             Token::Colon(_) => "':'".to_string(),
             Token::DoubleColon(_) => "'::'".to_string(),
             Token::Semicolon(_) => "';'".to_string(),
-            Token::Eof(_) => "fim de arquivo".to_string(),
+            Token::Eof(_) => "end of file".to_string(),
         }
     }
 }
@@ -219,6 +219,7 @@ pub struct Tokenizer<'a> {
     line: usize,
     column: usize,
     indent_stack: Vec<usize>,
+    indent_unit: Option<usize>,
     pending_tokens: Vec<Token>,
     at_start_of_line: bool,
 }
@@ -230,6 +231,7 @@ impl<'a> Tokenizer<'a> {
             line: 1,
             column: 1,
             indent_stack: vec![0],
+            indent_unit: None,
             pending_tokens: Vec::new(),
             at_start_of_line: true,
         }
@@ -317,6 +319,26 @@ impl<'a> Tokenizer<'a> {
 
             let last_indent = *self.indent_stack.last().unwrap();
             if indent > last_indent {
+                let delta = indent - last_indent;
+                if delta == 0 {
+                    // impossível, mas evita divisão por zero e mensagens estranhas
+                    self.indent_stack.push(indent);
+                    return Ok(Token::Indent(loc));
+                }
+                if let Some(unit) = self.indent_unit {
+                    // Permite indentação com 2, 4, etc, desde que consistente no arquivo.
+                    if unit != 0 && (delta % unit != 0) {
+                        return Err(format!(
+                            "Inconsistent indentation at line {}, column {} (hint: keep the same indentation size per level; e.g. always +{} spaces).",
+                            loc.line,
+                            loc.column,
+                            unit
+                        ));
+                    }
+                } else {
+                    // Primeiro bloco define a unidade de indentação do arquivo
+                    self.indent_unit = Some(delta);
+                }
                 self.indent_stack.push(indent);
                 return Ok(Token::Indent(loc));
             } else if indent < last_indent {
@@ -326,7 +348,7 @@ impl<'a> Tokenizer<'a> {
                 }
                 if indent != *self.indent_stack.last().unwrap() {
                     return Err(format!(
-                        "Nível de identação inconsistente na linha {}, coluna {} (dica: não misture tabs e espaços; use múltiplos de 4 espaços por nível)",
+                        "Inconsistent indentation at line {}, column {} (hint: keep indentation consistent; if you use tabs, avoid mixing them with spaces).",
                         loc.line,
                         loc.column
                     ));
@@ -407,7 +429,7 @@ impl<'a> Tokenizer<'a> {
                     if self.match_char('=') {
                         Token::BangEqual(loc)
                     } else {
-                        return Err(format!("Caractere inesperado: {} na linha {}, coluna {}", ch, loc.line, loc.column));
+                        return Err(format!("Unexpected character: {} at line {}, column {}", ch, loc.line, loc.column));
                     }
                 }
                 '<' => {
@@ -426,7 +448,7 @@ impl<'a> Tokenizer<'a> {
                 }
                 '"' => self.read_string(loc)?,
                 _ => return Err(format!(
-                    "Caractere inesperado: {} na linha {}, coluna {}",
+                    "Unexpected character: {} at line {}, column {}",
                     ch, loc.line, loc.column
                 )),
             }
@@ -513,7 +535,7 @@ impl<'a> Tokenizer<'a> {
             }
             if c == '\n' || c == '\r' {
                 return Err(format!(
-                    "String não terminada (quebra de linha) na linha {}, coluna {} (dica: feche com '\"' ou use \\n)",
+                    "Unterminated string (newline) at line {}, column {} (hint: close it with '\"' or use \\n)",
                     loc.line,
                     loc.column
                 ));
@@ -536,7 +558,7 @@ impl<'a> Tokenizer<'a> {
                                 hex.push(h);
                             } else {
                                 return Err(format!(
-                                    "Escape unicode incompleto (\\uXXXX) na linha {}, coluna {}",
+                                    "Incomplete unicode escape (\\uXXXX) at line {}, column {}",
                                     loc.line,
                                     loc.column
                                 ));
@@ -547,7 +569,7 @@ impl<'a> Tokenizer<'a> {
                                 s.push(ch);
                             } else {
                                 return Err(format!(
-                                    "Escape unicode inválido (\\u{}) na linha {}, coluna {}",
+                                    "Invalid unicode escape (\\u{}) at line {}, column {}",
                                     hex,
                                     loc.line,
                                     loc.column
@@ -555,7 +577,7 @@ impl<'a> Tokenizer<'a> {
                             }
                         } else {
                             return Err(format!(
-                                "Escape unicode inválido (\\u{}) na linha {}, coluna {}",
+                                "Invalid unicode escape (\\u{}) at line {}, column {}",
                                 hex,
                                 loc.line,
                                 loc.column
@@ -564,7 +586,7 @@ impl<'a> Tokenizer<'a> {
                     }
                     '\0' => {
                         return Err(format!(
-                            "String não terminada (fim do arquivo) na linha {}, coluna {}",
+                            "Unterminated string (end of file) at line {}, column {}",
                             loc.line,
                             loc.column
                         ));
@@ -577,7 +599,7 @@ impl<'a> Tokenizer<'a> {
         }
         if self.peek().is_none() {
             return Err(format!(
-                "String não terminada (fim do arquivo) na linha {}, coluna {}",
+                "Unterminated string (end of file) at line {}, column {}",
                 loc.line,
                 loc.column
             ));
@@ -640,17 +662,17 @@ impl<'a> Parser<'a> {
         } else {
             let found_loc = self.current_token.get_location().clone();
             let mut msg = format!(
-                "Esperado {}, mas encontrado {} na linha {}, coluna {}",
+                "Expected {}, but found {} at line {}, column {}",
                 expected_variant.friendly_name(),
                 self.current_token.friendly_name(),
                 found_loc.line,
                 found_loc.column
             );
             if matches!(expected_variant, Token::Semicolon(_)) {
-                msg.push_str(" (dica: provavelmente faltou um ';' no fim da linha)");
+                msg.push_str(" (hint: you probably missed a ';' at the end of the line)");
             }
             if matches!(expected_variant, Token::Indent(_)) {
-                msg.push_str(" (dica: verifique a identação do bloco: use 4 espaços)");
+                msg.push_str(" (hint: check the block indentation; keep it consistent throughout the file)");
             }
             Err(msg)
         }
@@ -661,7 +683,7 @@ impl<'a> Parser<'a> {
             Token::Identifier(s, loc) => (s, loc),
             _ => {
                 let found_loc = self.current_token.get_location().clone();
-                return Err(format!("Esperado identificador, mas encontrado {} na linha {}, coluna {}", self.current_token.friendly_name(), found_loc.line, found_loc.column));
+                return Err(format!("Expected identifier, but found {} at line {}, column {}", self.current_token.friendly_name(), found_loc.line, found_loc.column));
             }
         };
         // This was the bug: it was consuming directly from tokenizer,
@@ -755,7 +777,7 @@ impl<'a> Parser<'a> {
         let loc = self.consume_token(&Token::Input(Location{line:0, column:0}))?.get_location().clone();
         let (name, _) = self.consume_identifier()?;
         let var_type = self.parse_type_annotation()?
-            .ok_or_else(|| "Esperado anotação de tipo (ex: ': str') após nome da variável para comando 'input'.".to_string())?;
+            .ok_or_else(|| "Expected a type annotation (e.g. ': str') after the variable name in the 'input' statement.".to_string())?;
         
         self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
         Ok(Stmt {
@@ -771,7 +793,7 @@ impl<'a> Parser<'a> {
                 self.consume_token(&Token::String("".to_string(), Location{line:0, column:0}))?;
                 s
             },
-            _ => return Err(format!("Esperado string literal após 'import', encontrado {}", self.current_token.friendly_name())),
+            _ => return Err(format!("Expected string literal after 'import', found {}", self.current_token.friendly_name())),
         };
         
         self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
@@ -831,8 +853,8 @@ impl<'a> Parser<'a> {
                     let stmt = self.parse_fun_declaration()?;
                     if let StmtKind::FuncDeclaration(d) = stmt.kind { methods.push(d); }
                 }
-                _ => return Err(format!("Token inesperado em classe: {} na linha {}, coluna {}", self.current_token.friendly_name(), self.current_token.get_location().line, self.current_token.get_location().column)),
-             }
+                _ => return Err(format!("Unexpected token in class: {} at line {}, column {}", self.current_token.friendly_name(), self.current_token.get_location().line, self.current_token.get_location().column)),
+            }
         }
         
         if !self.at_end() {
@@ -1207,7 +1229,7 @@ impl<'a> Parser<'a> {
                     })
                 }
             }
-            _ => Err(format!("Token inesperado em expressão: {} na linha {}, coluna {}", self.current_token.friendly_name(), loc.line, loc.column)),
+            _ => Err(format!("Unexpected token in expression: {} at line {}, column {}", self.current_token.friendly_name(), loc.line, loc.column)),
         }
     }
     

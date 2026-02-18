@@ -7,7 +7,7 @@ use serde_json::Value as JsonValue;
 fn snask_home_dir() -> Result<PathBuf, String> {
     dirs::home_dir()
         .map(|h| h.join(".snask"))
-        .ok_or_else(|| "Não foi possível encontrar o diretório home.".to_string())
+        .ok_or_else(|| "Could not find the home directory.".to_string())
 }
 
 fn registry_dir() -> Result<PathBuf, String> {
@@ -19,10 +19,10 @@ fn run_git(args: &[&str], cwd: &Path) -> Result<(), String> {
         .args(args)
         .current_dir(cwd)
         .output()
-        .map_err(|e| format!("Falha ao executar git {:?}: {}", args, e))?;
+        .map_err(|e| format!("Failed to run git {:?}: {}", args, e))?;
     if !out.status.success() {
         return Err(format!(
-            "git {:?} falhou.\nstdout: {}\nstderr: {}",
+            "git {:?} failed.\nstdout: {}\nstderr: {}",
             args,
             String::from_utf8_lossy(&out.stdout).trim(),
             String::from_utf8_lossy(&out.stderr).trim()
@@ -38,14 +38,14 @@ fn ensure_registry_repo() -> Result<PathBuf, String> {
     if !repo.exists() {
         // Auto-clone: necessário para qualquer dev conseguir publicar via fork/PR.
         fs::create_dir_all(repo.parent().unwrap_or_else(|| Path::new(".")))
-            .map_err(|e| format!("Falha ao criar diretório do registry: {}", e))?;
+            .map_err(|e| format!("Failed to create registry directory: {}", e))?;
         let out = Command::new("git")
             .args(["clone", "--depth", "1", git_url, repo.to_string_lossy().as_ref()])
             .output()
-            .map_err(|e| format!("Falha ao executar git clone: {}", e))?;
+            .map_err(|e| format!("Failed to run git clone: {}", e))?;
         if !out.status.success() {
             return Err(format!(
-                "Falha ao clonar registry.\nstdout: {}\nstderr: {}",
+                "Failed to clone registry.\nstdout: {}\nstderr: {}",
                 String::from_utf8_lossy(&out.stdout).trim(),
                 String::from_utf8_lossy(&out.stderr).trim()
             ));
@@ -54,7 +54,7 @@ fn ensure_registry_repo() -> Result<PathBuf, String> {
 
     if !repo.join(".git").exists() {
         return Err(format!(
-            "Pasta '{}' existe, mas não é um repo git (sem .git). Apague e rode novamente.",
+            "Directory '{}' exists, but it is not a git repo (no .git). Delete it and try again.",
             repo.display()
         ));
     }
@@ -62,7 +62,7 @@ fn ensure_registry_repo() -> Result<PathBuf, String> {
     // Mantém atualizado antes de publicar
     let _ = run_git(&["fetch", "--all", "--prune"], &repo);
     run_git(&["pull", "--ff-only"], &repo)
-        .map_err(|e| format!("Falha ao atualizar registry via git: {}", e))?;
+        .map_err(|e| format!("Failed to update registry via git: {}", e))?;
     Ok(repo)
 }
 
@@ -83,10 +83,10 @@ struct PackageJson {
 pub fn lib_init(opts: NewLibOpts) -> Result<(), String> {
     let name = opts.name.trim();
     if name.is_empty() {
-        return Err("Nome inválido.".to_string());
+        return Err("Invalid name.".to_string());
     }
     if !name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' ) {
-        return Err("Nome inválido: use apenas a-z, 0-9 e '_' (minúsculo).".to_string());
+        return Err("Invalid name: use only a-z, 0-9 and '_' (lowercase).".to_string());
     }
 
     let snask_file = format!("{}.snask", name);
@@ -94,18 +94,18 @@ pub fn lib_init(opts: NewLibOpts) -> Result<(), String> {
     let md_file = "README.md";
     if Path::new(&snask_file).exists() || Path::new(json_file).exists() || Path::new(md_file).exists() {
         return Err(format!(
-            "Já existe um dos arquivos no diretório atual: '{}', '{}' ou '{}'.",
+            "One of these files already exists in the current directory: '{}', '{}' or '{}'.",
             snask_file, json_file, md_file
         ));
     }
 
     let content = format!(
-        "// Biblioteca: {name}\n// Versão: {version}\n// Descrição: {desc}\n//\n// Dica: mantenha a API pública como funções top-level.\n\nfun version()\n    return \"{version}\";\n\nfun about()\n    return \"{desc}\";\n\n// Exemplo de função pública\nfun hello(nome)\n    return \"Olá, \" + nome;\n",
+        "// Library: {name}\n// Version: {version}\n// Description: {desc}\n//\n// Tip: keep the public API as top-level functions.\n\nfun version()\n    return \"{version}\";\n\nfun about()\n    return \"{desc}\";\n\n// Example public function\nfun hello(name)\n    return \"Hello, \" + name;\n",
         name = name,
         version = opts.version,
         desc = opts.description.replace('\"', "\\\"")
     );
-    fs::write(&snask_file, content).map_err(|e| format!("Falha ao criar '{}': {}", snask_file, e))?;
+    fs::write(&snask_file, content).map_err(|e| format!("Failed to create '{}': {}", snask_file, e))?;
 
     let pkg_json = format!(
         "{{\n  \"name\": \"{name}\",\n  \"version\": \"{version}\",\n  \"description\": \"{desc}\"\n}}\n",
@@ -113,17 +113,17 @@ pub fn lib_init(opts: NewLibOpts) -> Result<(), String> {
         version = opts.version,
         desc = opts.description.replace('\"', "\\\"")
     );
-    fs::write(json_file, pkg_json).map_err(|e| format!("Falha ao criar '{}': {}", json_file, e))?;
+    fs::write(json_file, pkg_json).map_err(|e| format!("Failed to create '{}': {}", json_file, e))?;
 
     let readme = format!(
         "# {name}\n\n{desc}\n\n## Instalação\n\n```bash\nsnask install {name}\n```\n\n## Uso\n\n```snask\nimport \"{name}\"\n\nclass main\n    fun start()\n        print({name}::hello(\"dev\"));\n```\n",
         name = name,
         desc = opts.description
     );
-    fs::write(md_file, readme).map_err(|e| format!("Falha ao criar '{}': {}", md_file, e))?;
+    fs::write(md_file, readme).map_err(|e| format!("Failed to create '{}': {}", md_file, e))?;
 
-    println!("✅ Criado: {}, {}, {}", snask_file, json_file, md_file);
-    println!("📦 Próximo passo: `snask lib publish {}`.", name);
+    println!("✅ Created: {}, {}, {}", snask_file, json_file, md_file);
+    println!("📦 Next step: `snask lib publish {}`.", name);
     Ok(())
 }
 
@@ -172,9 +172,9 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
         .args(["status", "--porcelain"])
         .current_dir(&repo)
         .output()
-        .map_err(|e| format!("Falha ao checar status do git: {}", e))?;
+        .map_err(|e| format!("Failed to check git status: {}", e))?;
     if !out.status.success() {
-        return Err("Falha ao checar status do git no registry.".to_string());
+        return Err("Failed to check git status in the registry repo.".to_string());
     }
     if !String::from_utf8_lossy(&out.stdout).trim().is_empty() {
         return Err(format!(
@@ -194,21 +194,21 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
     let packages_dir = repo.join("packages");
     let packages_src = repo.join("packages_src").join(name).join(&version);
     let index_dir = repo.join("index").join(name.chars().next().unwrap().to_ascii_lowercase().to_string());
-    fs::create_dir_all(&packages_dir).map_err(|e| format!("Falha ao criar {}: {}", packages_dir.display(), e))?;
-    fs::create_dir_all(&packages_src).map_err(|e| format!("Falha ao criar {}: {}", packages_src.display(), e))?;
-    fs::create_dir_all(&index_dir).map_err(|e| format!("Falha ao criar {}: {}", index_dir.display(), e))?;
+    fs::create_dir_all(&packages_dir).map_err(|e| format!("Failed to create {}: {}", packages_dir.display(), e))?;
+    fs::create_dir_all(&packages_src).map_err(|e| format!("Failed to create {}: {}", packages_src.display(), e))?;
+    fs::create_dir_all(&index_dir).map_err(|e| format!("Failed to create {}: {}", index_dir.display(), e))?;
 
     // Copia o arquivo da lib para o repo do registry
     let dest_pkg = packages_dir.join(format!("{}.snask", name));
-    fs::copy(&local_file, &dest_pkg).map_err(|e| format!("Falha ao copiar para {}: {}", dest_pkg.display(), e))?;
+    fs::copy(&local_file, &dest_pkg).map_err(|e| format!("Failed to copy to {}: {}", dest_pkg.display(), e))?;
 
     // Fonte versionada (com package.json e README.md obrigatórios)
     fs::copy(&local_file, packages_src.join(format!("{}.snask", name)))
-        .map_err(|e| format!("Falha ao copiar fonte: {}", e))?;
+        .map_err(|e| format!("Failed to copy sources: {}", e))?;
     fs::copy("package.json", packages_src.join("package.json"))
-        .map_err(|e| format!("Falha ao copiar package.json: {}", e))?;
+        .map_err(|e| format!("Failed to copy package.json: {}", e))?;
     fs::copy("README.md", packages_src.join("README.md"))
-        .map_err(|e| format!("Falha ao copiar README.md: {}", e))?;
+        .map_err(|e| format!("Failed to copy README.md: {}", e))?;
 
     // Escreve metadados do índice (formato simples v1)
     let desc = description.replace('\"', "\\\"");
@@ -220,13 +220,13 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
         url = url,
         desc = desc
     );
-    fs::write(&index_path, index_json).map_err(|e| format!("Falha ao escrever {}: {}", index_path.display(), e))?;
+    fs::write(&index_path, index_json).map_err(|e| format!("Failed to write {}: {}", index_path.display(), e))?;
 
     // Compatibilidade: também atualiza registry.json legado, para ferramentas antigas que ainda leem um arquivo único.
     let legacy_registry_path = repo.join("registry.json");
     let mut legacy_obj: JsonValue = if legacy_registry_path.exists() {
         let bytes = fs::read(&legacy_registry_path)
-            .map_err(|e| format!("Falha ao ler {}: {}", legacy_registry_path.display(), e))?;
+            .map_err(|e| format!("Failed to read {}: {}", legacy_registry_path.display(), e))?;
         serde_json::from_slice(&bytes)
             .map_err(|e| format!("registry.json inválido (legacy): {}", e))?
     } else {
@@ -243,7 +243,7 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
     });
     let legacy_pretty = serde_json::to_string_pretty(&legacy_obj).map_err(|e| e.to_string())? + "\n";
     fs::write(&legacy_registry_path, legacy_pretty)
-        .map_err(|e| format!("Falha ao escrever {}: {}", legacy_registry_path.display(), e))?;
+        .map_err(|e| format!("Failed to write {}: {}", legacy_registry_path.display(), e))?;
 
     // Stage + commit
     run_git(

@@ -29,15 +29,15 @@ pub fn load_module(path: &str) -> Result<Program, String> {
     }
 
     Err(format!(
-        "Módulo '{}' não encontrado localmente nem em ~/.snask/packages/",
+        "Module '{}' not found locally nor in ~/.snask/packages/",
         path
     ))
 }
 
 fn read_and_parse_module(path: &Path) -> Result<Program, String> {
     let source = fs::read_to_string(path)
-        .map_err(|e| format!("Falha ao ler módulo {}: {}", path.display(), e))?;
+        .map_err(|e| format!("Failed to read module {}: {}", path.display(), e))?;
     
     parse_program(&source)
-        .map_err(|e| format!("Erro de sintaxe no módulo {}: {}", path.display(), e))
+        .map_err(|e| format!("Syntax error in module {}: {}", path.display(), e))
 }

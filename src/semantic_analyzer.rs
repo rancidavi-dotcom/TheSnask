@@ -93,8 +93,8 @@ pub struct SemanticAnalyzer {
 }
 
 fn is_library_native(name: &str) -> bool {
-    // Funções de módulos importados são renomeadas para "mod::func".
-    // Não bloqueamos isso aqui; o bloqueio é somente para nativas globais (gui_*, sqlite_*, etc.).
+    // Imported module functions are renamed to "mod::func".
+    // We only block direct calls to global native functions (gui_*, sqlite_*, etc.).
     if name.contains("::") {
         return false;
     }
@@ -109,6 +109,8 @@ fn is_library_native(name: &str) -> bool {
         || name.starts_with("thread_")
         || name.starts_with("json_")
         || name.starts_with("sjson_")
+        || name.starts_with("snif_")
+        || name.starts_with("string_")
 }
 
 fn library_native_help(name: &str) -> String {
@@ -120,11 +122,14 @@ fn library_native_help(name: &str) -> String {
     else if name.starts_with("os_") { "os" }
     else if name.starts_with("s_http_") { "requests" }
     else if name.starts_with("thread_") { "os" }
-    else if name.starts_with("json_") || name.starts_with("sjson_") { "json" }
-    else { "uma biblioteca" };
+    else if name.starts_with("json_") { "json" }
+    else if name.starts_with("sjson_") { "sjson" }
+    else if name.starts_with("snif_") { "snif" }
+    else if name.starts_with("string_") { "string" }
+    else { "a library" };
 
     format!(
-        "Essa função nativa é reservada para bibliotecas.\n\nComo resolver:\n- Use `import \"{lib}\"` e chame as funções via namespace (ex: `{lib}::...`).\n",
+        "This native function is reserved for libraries.\n\nHow to fix:\n- Use `import \"{lib}\"` and call functions via the module namespace (e.g. `{lib}::...`).\n",
         lib = lib
     )
 }
@@ -186,8 +191,8 @@ impl SemanticAnalyzer {
         self.define_constant("E", Type::Float);
         self.define_constant("TAU", Type::Float);
 
-        // String
-        self.define_builtin("len", vec![Type::String], Type::Float, false);
+        // Builtins Core Globais (Compatibilidade)
+        self.define_builtin("len", vec![Type::Any], Type::Float, false);
         self.define_builtin("upper", vec![Type::String], Type::String, false);
         self.define_builtin("lower", vec![Type::String], Type::String, false);
         self.define_builtin("trim", vec![Type::String], Type::String, false);
@@ -199,7 +204,41 @@ impl SemanticAnalyzer {
         self.define_builtin("ends_with", vec![Type::String, Type::String], Type::Bool, false);
         self.define_builtin("chars", vec![Type::String], Type::List, false);
         self.define_builtin("substring", vec![Type::String, Type::Float, Type::Float], Type::String, false);
-        self.define_builtin("format", vec![Type::String, Type::Any, Type::Any], Type::String, true); // Variadic support // Basic support
+        self.define_builtin("format", vec![Type::String], Type::String, true);
+
+        // Biblioteca String (32 funções nativas de alta performance)
+        self.define_builtin_with_alias("string_len", vec![Type::Any], Type::Float, false);
+        self.define_builtin_with_alias("string_upper", vec![Type::Any], Type::String, false);
+        self.define_builtin_with_alias("string_lower", vec![Type::Any], Type::String, false);
+        self.define_builtin_with_alias("string_trim", vec![Type::Any], Type::String, false);
+        self.define_builtin_with_alias("string_split", vec![Type::Any, Type::Any], Type::Any, false);
+        self.define_builtin_with_alias("string_join", vec![Type::Any, Type::Any], Type::String, false);
+        self.define_builtin_with_alias("string_replace", vec![Type::Any, Type::Any, Type::Any], Type::String, false);
+        self.define_builtin_with_alias("string_contains", vec![Type::Any, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("string_starts_with", vec![Type::Any, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("string_ends_with", vec![Type::Any, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("string_chars", vec![Type::Any], Type::Any, false);
+        self.define_builtin_with_alias("string_substring", vec![Type::Any, Type::Float, Type::Float], Type::String, false);
+        self.define_builtin_with_alias("string_format", vec![Type::Any], Type::String, true);
+        self.define_builtin_with_alias("string_index_of", vec![Type::Any, Type::Any], Type::Float, false);
+        self.define_builtin_with_alias("string_last_index_of", vec![Type::Any, Type::Any], Type::Float, false);
+        self.define_builtin_with_alias("string_repeat", vec![Type::Any, Type::Float], Type::String, false);
+        self.define_builtin_with_alias("string_is_empty", vec![Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("string_is_blank", vec![Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("string_pad_start", vec![Type::Any, Type::Float, Type::Any], Type::String, false);
+        self.define_builtin_with_alias("string_pad_end", vec![Type::Any, Type::Float, Type::Any], Type::String, false);
+        self.define_builtin_with_alias("string_capitalize", vec![Type::Any], Type::String, false);
+        self.define_builtin_with_alias("string_title", vec![Type::Any], Type::String, false);
+        self.define_builtin_with_alias("string_swapcase", vec![Type::Any], Type::String, false);
+        self.define_builtin_with_alias("string_count", vec![Type::Any, Type::Any], Type::Float, false);
+        self.define_builtin_with_alias("string_is_numeric", vec![Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("string_is_alpha", vec![Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("string_is_alphanumeric", vec![Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("string_is_ascii", vec![Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("string_hex", vec![Type::Float], Type::String, false);
+        self.define_builtin_with_alias("string_from_char_code", vec![Type::Float], Type::String, false);
+        self.define_builtin_with_alias("string_to_char_code", vec![Type::Any, Type::Float], Type::Float, false);
+        self.define_builtin_with_alias("string_reverse", vec![Type::Any], Type::String, false);
 
         // Collections
         self.define_builtin("range", vec![Type::Float], Type::List, false); // Basic support
@@ -240,15 +279,16 @@ impl SemanticAnalyzer {
         self.define_builtin_with_alias("json_set", vec![Type::Any, Type::String, Type::Any], Type::Bool, false);
         self.define_builtin_with_alias("json_keys", vec![Type::Any], Type::Any, false);
 
-        // Sjson — via bibliotecas
-        self.define_builtin_with_alias("sjson_new_object", vec![], Type::Any, false);
-        self.define_builtin_with_alias("sjson_new_array", vec![], Type::Any, false);
-        self.define_builtin_with_alias("sjson_type", vec![Type::Any], Type::String, false);
-        self.define_builtin_with_alias("sjson_arr_len", vec![Type::Any], Type::Float, false);
-        self.define_builtin_with_alias("sjson_arr_get", vec![Type::Any, Type::Float], Type::Any, false);
-        self.define_builtin_with_alias("sjson_arr_set", vec![Type::Any, Type::Float, Type::Any], Type::Bool, false);
-        self.define_builtin_with_alias("sjson_arr_push", vec![Type::Any, Type::Any], Type::Bool, false);
-        self.define_builtin_with_alias("sjson_path_get", vec![Type::Any, Type::String], Type::Any, false);
+        // SNIF (Snask Interchange Format) — via bibliotecas
+        self.define_builtin_with_alias("snif_new_object", vec![], Type::Any, false);
+        self.define_builtin_with_alias("snif_new_array", vec![], Type::Any, false);
+        self.define_builtin_with_alias("snif_parse_ex", vec![Type::String], Type::Any, false);
+        self.define_builtin_with_alias("snif_type", vec![Type::Any], Type::String, false);
+        self.define_builtin_with_alias("snif_arr_len", vec![Type::Any], Type::Float, false);
+        self.define_builtin_with_alias("snif_arr_get", vec![Type::Any, Type::Float], Type::Any, false);
+        self.define_builtin_with_alias("snif_arr_set", vec![Type::Any, Type::Float, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("snif_arr_push", vec![Type::Any, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("snif_path_get", vec![Type::Any, Type::String], Type::Any, false);
         self.define_builtin_with_alias("json_parse_ex", vec![Type::String], Type::Any, false);
 
         // System
@@ -337,7 +377,15 @@ impl SemanticAnalyzer {
         self.define_builtin_with_alias("gui_autosize", vec![Type::String], Type::Bool, false);
         self.define_builtin_with_alias("gui_vbox", vec![], Type::String, false);
         self.define_builtin_with_alias("gui_hbox", vec![], Type::String, false);
+        self.define_builtin_with_alias("gui_eventbox", vec![], Type::String, false);
         self.define_builtin_with_alias("gui_scrolled", vec![], Type::String, false);
+        self.define_builtin_with_alias("gui_flowbox", vec![], Type::String, false);
+        self.define_builtin_with_alias("gui_flow_add", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_frame", vec![], Type::String, false);
+        self.define_builtin_with_alias("gui_set_margin", vec![Type::String, Type::Float], Type::Bool, false);
+        self.define_builtin_with_alias("gui_icon", vec![Type::String, Type::Float], Type::String, false);
+        self.define_builtin_with_alias("gui_css", vec![Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_add_class", vec![Type::String, Type::String], Type::Bool, false);
         self.define_builtin_with_alias("gui_listbox", vec![], Type::String, false);
         self.define_builtin_with_alias("gui_list_add_text", vec![Type::String, Type::String], Type::String, false);
         self.define_builtin_with_alias("gui_on_select_ctx", vec![Type::String, Type::String, Type::String], Type::Bool, false);
@@ -346,6 +394,7 @@ impl SemanticAnalyzer {
         self.define_builtin_with_alias("gui_add_expand", vec![Type::String, Type::String], Type::Bool, false);
         self.define_builtin_with_alias("gui_label", vec![Type::String], Type::String, false);
         self.define_builtin_with_alias("gui_entry", vec![], Type::String, false);
+        self.define_builtin_with_alias("gui_textview", vec![], Type::String, false);
         self.define_builtin_with_alias("gui_set_placeholder", vec![Type::String, Type::String], Type::Bool, false);
         self.define_builtin_with_alias("gui_set_editable", vec![Type::String, Type::Bool], Type::Bool, false);
         self.define_builtin_with_alias("gui_button", vec![Type::String], Type::String, false);
@@ -356,6 +405,7 @@ impl SemanticAnalyzer {
         self.define_builtin_with_alias("gui_get_text", vec![Type::String], Type::String, false);
         self.define_builtin_with_alias("gui_on_click", vec![Type::String, Type::String], Type::Bool, false);
         self.define_builtin_with_alias("gui_on_click_ctx", vec![Type::String, Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias("gui_on_tap_ctx", vec![Type::String, Type::String, Type::String], Type::Bool, false);
         self.define_builtin_with_alias("gui_separator_h", vec![], Type::String, false);
         self.define_builtin_with_alias("gui_separator_v", vec![], Type::String, false);
         self.define_builtin_with_alias("gui_msg_info", vec![Type::String, Type::String], Type::Void, false);
@@ -391,6 +441,8 @@ impl SemanticAnalyzer {
         self.define_builtin("poke", vec![Type::Ptr, Type::Any], Type::Void, false);
         self.define_builtin("addr", vec![Type::Any], Type::Ptr, false);
         self.define_builtin("malloc", vec![Type::Float], Type::Ptr, false);
+        // Execução de comando (host). Retorna true se exit code == 0.
+        self.define_builtin("s_system", vec![Type::String], Type::Bool, false);
 
         // Utils
         self.define_builtin("s_abs", vec![Type::Float], Type::Float, false);

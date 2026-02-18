@@ -2,6 +2,7 @@
 target/
 *.o
 *.ll
+hello
 
 # Snask build temp files
 temp_snask.*

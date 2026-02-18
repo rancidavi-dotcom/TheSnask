@@ -10,6 +10,47 @@ const TYPE_NIL: u32 = 0;
 const TYPE_NUM: u32 = 1;
 const TYPE_STR: u32 = 3;
 
+fn is_library_native(name: &str) -> bool {
+    if name.contains("::") {
+        return false;
+    }
+    name.starts_with("sqlite_")
+        || name.starts_with("gui_")
+        || name.starts_with("blaze_")
+        || name.starts_with("auth_")
+        || name.starts_with("sfs_")
+        || name.starts_with("path_")
+        || name.starts_with("os_")
+        || name.starts_with("s_http_")
+        || name.starts_with("thread_")
+        || name.starts_with("json_")
+        || name.starts_with("sjson_")
+        || name.starts_with("snif_")
+        || name.starts_with("string_")
+}
+
+fn library_native_help(name: &str) -> String {
+    let lib = if name.starts_with("sqlite_") { "sqlite" }
+    else if name.starts_with("gui_") { "gui" }
+    else if name.starts_with("blaze_") { "blaze" }
+    else if name.starts_with("auth_") { "blaze_auth" }
+    else if name.starts_with("sfs_") || name.starts_with("path_") { "sfs" }
+    else if name.starts_with("os_") { "os" }
+    else if name.starts_with("s_http_") { "requests" }
+    else if name.starts_with("thread_") { "os" }
+    else if name.starts_with("json_") { "json" }
+    else if name.starts_with("sjson_") { "sjson" }
+    else if name.starts_with("snif_") { "snif" }
+    else if name.starts_with("string_") { "string" }
+    else { "a library" };
+
+    format!(
+        "Native function '{name}' is reserved for libraries.\n\nHow to fix:\n- Use `import \"{lib}\"` and call functions via the module namespace (e.g. `{lib}::...`).",
+        name = name,
+        lib = lib
+    )
+}
+
 pub struct LLVMGenerator<'ctx> {
     context: &'ctx Context,
     module: Module<'ctx>,
@@ -156,6 +197,34 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("s_min".to_string(), f_min);
         self.functions.insert("min".to_string(), f_min);
 
+        let f_sqrt = self.module.add_function("s_sqrt", fn_1, None);
+        self.functions.insert("s_sqrt".to_string(), f_sqrt);
+        self.functions.insert("sqrt".to_string(), f_sqrt);
+
+        let f_sin = self.module.add_function("s_sin", fn_1, None);
+        self.functions.insert("s_sin".to_string(), f_sin);
+        self.functions.insert("sin".to_string(), f_sin);
+
+        let f_cos = self.module.add_function("s_cos", fn_1, None);
+        self.functions.insert("s_cos".to_string(), f_cos);
+        self.functions.insert("cos".to_string(), f_cos);
+
+        let f_floor = self.module.add_function("s_floor", fn_1, None);
+        self.functions.insert("s_floor".to_string(), f_floor);
+        self.functions.insert("floor".to_string(), f_floor);
+
+        let f_ceil = self.module.add_function("s_ceil", fn_1, None);
+        self.functions.insert("s_ceil".to_string(), f_ceil);
+        self.functions.insert("ceil".to_string(), f_ceil);
+
+        let f_round = self.module.add_function("s_round", fn_1, None);
+        self.functions.insert("s_round".to_string(), f_round);
+        self.functions.insert("round".to_string(), f_round);
+
+        let f_pow = self.module.add_function("s_pow", fn_2, None);
+        self.functions.insert("s_pow".to_string(), f_pow);
+        self.functions.insert("pow".to_string(), f_pow);
+
         let f_len = self.module.add_function("s_len", fn_1, None);
         self.functions.insert("s_len".to_string(), f_len);
         self.functions.insert("len".to_string(), f_len);
@@ -182,6 +251,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
 
         let f_exit = self.module.add_function("s_exit", fn_1, None);
         self.functions.insert("exit".to_string(), f_exit);
+        self.functions.insert("s_system".to_string(), self.module.add_function("s_system", fn_1, None));
         self.functions.insert("is_nil".to_string(), self.module.add_function("is_nil", fn_1, None));
         self.functions.insert("is_str".to_string(), self.module.add_function("is_str", fn_1, None));
         self.functions.insert("is_obj".to_string(), self.module.add_function("is_obj", fn_1, None));
@@ -228,7 +298,15 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("gui_autosize".to_string(), self.module.add_function("gui_autosize", fn_1, None));
         self.functions.insert("gui_vbox".to_string(), self.module.add_function("gui_vbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("gui_hbox".to_string(), self.module.add_function("gui_hbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_eventbox".to_string(), self.module.add_function("gui_eventbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("gui_scrolled".to_string(), self.module.add_function("gui_scrolled", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_flowbox".to_string(), self.module.add_function("gui_flowbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_flow_add".to_string(), self.module.add_function("gui_flow_add", fn_2, None));
+        self.functions.insert("gui_frame".to_string(), self.module.add_function("gui_frame", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_set_margin".to_string(), self.module.add_function("gui_set_margin", fn_2, None));
+        self.functions.insert("gui_icon".to_string(), self.module.add_function("gui_icon", fn_2, None));
+        self.functions.insert("gui_css".to_string(), self.module.add_function("gui_css", fn_1, None));
+        self.functions.insert("gui_add_class".to_string(), self.module.add_function("gui_add_class", fn_2, None));
         self.functions.insert("gui_listbox".to_string(), self.module.add_function("gui_listbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("gui_list_add_text".to_string(), self.module.add_function("gui_list_add_text", fn_2, None));
         self.functions.insert("gui_on_select_ctx".to_string(), self.module.add_function("gui_on_select_ctx", fn_3, None));
@@ -237,6 +315,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("gui_add_expand".to_string(), self.module.add_function("gui_add_expand", fn_2, None));
         self.functions.insert("gui_label".to_string(), self.module.add_function("gui_label", fn_1, None));
         self.functions.insert("gui_entry".to_string(), self.module.add_function("gui_entry", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_textview".to_string(), self.module.add_function("gui_textview", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("gui_set_placeholder".to_string(), self.module.add_function("gui_set_placeholder", fn_2, None));
         self.functions.insert("gui_set_editable".to_string(), self.module.add_function("gui_set_editable", fn_2, None));
         self.functions.insert("gui_button".to_string(), self.module.add_function("gui_button", fn_1, None));
@@ -247,6 +326,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("gui_get_text".to_string(), self.module.add_function("gui_get_text", fn_1, None));
         self.functions.insert("gui_on_click".to_string(), self.module.add_function("gui_on_click", fn_2, None));
         self.functions.insert("gui_on_click_ctx".to_string(), self.module.add_function("gui_on_click_ctx", fn_3, None));
+        self.functions.insert("gui_on_tap_ctx".to_string(), self.module.add_function("gui_on_tap_ctx", fn_3, None));
         self.functions.insert("gui_separator_h".to_string(), self.module.add_function("gui_separator_h", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("gui_separator_v".to_string(), self.module.add_function("gui_separator_v", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("gui_msg_info".to_string(), self.module.add_function("gui_msg_info", fn_2, None));
@@ -272,6 +352,40 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("sqlite_column_count".to_string(), self.module.add_function("sqlite_column_count", fn_1, None));
         self.functions.insert("sqlite_column_name".to_string(), self.module.add_function("sqlite_column_name", fn_2, None));
 
+        // Biblioteca String (Nativas)
+        self.functions.insert("string_len".to_string(), self.module.add_function("string_len", fn_1, None));
+        self.functions.insert("string_upper".to_string(), self.module.add_function("string_upper", fn_1, None));
+        self.functions.insert("string_lower".to_string(), self.module.add_function("string_lower", fn_1, None));
+        self.functions.insert("string_trim".to_string(), self.module.add_function("string_trim", fn_1, None));
+        self.functions.insert("string_split".to_string(), self.module.add_function("string_split", fn_2, None));
+        self.functions.insert("string_join".to_string(), self.module.add_function("string_join", fn_2, None));
+        self.functions.insert("string_replace".to_string(), self.module.add_function("string_replace", fn_3, None));
+        self.functions.insert("string_contains".to_string(), self.module.add_function("string_contains", fn_2, None));
+        self.functions.insert("string_starts_with".to_string(), self.module.add_function("string_starts_with", fn_2, None));
+        self.functions.insert("string_ends_with".to_string(), self.module.add_function("string_ends_with", fn_2, None));
+        self.functions.insert("string_chars".to_string(), self.module.add_function("string_chars", fn_1, None));
+        self.functions.insert("string_substring".to_string(), self.module.add_function("string_substring", fn_3, None));
+        self.functions.insert("string_format".to_string(), self.module.add_function("string_format", self.context.void_type().fn_type(&[self.ptr_type.into(), self.context.i32_type().into(), self.ptr_type.ptr_type(inkwell::AddressSpace::from(0)).into()], false), None));
+        self.functions.insert("string_index_of".to_string(), self.module.add_function("string_index_of", fn_2, None));
+        self.functions.insert("string_last_index_of".to_string(), self.module.add_function("string_last_index_of", fn_2, None));
+        self.functions.insert("string_repeat".to_string(), self.module.add_function("string_repeat", fn_2, None));
+        self.functions.insert("string_is_empty".to_string(), self.module.add_function("string_is_empty", fn_1, None));
+        self.functions.insert("string_is_blank".to_string(), self.module.add_function("string_is_blank", fn_1, None));
+        self.functions.insert("string_pad_start".to_string(), self.module.add_function("string_pad_start", fn_3, None));
+        self.functions.insert("string_pad_end".to_string(), self.module.add_function("string_pad_end", fn_3, None));
+        self.functions.insert("string_capitalize".to_string(), self.module.add_function("string_capitalize", fn_1, None));
+        self.functions.insert("string_title".to_string(), self.module.add_function("string_title", fn_1, None));
+        self.functions.insert("string_swapcase".to_string(), self.module.add_function("string_swapcase", fn_1, None));
+        self.functions.insert("string_count".to_string(), self.module.add_function("string_count", fn_2, None));
+        self.functions.insert("string_is_numeric".to_string(), self.module.add_function("string_is_numeric", fn_1, None));
+        self.functions.insert("string_is_alpha".to_string(), self.module.add_function("string_is_alpha", fn_1, None));
+        self.functions.insert("string_is_alphanumeric".to_string(), self.module.add_function("string_is_alphanumeric", fn_1, None));
+        self.functions.insert("string_is_ascii".to_string(), self.module.add_function("string_is_ascii", fn_1, None));
+        self.functions.insert("string_hex".to_string(), self.module.add_function("string_hex", fn_1, None));
+        self.functions.insert("string_from_char_code".to_string(), self.module.add_function("string_from_char_code", fn_1, None));
+        self.functions.insert("string_to_char_code".to_string(), self.module.add_function("string_to_char_code", fn_2, None));
+        self.functions.insert("string_reverse".to_string(), self.module.add_function("string_reverse", fn_1, None));
+
         // Multithreading (pthread)
         self.functions.insert("thread_spawn".to_string(), self.module.add_function("thread_spawn", fn_2, None));
         self.functions.insert("thread_join".to_string(), self.module.add_function("thread_join", fn_1, None));
@@ -288,14 +402,15 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("json_index".to_string(), self.module.add_function("json_index", fn_2, None));
         self.functions.insert("json_set".to_string(), self.module.add_function("json_set", fn_3, None));
         self.functions.insert("json_keys".to_string(), self.module.add_function("json_keys", fn_1, None));
-        self.functions.insert("sjson_new_object".to_string(), self.module.add_function("sjson_new_object", void_type.fn_type(&[self.ptr_type.into()], false), None));
-        self.functions.insert("sjson_new_array".to_string(), self.module.add_function("sjson_new_array", void_type.fn_type(&[self.ptr_type.into()], false), None));
-        self.functions.insert("sjson_type".to_string(), self.module.add_function("sjson_type", fn_1, None));
-        self.functions.insert("sjson_arr_len".to_string(), self.module.add_function("sjson_arr_len", fn_1, None));
-        self.functions.insert("sjson_arr_get".to_string(), self.module.add_function("sjson_arr_get", fn_2, None));
-        self.functions.insert("sjson_arr_set".to_string(), self.module.add_function("sjson_arr_set", fn_3, None));
-        self.functions.insert("sjson_arr_push".to_string(), self.module.add_function("sjson_arr_push", fn_2, None));
-        self.functions.insert("sjson_path_get".to_string(), self.module.add_function("sjson_path_get", fn_2, None));
+        self.functions.insert("snif_new_object".to_string(), self.module.add_function("snif_new_object", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("snif_new_array".to_string(), self.module.add_function("snif_new_array", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("snif_parse_ex".to_string(), self.module.add_function("snif_parse_ex", fn_1, None));
+        self.functions.insert("snif_type".to_string(), self.module.add_function("snif_type", fn_1, None));
+        self.functions.insert("snif_arr_len".to_string(), self.module.add_function("snif_arr_len", fn_1, None));
+        self.functions.insert("snif_arr_get".to_string(), self.module.add_function("snif_arr_get", fn_2, None));
+        self.functions.insert("snif_arr_set".to_string(), self.module.add_function("snif_arr_set", fn_3, None));
+        self.functions.insert("snif_arr_push".to_string(), self.module.add_function("snif_arr_push", fn_2, None));
+        self.functions.insert("snif_path_get".to_string(), self.module.add_function("snif_path_get", fn_2, None));
         self.functions.insert("json_parse_ex".to_string(), self.module.add_function("json_parse_ex", fn_1, None));
         self.functions.insert("s_get_member".to_string(), self.module.add_function("s_get_member", fn_2, None));
         self.functions.insert("s_set_member".to_string(), self.module.add_function("s_set_member", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
@@ -311,12 +426,14 @@ impl<'ctx> LLVMGenerator<'ctx> {
             // Frameworks / GUI / DB / Threads
             "blaze_run","blaze_qs_get","blaze_cookie_get",
             "auth_random_hex","auth_now","auth_const_time_eq","auth_hash_password","auth_verify_password","auth_session_id","auth_csrf_token","auth_cookie_kv","auth_cookie_session","auth_cookie_delete","auth_bearer_header","auth_ok","auth_fail","auth_version",
-            "gui_init","gui_run","gui_quit","gui_window","gui_set_title","gui_set_resizable","gui_autosize","gui_vbox","gui_hbox","gui_scrolled","gui_listbox","gui_list_add_text","gui_on_select_ctx","gui_set_child","gui_add","gui_add_expand","gui_label","gui_entry","gui_set_placeholder","gui_set_editable","gui_button","gui_set_enabled","gui_set_visible","gui_show_all","gui_set_text","gui_get_text","gui_on_click","gui_on_click_ctx","gui_separator_h","gui_separator_v","gui_msg_info","gui_msg_error",
+            "gui_init","gui_run","gui_quit","gui_window","gui_set_title","gui_set_resizable","gui_autosize","gui_vbox","gui_hbox","gui_eventbox","gui_scrolled","gui_flowbox","gui_flow_add","gui_frame","gui_set_margin","gui_icon","gui_css","gui_add_class","gui_listbox","gui_list_add_text","gui_on_select_ctx","gui_set_child","gui_add","gui_add_expand","gui_label","gui_entry","gui_set_placeholder","gui_set_editable","gui_button","gui_set_enabled","gui_set_visible","gui_show_all","gui_set_text","gui_get_text","gui_on_click","gui_on_click_ctx","gui_on_tap_ctx","gui_separator_h","gui_separator_v","gui_msg_info","gui_msg_error",
             "sqlite_open","sqlite_close","sqlite_exec","sqlite_query","sqlite_prepare","sqlite_finalize","sqlite_reset","sqlite_bind_text","sqlite_bind_num","sqlite_bind_null","sqlite_step","sqlite_column","sqlite_column_count","sqlite_column_name",
             "thread_spawn","thread_join","thread_detach",
-            // JSON / SJSON
+            // JSON / SNIF
             "json_stringify","json_stringify_pretty","json_parse","json_get","json_has","json_len","json_index","json_set","json_keys","json_parse_ex",
-            "sjson_new_object","sjson_new_array","sjson_type","sjson_arr_len","sjson_arr_get","sjson_arr_set","sjson_arr_push","sjson_path_get",
+            "snif_new_object","snif_new_array","snif_parse_ex","snif_type","snif_arr_len","snif_arr_get","snif_arr_set","snif_arr_push","snif_path_get",
+            // String (Novas)
+            "string_len","string_upper","string_lower","string_trim","string_split","string_join","string_replace","string_contains","string_starts_with","string_ends_with","string_chars","string_substring","string_format","string_index_of","string_last_index_of","string_repeat","string_is_empty","string_is_blank","string_pad_start","string_pad_end","string_capitalize","string_title","string_swapcase","string_count","string_is_numeric","string_is_alpha","string_is_alphanumeric","string_is_ascii","string_hex","string_from_char_code","string_to_char_code","string_reverse",
         ] {
             if let Some(f) = self.module.get_function(n) {
                 let alias = format!("__{}", n);
@@ -765,6 +882,10 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 }
 
                 if let ExprKind::Variable(name) = &callee.kind {
+                    if !name.starts_with("__") && is_library_native(name) {
+                        return Err(library_native_help(name));
+                    }
+
                     if let Some(class) = self.classes.get(name).cloned() {
                         // É uma instanciação de classe!
                         let alloc_f = self.functions.get("s_alloc_obj").unwrap();

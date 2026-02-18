@@ -12,6 +12,7 @@ pub mod packages;
 pub mod lib_tool;
 pub mod llvm_generator;
 pub mod sps;
+pub mod snif_parser;
 
 use std::fs;
 use std::process::Command;
@@ -25,6 +26,9 @@ use crate::modules::load_module;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::time::{Duration, Instant};
 
+const EMBEDDED_RUNTIME_C: &str = include_str!("runtime.c");
+const EMBEDDED_RUNTIME_OLD: &str = include_str!("runtime/runtime_old.c");
+
 #[derive(ClapParser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
@@ -37,6 +41,29 @@ enum Commands {
     Init { #[arg(short, long)] name: Option<String> },
     Build { file: Option<String>, #[arg(short, long)] output: Option<String>, #[arg(long)] target: Option<String> },
     Run { file: Option<String> },
+    /// Generates artifacts in `dist/` (binaries and, on Linux, .deb/.AppImage when possible)
+    Dist {
+        /// .snask file (if omitted, SPS uses `snask.snif` when present)
+        file: Option<String>,
+        /// Lista de targets LLVM (mtriple). Ex: x86_64-unknown-linux-gnu
+        #[arg(long)]
+        targets: Option<String>,
+        /// Atalho para targets comuns (linux + windows + macos)
+        #[arg(long)]
+        all: bool,
+        /// Gera .deb (somente Linux)
+        #[arg(long)]
+        deb: bool,
+        /// Gera .AppImage (somente Linux, requer appimagetool)
+        #[arg(long)]
+        appimage: bool,
+        /// Nome do binário (default: nome do arquivo/manifest)
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Diretório de saída (default: dist)
+        #[arg(long, default_value = "dist")]
+        out_dir: String,
+    },
     Add { name: String, version: Option<String> },
     Remove { name: String },
     Setup { #[arg(long)] target: Option<String> },
@@ -94,15 +121,20 @@ fn main() {
     match &cli.command {
         Commands::Init { name } => {
             if let Err(e) = sps_init(name.clone()) {
-                eprintln!("Erro ao iniciar projeto: {}", e);
+                eprintln!("Project init error: {}", e);
             }
         }
         Commands::Build { file, output, target } => {
             match build_entry(file.clone(), output.clone(), target.clone()) {
-                Ok(_) => println!("Compilação LLVM concluída com sucesso."),
-                Err(e) => eprintln!("Erro durante a compilação: {}", e),
+                Ok(_) => println!("LLVM compilation finished successfully."),
+                Err(e) => eprintln!("Compilation error: {}", e),
             }
         },
+        Commands::Dist { file, targets, all, deb, appimage, name, out_dir } => {
+            if let Err(e) = dist_entry(file.clone(), targets.clone(), *all, *deb, *appimage, name.clone(), out_dir.clone()) {
+                eprintln!("Error: {}", e);
+            }
+        }
         Commands::Run { file } => {
             // scripts: `snask run dev`
             if let Some(arg) = file.clone() {
@@ -112,7 +144,7 @@ fn main() {
                         if let Some(cmdline) = m.scripts.get(&arg) {
                             let status = Command::new("sh").arg("-lc").arg(cmdline).status();
                             if let Err(e) = status {
-                                eprintln!("Erro ao executar script '{}': {}", arg, e);
+                                eprintln!("Failed to run script '{}': {}", arg, e);
                             }
                             return;
                         }
@@ -122,23 +154,23 @@ fn main() {
 
             let cwd = match std::env::current_dir() {
                 Ok(d) => d,
-                Err(e) => { eprintln!("Erro: {}", e); return; }
+                Err(e) => { eprintln!("Error: {}", e); return; }
             };
             let file_path = match crate::sps::load_manifest_from(&cwd) {
                 Ok((m, _p)) => {
                     if let Err(e) = sps_pin_from_lock(&cwd, &m) {
-                        eprintln!("Erro durante a compilação: {}", e);
+                        eprintln!("Compilation error: {}", e);
                         return;
                     }
                     if let Err(e) = sps_resolve_deps_and_lock(&cwd, &m) {
-                        eprintln!("Erro durante a compilação: {}", e);
+                        eprintln!("Compilation error: {}", e);
                         return;
                     }
                     file.clone().unwrap_or_else(|| m.package.entry.clone())
                 }
                 Err(_) => match resolve_entry_file(file.clone()) {
                     Ok(p) => p,
-                    Err(e) => { eprintln!("Erro durante a compilação: {}", e); return; }
+                    Err(e) => { eprintln!("Compilation error: {}", e); return; }
                 }
             };
 
@@ -156,41 +188,41 @@ fn main() {
                     let binary_path = if binary.starts_with("/") || binary.starts_with("./") { binary } else { format!("./{}", binary) };
                     let status = Command::new(&binary_path).status();
                     if let Err(e) = status {
-                        eprintln!("Erro ao executar o binário: {}", e);
+                        eprintln!("Failed to run binary: {}", e);
                     }
                 },
-                Err(e) => eprintln!("Erro durante a compilação: {}", e),
+                Err(e) => eprintln!("Compilation error: {}", e),
             }
         },
         Commands::Add { name, version } => {
             if let Err(e) = sps_add_dependency(name, version.clone()) {
-                eprintln!("Erro ao adicionar dependência: {}", e);
+                eprintln!("Failed to add dependency: {}", e);
             }
         }
         Commands::Remove { name } => {
             if let Err(e) = sps_remove_dependency(name) {
-                eprintln!("Erro ao remover dependência: {}", e);
+                eprintln!("Failed to remove dependency: {}", e);
             }
         }
         Commands::Setup { target } => {
             if let Err(e) = run_setup(target.clone()) {
-                eprintln!("Erro durante o setup: {}", e);
+                eprintln!("Setup error: {}", e);
             }
         },
         Commands::Install { name } => {
             if let Err(e) = packages::install_package(name) {
-                eprintln!("Erro ao instalar pacote: {}", e);
+                eprintln!("Package install error: {}", e);
             }
         },
         Commands::Uninstall { name } => {
             if let Some(pkg_name) = name {
                 if let Err(e) = packages::uninstall_package(&pkg_name) {
-                    eprintln!("Erro ao desinstalar pacote: {}", e);
+                    eprintln!("Package uninstall error: {}", e);
                 }
             } else {
-                println!("⚠️  Atenção: Você está prestes a desinstalar o SNask globalmente.");
+                println!("⚠️  Warning: you are about to uninstall Snask globally.");
                 if let Err(e) = run_uninstall() {
-                    eprintln!("Erro durante a desinstalação: {}", e);
+                    eprintln!("Uninstall error: {}", e);
                 }
             }
         },
@@ -198,23 +230,23 @@ fn main() {
             if let Some(pkg_name) = name {
                 println!("🔄 Atualizando pacote '{}'...", pkg_name);
                 if let Err(e) = packages::install_package(pkg_name) {
-                    eprintln!("Erro ao atualizar pacote: {}", e);
+                    eprintln!("Package update error: {}", e);
                 }
             } else {
-                println!("🚀 Iniciando auto-update do SNask...");
+                println!("🚀 Starting Snask self-update...");
                 if let Err(e) = self_update() {
-                    eprintln!("Erro ao atualizar o SNask: {}", e);
+                    eprintln!("Snask update error: {}", e);
                 }
             }
         },
         Commands::List => {
             if let Err(e) = packages::list_packages() {
-                eprintln!("Erro ao listar pacotes: {}", e);
+                eprintln!("Failed to list packages: {}", e);
             }
         },
         Commands::Search { query } => {
             if let Err(e) = packages::search_packages(query) {
-                eprintln!("Erro ao pesquisar pacotes: {}", e);
+                eprintln!("Failed to search packages: {}", e);
             }
         },
         Commands::Lib { cmd } => {
@@ -226,7 +258,7 @@ fn main() {
                         version: version.clone(),
                     });
                     if let Err(e) = res {
-                        eprintln!("Erro: {}", e);
+                        eprintln!("Error: {}", e);
                     }
                 }
                 LibCommands::Publish { name, version, description, message, push, pr, fork, branch } => {
@@ -241,7 +273,7 @@ fn main() {
                         branch: branch.clone(),
                     });
                     if let Err(e) = res {
-                        eprintln!("Erro: {}", e);
+                        eprintln!("Error: {}", e);
                     }
                 }
             }
@@ -258,7 +290,7 @@ fn resolve_entry_file(cli_file: Option<String>) -> Result<String, String> {
     if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
         return Ok(m.package.entry);
     }
-    Err("SPS: nenhum arquivo informado e não encontrei `snask.toml` no diretório atual.\n\nComo resolver:\n- Compile um arquivo direto: `snask build main.snask`\n- Ou crie um projeto SPS: `snask init` e depois `snask build`\n".to_string())
+    Err("SPS: no input file provided and `snask.snif` was not found in the current directory.\n\nHow to fix:\n- Build a file directly: `snask build main.snask`\n- Or create an SPS project: `snask init` and then `snask build`\n".to_string())
 }
 
 fn build_entry(cli_file: Option<String>, output_name: Option<String>, target: Option<String>) -> Result<(), String> {
@@ -269,28 +301,29 @@ fn build_entry(cli_file: Option<String>, output_name: Option<String>, target: Op
 
     // Se estiver em um projeto SPS, resolve deps e gera lock antes de build.
     if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
-        spinner.set_message(format!("SPS: snask.toml (entry: {})", m.package.entry));
+        spinner.set_message(format!("SPS: snask.snif (entry: {})", m.package.entry));
         // pin pelo lock (se existir) antes de resolver
         spinner.set_message("SPS: verificando snask.lock".to_string());
         sps_pin_from_lock(&cwd, &m)?;
-        spinner.set_message("SPS: resolvendo dependências".to_string());
+        spinner.set_message("SPS: resolving dependencies".to_string());
         sps_resolve_deps_and_lock(&cwd, &m)?;
         let opt = m.opt_level_for(true);
         let file_path = cli_file.unwrap_or_else(|| m.package.entry.clone());
-        spinner.set_message(format!("Compilando {} (O{})", file_path, opt));
-        let res = build_file_with_opt(&file_path, output_name, opt, target.clone());
+        let out = if output_name.is_some() { output_name } else { Some(m.package.name.clone()) };
+        spinner.set_message(format!("Compiling {} -> {} (O{})", file_path, out.clone().unwrap_or_default(), opt));
+        let res = build_file_with_opt(&file_path, out, opt, target.clone());
         match &res {
-            Ok(_) => spinner.finish_with_message("Build finalizado"),
+            Ok(_) => spinner.finish_with_message("Build finished"),
             Err(_) => spinner.finish_and_clear(),
         }
         return res;
     }
 
     let file_path = resolve_entry_file(cli_file)?;
-    spinner.set_message(format!("Compilando {}", file_path));
+    spinner.set_message(format!("Compiling {}", file_path));
     let res = build_file_with_opt(&file_path, output_name, 2, target);
     match &res {
-        Ok(_) => spinner.finish_with_message("Build finalizado"),
+        Ok(_) => spinner.finish_with_message("Build finished"),
         Err(_) => spinner.finish_and_clear(),
     }
     res
@@ -312,7 +345,7 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
     pb.inc(1);
 
     pb.set_message("Parser (tokens/AST)");
-    let mut program = Parser::new(&source)?.parse_program().map_err(|e| format!("Erro no parser: {}", e))?;
+    let mut program = Parser::new(&source)?.parse_program().map_err(|e| format!("Parser error: {}", e))?;
     pb.inc(1);
 
     // Validação de Class Main Obrigatória apenas no programa principal
@@ -326,7 +359,7 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
 
     if !has_main {
         pb.finish_and_clear();
-        return Err("Erro: Todo programa SNask deve conter uma 'class main'.".to_string());
+        return Err("Error: every Snask program must contain a 'class main'.".to_string());
     }
 
     pb.set_message("Resolvendo imports");
@@ -409,7 +442,7 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
         .status()
         .map_err(|e| e.to_string())?;
 
-    if !status.success() { return Err("Falha na linkagem final.".to_string()); }
+    if !status.success() { return Err("Final link step failed.".to_string()); }
     fs::remove_file(ir_file).ok(); fs::remove_file(obj_file).ok();
     pb.inc(1);
     pb.finish_with_message("OK");
@@ -430,20 +463,20 @@ fn get_runtime_linkargs(target: Option<&str>) -> Vec<String> {
 fn sps_init(name: Option<String>) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let project_name = name.unwrap_or_else(|| cwd.file_name().unwrap_or_default().to_string_lossy().to_string());
-    let manifest_path = cwd.join("snask.toml");
+    let manifest_path = cwd.join("snask.snif");
     if manifest_path.exists() {
-        return Err("snask.toml já existe neste diretório.".to_string());
+        return Err("snask.snif already exists in this directory.".to_string());
     }
 
     let entry = "main.snask";
     let main_path = cwd.join(entry);
     if main_path.exists() {
-        return Err(format!("Arquivo '{}' já existe neste diretório.", entry));
+        return Err(format!("File '{}' already exists in this directory.", entry));
     }
 
     let manifest = format!(
-        "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nentry = \"{}\"\n\n[dependencies]\n\n[build]\nopt_level = 2\n",
-        project_name.replace('"', ""),
+        "{{\n  package: {{ name: \"{}\", version: \"0.1.0\", entry: \"{}\", }},\n  dependencies: {{}},\n  build: {{ opt_level: 2, }},\n}}\n",
+        project_name.replace('\"', ""),
         entry
     );
     fs::write(&manifest_path, manifest).map_err(|e| e.to_string())?;
@@ -451,7 +484,7 @@ fn sps_init(name: Option<String>) -> Result<(), String> {
     let main_src = "class main\n    fun start()\n        print(\"hello snask\");\n";
     fs::write(&main_path, main_src).map_err(|e| e.to_string())?;
 
-    println!("✅ SPS: criado snask.toml e {}.", entry);
+    println!("✅ SPS: created snask.snif and {}.", entry);
     Ok(())
 }
 
@@ -459,8 +492,7 @@ fn sps_add_dependency(name: &str, version: Option<String>) -> Result<(), String>
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let (mut m, manifest_path) = crate::sps::load_manifest_from(&cwd)?;
     m.dependencies.insert(name.to_string(), version.unwrap_or_else(|| "*".to_string()));
-    let s = toml::to_string_pretty(&m).map_err(|e| e.to_string())?;
-    fs::write(&manifest_path, s).map_err(|e| e.to_string())?;
+    crate::sps::write_manifest(&manifest_path, &m)?;
 
     // instala imediatamente
     let registry = crate::packages::fetch_registry()?;
@@ -468,7 +500,7 @@ fn sps_add_dependency(name: &str, version: Option<String>) -> Result<(), String>
     // lock determinístico
     sps_resolve_deps_and_lock(&cwd, &m)?;
 
-    println!("✅ SPS: dependência '{}' adicionada.", name);
+    println!("✅ SPS: dependency '{}' added.", name);
     Ok(())
 }
 
@@ -476,12 +508,11 @@ fn sps_remove_dependency(name: &str) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let (mut m, manifest_path) = crate::sps::load_manifest_from(&cwd)?;
     m.dependencies.remove(name);
-    let s = toml::to_string_pretty(&m).map_err(|e| e.to_string())?;
-    fs::write(&manifest_path, s).map_err(|e| e.to_string())?;
+    crate::sps::write_manifest(&manifest_path, &m)?;
 
     // não desinstala global por padrão (pode ser compartilhado por outros projetos)
     sps_resolve_deps_and_lock(&cwd, &m)?;
-    println!("✅ SPS: dependência '{}' removida do snask.toml.", name);
+    println!("✅ SPS: dependency '{}' removed from snask.snif.", name);
     Ok(())
 }
 
@@ -518,6 +549,215 @@ fn sps_resolve_deps_and_lock(dir: &std::path::Path, manifest: &crate::sps::SpsMa
     }
     crate::sps::write_lockfile(dir, manifest, locked)?;
     Ok(())
+}
+
+fn dist_entry(
+    cli_file: Option<String>,
+    targets_csv: Option<String>,
+    all: bool,
+    deb: bool,
+    appimage: bool,
+    name: Option<String>,
+    out_dir: String,
+) -> Result<(), String> {
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+
+    // resolve entry file
+    let file_path = if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
+        // pin + resolve deps para garantir build determinístico (e lock)
+        sps_pin_from_lock(&cwd, &m)?;
+        sps_resolve_deps_and_lock(&cwd, &m)?;
+        cli_file.unwrap_or_else(|| m.package.entry.clone())
+    } else {
+        resolve_entry_file(cli_file)?
+    };
+
+    // resolve base binary name
+    let base_name = name.unwrap_or_else(|| {
+        if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
+            m.package.name.clone()
+        } else {
+            std::path::Path::new(&file_path)
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string()
+        }
+    });
+
+    let out_dir = cwd.join(out_dir);
+    std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
+
+    let mut targets: Vec<Option<String>> = Vec::new();
+    if all {
+        // targets “comuns”. Requer `snask setup --target <triple>` para cada alvo.
+        targets.push(None); // host
+        targets.push(Some("x86_64-pc-windows-gnu".to_string()));
+        targets.push(Some("x86_64-apple-darwin".to_string()));
+    } else if let Some(csv) = targets_csv {
+        for t in csv.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            targets.push(Some(t.to_string()));
+        }
+        if targets.is_empty() {
+            targets.push(None);
+        }
+    } else {
+        targets.push(None);
+    }
+
+    println!("📦 dist: entry = {}", file_path);
+    println!("📁 dist: out_dir = {}", out_dir.display());
+
+    for t in &targets {
+        let is_host = t.is_none();
+        let triple = t.clone().unwrap_or_else(|| "host".to_string());
+
+        let mut out_path = out_dir.join(&base_name);
+        if !is_host {
+            out_path = out_dir.join(format!("{}-{}", base_name, triple));
+        }
+        if t.as_deref() == Some("x86_64-pc-windows-gnu") {
+            out_path.set_extension("exe");
+        }
+
+        // opt level: do SPS se existir, senão O2
+        let opt = if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
+            m.opt_level_for(true)
+        } else {
+            2
+        };
+
+        println!("🔧 build: {} -> {}", triple, out_path.display());
+        build_file_with_opt(&file_path, Some(out_path.to_string_lossy().to_string()), opt, t.clone())?;
+    }
+
+    // Linux packaging (best-effort)
+    #[cfg(target_os = "linux")]
+    {
+        if deb {
+            let bin_path = out_dir.join(&base_name);
+            if !bin_path.exists() {
+                return Err(format!("Para gerar .deb, preciso do binário Linux nativo em '{}'. Rode `snask dist --deb` sem targets de cross ou inclua o host.", bin_path.display()));
+            }
+            let deb_path = make_deb(&out_dir, &base_name, &bin_path)?;
+            println!("✅ .deb: {}", deb_path.display());
+        }
+
+        if appimage {
+            let bin_path = out_dir.join(&base_name);
+            if !bin_path.exists() {
+                return Err(format!("Para gerar .AppImage, preciso do binário Linux nativo em '{}'.", bin_path.display()));
+            }
+            let app = make_appimage(&out_dir, &base_name, &bin_path)?;
+            println!("✅ .AppImage: {}", app.display());
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (deb, appimage);
+    }
+
+    println!("✅ dist finalizado.");
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn make_deb(out_dir: &std::path::Path, name: &str, bin_path: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    // Layout mínimo: package_root/usr/bin/<name> + DEBIAN/control
+    let root = out_dir.join(format!("{}_debroot", name));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("usr/bin")).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(root.join("DEBIAN")).map_err(|e| e.to_string())?;
+
+    let dest_bin = root.join("usr/bin").join(name);
+    std::fs::copy(bin_path, &dest_bin).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&dest_bin).map_err(|e| e.to_string())?.permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&dest_bin, perms).map_err(|e| e.to_string())?;
+    }
+
+    let control = format!(
+        "Package: {name}\nVersion: 0.1.0\nSection: utils\nPriority: optional\nArchitecture: amd64\nMaintainer: Snask\nDescription: Snask app packaged by snask dist\n",
+    );
+    std::fs::write(root.join("DEBIAN/control"), control).map_err(|e| e.to_string())?;
+
+    // dpkg-deb
+    let deb_name = format!("{name}_0.1.0_amd64.deb");
+    let deb_path = out_dir.join(deb_name);
+    let status = Command::new("dpkg-deb")
+        .arg("--build")
+        .arg(&root)
+        .arg(&deb_path)
+        .status()
+        .map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err("Failed to build .deb (dpkg-deb). Install `dpkg-deb` (dpkg package) and try again.".to_string());
+    }
+    Ok(deb_path)
+}
+
+#[cfg(target_os = "linux")]
+fn make_appimage(out_dir: &std::path::Path, name: &str, bin_path: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    // Layout mínimo AppDir + appimagetool.
+    let tool = which("appimagetool")?;
+    let appdir = out_dir.join(format!("{}.AppDir", name));
+    let _ = std::fs::remove_dir_all(&appdir);
+    std::fs::create_dir_all(appdir.join("usr/bin")).map_err(|e| e.to_string())?;
+
+    let dest_bin = appdir.join("usr/bin").join(name);
+    std::fs::copy(bin_path, &dest_bin).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&dest_bin).map_err(|e| e.to_string())?.permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&dest_bin, perms).map_err(|e| e.to_string())?;
+    }
+
+    // AppRun simples: executa o binário
+    let apprun = format!("#!/bin/sh\nHERE=\"$(dirname \"$(readlink -f \"$0\")\")\"\nexec \"$HERE/usr/bin/{name}\" \"$@\"\n");
+    let apprun_path = appdir.join("AppRun");
+    std::fs::write(&apprun_path, apprun).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&apprun_path).map_err(|e| e.to_string())?.permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&apprun_path, perms).map_err(|e| e.to_string())?;
+    }
+
+    // .desktop mínimo (sem ícone)
+    let desktop = format!(
+        "[Desktop Entry]\nType=Application\nName={name}\nExec={name}\nCategories=Utility;\nTerminal=true\n",
+    );
+    std::fs::write(appdir.join(format!("{}.desktop", name)), desktop).map_err(|e| e.to_string())?;
+
+    let out_path = out_dir.join(format!("{}.AppImage", name));
+    let status = Command::new(tool)
+        .arg(&appdir)
+        .arg(&out_path)
+        .status()
+        .map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err("Failed to build AppImage (appimagetool).".to_string());
+    }
+    Ok(out_path)
+}
+
+fn which(cmd: &str) -> Result<String, String> {
+    let out = Command::new("sh")
+        .arg("-lc")
+        .arg(format!("command -v {}", cmd))
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        return Err(format!("Comando '{}' não encontrado no PATH.", cmd));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
 fn sps_pin_from_lock(dir: &std::path::Path, manifest: &crate::sps::SpsManifest) -> Result<(), String> {
@@ -559,7 +799,7 @@ fn sps_pin_from_lock(dir: &std::path::Path, manifest: &crate::sps::SpsManifest) 
             let (ver, sha, _path) = crate::packages::install_package_with_registry(name, &registry)?;
             if ver != dep.version || sha != dep.sha256 {
                 return Err(format!(
-                    "SPS: lockfile pede {name}@{want_ver} sha256={want_sha}, mas o download resultou em {got_ver} sha256={got_sha}.\n\nCausas comuns:\n- O pacote mudou no registry (novo release/arquivo alterado)\n- Seu lock está desatualizado\n\nComo resolver:\n- Se você quer pegar o novo pacote: `snask update {name}` e depois `snask build` (regenera snask.lock)\n- Se você quer manter o lock atual: verifique se o registry voltou a ter o mesmo sha256.\n",
+                    "SPS: lockfile expects {name}@{want_ver} sha256={want_sha}, but the download produced {got_ver} sha256={got_sha}.\n\nCommon causes:\n- The package changed in the registry (new release / file modified)\n- Your lockfile is out of date\n\nHow to fix:\n- If you want the new package: `snask update {name}` and then `snask build` (regenerates snask.lock)\n- If you want to keep the lockfile: make sure the registry still has the same sha256.\n",
                     want_ver = dep.version,
                     want_sha = dep.sha256,
                     got_ver = ver,
@@ -574,55 +814,57 @@ fn sps_pin_from_lock(dir: &std::path::Path, manifest: &crate::sps::SpsManifest) 
 fn format_semantic_error(e: &SemanticError) -> String {
     use crate::semantic_analyzer::SemanticError::*;
     match e {
-        VariableAlreadyDeclared(name) => format!("Variável '{}' já foi declarada.", name),
-        VariableNotFound(name) => format!("Variável '{}' não encontrada.", name),
-        FunctionAlreadyDeclared(name) => format!("Função '{}' já foi declarada.", name),
-        FunctionNotFound(name) => format!("Função '{}' não encontrada.", name),
-        TypeMismatch { expected, found } => format!("Tipo incompatível: esperado {:?}, encontrado {:?}.", expected, found),
+        VariableAlreadyDeclared(name) => format!("Variable '{}' is already declared.", name),
+        VariableNotFound(name) => format!("Variable '{}' not found.", name),
+        FunctionAlreadyDeclared(name) => format!("Function '{}' is already declared.", name),
+        FunctionNotFound(name) => format!("Function '{}' not found.", name),
+        TypeMismatch { expected, found } => format!("Type mismatch: expected {:?}, found {:?}.", expected, found),
         InvalidOperation { op, type1, type2 } => {
             if let Some(t2) = type2 {
-                format!("Operação inválida: '{}' entre {:?} e {:?}.", op, type1, t2)
+                format!("Invalid operation: '{}' between {:?} and {:?}.", op, type1, t2)
             } else {
-                format!("Operação inválida: '{}' em {:?}.", op, type1)
+                format!("Invalid operation: '{}' on {:?}.", op, type1)
             }
         }
-        ImmutableAssignment(name) => format!("'{}' é imutável. Dica: declare com 'mut {} = ...;'.", name, name),
-        ReturnOutsideFunction => "Uso de 'return' fora de uma função.".to_string(),
-        WrongNumberOfArguments { expected, found } => format!("Número errado de argumentos: esperado {}, encontrado {}.", expected, found),
-        IndexAccessOnNonIndexable(t) => format!("Acesso por índice em tipo não indexável: {:?}.", t),
-        InvalidIndexType(t) => format!("Tipo de índice inválido: {:?} (esperado num).", t),
-        PropertyNotFound(p) => format!("Propriedade '{}' não encontrada.", p),
-        NotCallable(t) => format!("Tentativa de chamada em valor não chamável: {:?}.", t),
-        RestrictedNativeFunction { name, help } => format!("Uso direto de nativa '{}' não é permitido.\n{}", name, help),
+        ImmutableAssignment(name) => format!("'{}' is immutable. Tip: declare it as 'mut {} = ...;'.", name, name),
+        ReturnOutsideFunction => "Using 'return' outside a function.".to_string(),
+        WrongNumberOfArguments { expected, found } => format!("Wrong number of arguments: expected {}, found {}.", expected, found),
+        IndexAccessOnNonIndexable(t) => format!("Index access on non-indexable type: {:?}.", t),
+        InvalidIndexType(t) => format!("Invalid index type: {:?} (expected num).", t),
+        PropertyNotFound(p) => format!("Property '{}' not found.", p),
+        NotCallable(t) => format!("Attempted to call a non-callable value: {:?}.", t),
+        RestrictedNativeFunction { name, help } => format!("Direct use of native '{}' is not allowed.\n{}", name, help),
     }
 }
 
 fn self_update() -> Result<(), String> {
-    println!("📦 Baixando as últimas novidades do SNask (git pull)...");
+    println!("📦 Fetching the latest Snask updates (git pull)...");
     let status = Command::new("git").arg("pull").status().map_err(|e| e.to_string())?;
-    if !status.success() { return Err("Falha ao puxar do Git.".to_string()); }
+    if !status.success() { return Err("Git pull failed.".to_string()); }
 
-    println!("⚙️  Recompilando o compilador (cargo build --release)...");
+    println!("⚙️  Rebuilding the compiler (cargo build --release)...");
     let status = Command::new("cargo").arg("build").arg("--release").status().map_err(|e| e.to_string())?;
-    if !status.success() { return Err("Falha ao compilar.".to_string()); }
+    if !status.success() { return Err("Build failed.".to_string()); }
 
-    println!("✅ SNask atualizado com sucesso para a versão 0.3.0!");
+    println!("✅ Snask updated successfully to v0.3.0!");
     Ok(())
 }
 
 fn run_setup(target: Option<String>) -> Result<(), String> {
-    println!("🚀 Iniciando configuração do SNask v0.3.0...");
+    println!("🚀 Starting Snask setup v0.3.0...");
     
     let home = std::env::var("HOME").map_err(|_| "Variável HOME não encontrada.".to_string())?;
     let snask_dir = format!("{}/.snask", home);
     let snask_lib = format!("{}/lib", snask_dir);
     let snask_bin = format!("{}/bin", snask_dir);
+    let snask_tmp = format!("{}/tmp", snask_dir);
     
-    println!("📁 Criando diretórios em {}...", snask_dir);
+    println!("📁 Creating directories in {}...", snask_dir);
     fs::create_dir_all(&snask_lib).map_err(|e| e.to_string())?;
     fs::create_dir_all(&snask_bin).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&snask_tmp).map_err(|e| e.to_string())?;
 
-    println!("⚙️  Compilando o Runtime Nativo (C)...");
+    println!("⚙️  Building native runtime (C)...");
     let (_runtime_dir, runtime_out, linkargs_path) = if let Some(t) = &target {
         let dir = format!("{}/{}", snask_lib, t);
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -631,23 +873,33 @@ fn run_setup(target: Option<String>) -> Result<(), String> {
         (snask_lib.clone(), format!("{}/runtime.o", snask_lib), format!("{}/runtime.linkargs", snask_lib))
     };
 
+    // Sempre usa o runtime embutido (setup funciona em qualquer diretório, mesmo fora do repo).
+    // `runtime.c` inclui `runtime/runtime_old.c`, então gravamos ambos em ~/.snask/tmp.
+    let tmp_dir = std::path::PathBuf::from(&snask_tmp);
+    let runtime_dir = tmp_dir.join("runtime");
+    fs::create_dir_all(&runtime_dir).map_err(|e| e.to_string())?;
+
+    let runtime_c_path = tmp_dir.join("runtime.c");
+    fs::write(&runtime_c_path, EMBEDDED_RUNTIME_C).map_err(|e| e.to_string())?;
+    fs::write(runtime_dir.join("runtime_old.c"), EMBEDDED_RUNTIME_OLD).map_err(|e| e.to_string())?;
+
     // Link args requeridos pelo runtime (persistidos para `snask build`)
     let mut runtime_linkargs: Vec<String> = vec!["-pthread".to_string()];
 
     // Compilador: nativo usa gcc; cross usa clang-18 --target.
     let mut cc = if target.is_some() { Command::new("clang-18") } else { Command::new("gcc") };
     cc.arg("-c")
-        .arg("src/runtime.c")
+        .arg(&runtime_c_path)
         .arg("-ffunction-sections")
         .arg("-fdata-sections")
         .arg("-pthread")
         .arg("-o")
         .arg(&runtime_out);
 
-    if let Some(t) = &target {
-        // Para cross-compilation, não tentamos ativar GTK/SQLite via pkg-config (seria do host).
-        cc.arg(format!("--target={}", t));
-        println!("🎯 Cross: runtime alvo = {}", t);
+        if let Some(t) = &target {
+            // Para cross-compilation, não tentamos ativar GTK/SQLite via pkg-config (seria do host).
+            cc.arg(format!("--target={}", t));
+            println!("🎯 Cross: runtime target = {}", t);
         // Persistimos apenas pthread por padrão.
     } else {
         // GUI opcional (GTK3)
@@ -662,7 +914,7 @@ fn run_setup(target: Option<String>) -> Result<(), String> {
                     cc.arg(f);
                 }
                 cc.arg("-DSNASK_GUI_GTK");
-                println!("🖼️  GUI: GTK3 habilitado (runtime).");
+                println!("🖼️  GUI: GTK3 enabled (runtime).");
 
                 if let Ok(libs) = Command::new("pkg-config").arg("--libs").arg("gtk+-3.0").output() {
                     if libs.status.success() {
@@ -670,10 +922,10 @@ fn run_setup(target: Option<String>) -> Result<(), String> {
                     }
                 }
             } else {
-                println!("ℹ️  GUI: GTK3 não encontrado via pkg-config (runtime sem GUI).");
+                println!("ℹ️  GUI: GTK3 not found via pkg-config (runtime without GUI).");
             }
         } else {
-            println!("ℹ️  GUI: pkg-config não encontrado (runtime sem GUI).");
+            println!("ℹ️  GUI: pkg-config not found (runtime without GUI).");
         }
 
         // SQLite opcional
@@ -688,7 +940,7 @@ fn run_setup(target: Option<String>) -> Result<(), String> {
                     cc.arg(f);
                 }
                 cc.arg("-DSNASK_SQLITE");
-                println!("🗄️  SQLite: sqlite3 habilitado (runtime).");
+                println!("🗄️  SQLite: sqlite3 enabled (runtime).");
 
                 if let Ok(libs) = Command::new("pkg-config").arg("--libs").arg("sqlite3").output() {
                     if libs.status.success() {
@@ -696,10 +948,10 @@ fn run_setup(target: Option<String>) -> Result<(), String> {
                     }
                 }
             } else {
-                println!("ℹ️  SQLite: sqlite3 não encontrado via pkg-config (runtime sem SQLite).");
+                println!("ℹ️  SQLite: sqlite3 not found via pkg-config (runtime without SQLite).");
             }
         } else {
-            println!("ℹ️  SQLite: pkg-config não encontrado (runtime sem SQLite).");
+            println!("ℹ️  SQLite: pkg-config not found (runtime without SQLite).");
         }
     }
 
@@ -707,21 +959,21 @@ fn run_setup(target: Option<String>) -> Result<(), String> {
 
     if !status.success() {
         return Err(if target.is_some() {
-            "Falha ao compilar o runtime.c (cross). Verifique seu toolchain/headers do alvo e se o clang-18 suporta este --target.".to_string()
+            "Failed to compile runtime.c (cross). Check your target toolchain/headers and whether clang-18 supports this --target.".to_string()
         } else {
-            "Falha ao compilar o runtime.c. Verifique se o gcc está instalado.".to_string()
+            "Failed to compile runtime.c. Make sure gcc is installed.".to_string()
         });
     }
 
     let linkargs = runtime_linkargs.join(" ");
     fs::write(&linkargs_path, linkargs).map_err(|e| e.to_string())?;
 
-    println!("🚚 Instalando binário em {}...", snask_bin);
+    println!("🚚 Installing binary into {}...", snask_bin);
     let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let dest_path = std::path::PathBuf::from(&snask_bin).join("snask");
     install_self_binary(&current_exe, &dest_path)?;
 
-    println!("🌐 Configurando o PATH...");
+    println!("🌐 Configuring PATH...");
     let shell_configs = vec![format!("{}/.bashrc", home), format!("{}/.zshrc", home)];
     let path_line = format!("\n# SNask Language\nexport PATH=\"{}:$PATH\"\n", snask_bin);
     
@@ -732,13 +984,13 @@ fn run_setup(target: Option<String>) -> Result<(), String> {
                 use std::io::Write;
                 let mut file = fs::OpenOptions::new().append(true).open(&config_path).map_err(|e| e.to_string())?;
                 file.write_all(path_line.as_bytes()).map_err(|e| e.to_string())?;
-                println!("✅ PATH adicionado ao arquivo {}", config_path);
+                println!("✅ PATH added to {}", config_path);
             }
         }
     }
 
-    println!("✅ SNask v0.3.0 configurado com sucesso!");
-    println!("Dica: Reinicie seu terminal ou rode 'source ~/.bashrc' para começar a usar o comando 'snask' de qualquer lugar.");
+    println!("✅ Snask v0.3.0 setup complete!");
+    println!("Tip: restart your terminal or run 'source ~/.bashrc' to use the 'snask' command anywhere.");
     
     Ok(())
 }
@@ -818,7 +1070,7 @@ fn install_self_binary(current_exe: &std::path::Path, dest_path: &std::path::Pat
     let tmp_path = dest_path.with_extension("tmp");
     let _ = std::fs::remove_file(&tmp_path);
 
-    std::fs::copy(current_exe, &tmp_path).map_err(|e| format!("Falha ao copiar binário: {}", e))?;
+    std::fs::copy(current_exe, &tmp_path).map_err(|e| format!("Failed to copy binary: {}", e))?;
 
     #[cfg(unix)]
     {
@@ -832,25 +1084,25 @@ fn install_self_binary(current_exe: &std::path::Path, dest_path: &std::path::Pat
         Ok(()) => Ok(()),
         Err(e) => {
             let _ = kill_processes_using_exe_path(dest_path);
-            std::fs::rename(&tmp_path, dest_path).map_err(|e2| format!("Erro durante o setup: {} (orig: {})", e2, e))?;
+            std::fs::rename(&tmp_path, dest_path).map_err(|e2| format!("Setup error: {} (orig: {})", e2, e))?;
             Ok(())
         }
     }
 }
 
 fn run_uninstall() -> Result<(), String> {
-    println!("🗑️  Desinstalando SNask v0.3.0...");
+    println!("🗑️  Uninstalling Snask v0.3.0...");
     
     let home = std::env::var("HOME").map_err(|_| "Variável HOME não encontrada.".to_string())?;
     let snask_dir = format!("{}/.snask", home);
     
     if std::path::Path::new(&snask_dir).exists() {
         fs::remove_dir_all(&snask_dir).map_err(|e| e.to_string())?;
-        println!("✅ Diretório {} removido.", snask_dir);
+        println!("✅ Removed directory {}.", snask_dir);
     }
 
-    println!("✅ SNask desinstalado com sucesso!");
-    println!("Nota: Para remover completamente o PATH, verifique seu .bashrc ou .zshrc e remova as linhas do SNask manualmente.");
+    println!("✅ Snask uninstalled successfully!");
+    println!("Note: to fully remove PATH changes, edit your .bashrc/.zshrc and remove the Snask lines manually.");
     
     Ok(())
 }
@@ -858,23 +1110,39 @@ fn run_uninstall() -> Result<(), String> {
 fn resolve_imports(program: &mut Program, resolved_program: &mut Program, resolved_modules: &mut std::collections::HashSet<String>) -> Result<(), String> {
     fn rewrite_expr_native_alias(e: &mut crate::ast::Expr) {
         use crate::ast::ExprKind;
-        const NAMES: &[&str] = &[
-            "sfs_read","sfs_write","sfs_append","sfs_delete","sfs_exists","sfs_copy","sfs_move","sfs_mkdir","sfs_is_file","sfs_is_dir","sfs_listdir","sfs_size","sfs_mtime","sfs_rmdir",
-            "path_basename","path_dirname","path_extname","path_join",
-            "os_cwd","os_platform","os_arch","os_getenv","os_setenv","os_random_hex",
-            "s_http_get","s_http_post","s_http_put","s_http_delete","s_http_patch",
-            "blaze_run","blaze_qs_get","blaze_cookie_get",
-            "auth_random_hex","auth_now","auth_const_time_eq","auth_hash_password","auth_verify_password","auth_session_id","auth_csrf_token","auth_cookie_kv","auth_cookie_session","auth_cookie_delete","auth_bearer_header","auth_ok","auth_fail","auth_version",
-            "gui_init","gui_run","gui_quit","gui_window","gui_set_title","gui_set_resizable","gui_autosize","gui_vbox","gui_hbox","gui_scrolled","gui_listbox","gui_list_add_text","gui_on_select_ctx","gui_set_child","gui_add","gui_add_expand","gui_label","gui_entry","gui_set_placeholder","gui_set_editable","gui_button","gui_set_enabled","gui_set_visible","gui_show_all","gui_set_text","gui_get_text","gui_on_click","gui_on_click_ctx","gui_separator_h","gui_separator_v","gui_msg_info","gui_msg_error",
-            "sqlite_open","sqlite_close","sqlite_exec","sqlite_query","sqlite_prepare","sqlite_finalize","sqlite_reset","sqlite_bind_text","sqlite_bind_num","sqlite_bind_null","sqlite_step","sqlite_column","sqlite_column_count","sqlite_column_name",
-            "thread_spawn","thread_join","thread_detach",
-            "json_stringify","json_stringify_pretty","json_parse","json_get","json_has","json_len","json_index","json_set","json_keys","json_parse_ex",
-            "sjson_new_object","sjson_new_array","sjson_type","sjson_arr_len","sjson_arr_get","sjson_arr_set","sjson_arr_push","sjson_path_get",
-        ];
+        fn should_alias(name: &str) -> bool {
+            matches!(name,
+                // SFS / Path / OS / HTTP
+                "sfs_read"|"sfs_write"|"sfs_append"|"sfs_delete"|"sfs_exists"|"sfs_copy"|"sfs_move"|"sfs_mkdir"|"sfs_is_file"|"sfs_is_dir"|"sfs_listdir"|"sfs_size"|"sfs_mtime"|"sfs_rmdir"|
+                "path_basename"|"path_dirname"|"path_extname"|"path_join"|
+                "os_cwd"|"os_platform"|"os_arch"|"os_getenv"|"os_setenv"|"os_random_hex"|
+                "s_http_get"|"s_http_post"|"s_http_put"|"s_http_delete"|"s_http_patch"|
+                // Blaze / Auth
+                "blaze_run"|"blaze_qs_get"|"blaze_cookie_get"|
+                "auth_random_hex"|"auth_now"|"auth_const_time_eq"|"auth_hash_password"|"auth_verify_password"|"auth_session_id"|"auth_csrf_token"|"auth_cookie_kv"|"auth_cookie_session"|"auth_cookie_delete"|"auth_bearer_header"|"auth_ok"|"auth_fail"|"auth_version"|
+                // GUI
+                "gui_init"|"gui_run"|"gui_quit"|"gui_window"|"gui_set_title"|"gui_set_resizable"|"gui_autosize"|"gui_vbox"|"gui_hbox"|"gui_scrolled"|
+                "gui_flowbox"|"gui_flow_add"|"gui_frame"|"gui_set_margin"|"gui_icon"|"gui_css"|"gui_add_class"|"gui_eventbox"|
+                "gui_listbox"|"gui_list_add_text"|"gui_on_select_ctx"|"gui_set_child"|"gui_add"|"gui_add_expand"|"gui_label"|"gui_entry"|"gui_textview"|"gui_set_placeholder"|"gui_set_editable"|
+                "gui_button"|"gui_set_enabled"|"gui_set_visible"|"gui_show_all"|"gui_set_text"|"gui_get_text"|"gui_on_click"|"gui_on_click_ctx"|"gui_on_tap_ctx"|"gui_separator_h"|"gui_separator_v"|"gui_msg_info"|"gui_msg_error"|
+                // SQLite
+                "sqlite_open"|"sqlite_close"|"sqlite_exec"|"sqlite_query"|"sqlite_prepare"|"sqlite_finalize"|"sqlite_reset"|"sqlite_bind_text"|"sqlite_bind_num"|"sqlite_bind_null"|"sqlite_step"|"sqlite_column"|"sqlite_column_count"|"sqlite_column_name"|
+                // Threads
+                "thread_spawn"|"thread_join"|"thread_detach"|
+                // JSON / SJSON
+                "json_stringify"|"json_stringify_pretty"|"json_parse"|"json_get"|"json_has"|"json_len"|"json_index"|"json_set"|"json_keys"|"json_parse_ex"|
+                "snif_new_object"|"snif_new_array"|"snif_parse_ex"|"snif_type"|"snif_arr_len"|"snif_arr_get"|"snif_arr_set"|"snif_arr_push"|"snif_path_get"|
+                // String extras
+                "string_len"|"string_upper"|"string_lower"|"string_trim"|"string_split"|"string_join"|"string_replace"|"string_contains"|"string_starts_with"|"string_ends_with"|
+                "string_chars"|"string_substring"|"string_format"|"string_index_of"|"string_last_index_of"|"string_repeat"|"string_is_empty"|"string_is_blank"|
+                "string_pad_start"|"string_pad_end"|"string_capitalize"|"string_title"|"string_swapcase"|"string_count"|"string_is_numeric"|"string_is_alpha"|
+                "string_is_alphanumeric"|"string_is_ascii"|"string_hex"|"string_from_char_code"|"string_to_char_code"|"string_reverse"
+            )
+        }
 
         match &mut e.kind {
             ExprKind::Variable(name) => {
-                if NAMES.contains(&name.as_str()) {
+                if should_alias(name.as_str()) {
                     *name = format!("__{}", name);
                 }
             }

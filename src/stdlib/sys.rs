@@ -79,10 +79,10 @@ pub fn create_module() -> Value {
                 if let Some(path_str) = path.to_str() {
                     Ok(Value::String(path_str.to_string()))
                 } else {
-                    Err("Erro ao converter caminho".to_string())
+                    Err("Failed to convert path".to_string())
                 }
             },
-            Err(e) => Err(format!("Erro ao obter diretório atual: {}", e)),
+            Err(e) => Err(format!("Failed to get current directory: {}", e)),
         }
     }));
 

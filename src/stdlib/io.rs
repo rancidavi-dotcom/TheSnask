@@ -14,7 +14,7 @@ pub fn create_module() -> Value {
             Value::String(path) => {
                 match fs::read_to_string(path) {
                     Ok(content) => Ok(Value::String(content)),
-                    Err(e) => Err(format!("Erro ao ler arquivo: {}", e)),
+                    Err(e) => Err(format!("Failed to read file: {}", e)),
                 }
             },
             _ => Err("io.read_file espera uma string (caminho do arquivo)".to_string()),
@@ -28,7 +28,7 @@ pub fn create_module() -> Value {
             (Value::String(path), Value::String(content)) => {
                 match fs::write(path, content) {
                     Ok(_) => Ok(Value::Boolean(true)),
-                    Err(e) => Err(format!("Erro ao escrever arquivo: {}", e)),
+                    Err(e) => Err(format!("Failed to write file: {}", e)),
                 }
             },
             _ => Err("io.write_file espera duas strings (caminho e conteúdo)".to_string()),
@@ -47,10 +47,10 @@ pub fn create_module() -> Value {
                     Ok(mut file) => {
                         match file.write_all(content.as_bytes()) {
                             Ok(_) => Ok(Value::Boolean(true)),
-                            Err(e) => Err(format!("Erro ao adicionar ao arquivo: {}", e)),
+                            Err(e) => Err(format!("Failed to append to file: {}", e)),
                         }
                     },
-                    Err(e) => Err(format!("Erro ao abrir arquivo: {}", e)),
+                    Err(e) => Err(format!("Failed to open file: {}", e)),
                 }
             },
             _ => Err("io.append_file espera duas strings (caminho e conteúdo)".to_string()),
@@ -83,7 +83,7 @@ pub fn create_module() -> Value {
 
                 match result {
                     Ok(_) => Ok(Value::Boolean(true)),
-                    Err(e) => Err(format!("Erro ao deletar: {}", e)),
+                    Err(e) => Err(format!("Failed to delete: {}", e)),
                 }
             },
             _ => Err("io.delete espera uma string (caminho)".to_string()),
@@ -109,7 +109,7 @@ pub fn create_module() -> Value {
                         }
                         Ok(Value::List(files))
                     },
-                    Err(e) => Err(format!("Erro ao ler diretório: {}", e)),
+                    Err(e) => Err(format!("Failed to read directory: {}", e)),
                 }
             },
             _ => Err("io.read_dir espera uma string (caminho do diretório)".to_string()),
@@ -145,7 +145,7 @@ pub fn create_module() -> Value {
             Value::String(path) => {
                 match fs::create_dir_all(path) {
                     Ok(_) => Ok(Value::Boolean(true)),
-                    Err(e) => Err(format!("Erro ao criar diretório: {}", e)),
+                    Err(e) => Err(format!("Failed to create directory: {}", e)),
                 }
             },
             _ => Err("io.create_dir espera uma string (caminho)".to_string()),
