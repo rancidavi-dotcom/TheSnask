@@ -1,9 +1,9 @@
-# Snask Status (v0.3.0)
+# Snask Status (v0.3.1)
 
 This document describes the current stability status of Snask features and the immediate focus for Phase 1.
 
 ## Current release
-- **Current:** v0.3.0
+- **Current:** v0.3.1
 
 ## Stability levels
 - **Stable:** expected to work reliably; breaking changes avoided.
@@ -34,4 +34,3 @@ This document describes the current stability status of Snask features and the i
 Priority is **stability + error UX**, not new features:
 1) **Core stability policy** (what is stable vs beta vs experimental; compatibility rules)
 2) **Diagnostics baseline** (actionable errors with “how to fix” hints)
-

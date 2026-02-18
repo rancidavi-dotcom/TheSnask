@@ -12,7 +12,7 @@ Install or update Snask with a single command:
 curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
 ```
 
-## Highlights (v0.3.0)
+## Highlights (v0.3.x)
 
 | Feature | Description |
 | --- | --- |
@@ -35,6 +35,7 @@ See `docs/`:
 - `docs/snif/spec.md` — SNIF (Snask Interchange Format) specification.
 - `docs/ROADMAP.md` — Phased roadmap (priorities + milestones).
 - `docs/STATUS.md` — Current stability status (stable/beta/experimental).
+- `docs/STABILITY.md` — Stability policy and compatibility rules.
 
 ## Product direction (roadmap-style)
 If Snask’s purpose is “batteries-included desktop + tooling”, the highest-impact areas are:
@@ -42,7 +43,7 @@ If Snask’s purpose is “batteries-included desktop + tooling”, the highest-
 - **First-class GUI DX**: widgets/layout helpers, theming, packaging.
 - **Reliable builds**: deterministic deps/lockfile, better diagnostics, predictable project layout.
 
-## Current status (v0.3.0)
+## Current status (v0.3.1)
 Stable:
 - Core language syntax
 - Base runtime

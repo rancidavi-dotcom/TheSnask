@@ -72,7 +72,9 @@ enum Commands {
     Update { name: Option<String> },
     List,
     Search { query: String },
-    /// Ferramentas para criar/publicar bibliotecas Snask
+    /// Checks your Snask installation and environment (toolchain, runtime, registry).
+    Doctor,
+    /// Tools to create/publish Snask libraries
     Lib {
         #[command(subcommand)]
         cmd: LibCommands,
@@ -81,36 +83,36 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum LibCommands {
-    /// Cria um template de biblioteca no diretório atual
+    /// Creates a library template in the current directory
     Init {
         name: String,
         #[arg(long, default_value = "0.1.0")]
         version: String,
-        #[arg(long, default_value = "Minha biblioteca Snask.")]
+        #[arg(long, default_value = "My Snask library.")]
         description: String,
     },
-    /// Publica a biblioteca atual no registry (SnaskPackages via ~/.snask/registry)
+    /// Publishes the current library to the registry (SnaskPackages via ~/.snask/registry)
     Publish {
         name: String,
-        /// Se omitido, usa o package.json
+        /// If omitted, uses package.json
         #[arg(long)]
         version: Option<String>,
-        /// Se omitido, usa o package.json
+        /// If omitted, uses package.json
         #[arg(long)]
         description: Option<String>,
-        /// Mensagem do commit
+        /// Commit message
         #[arg(long)]
         message: Option<String>,
-        /// Faz git push automaticamente
+        /// Runs git push automatically
         #[arg(long)]
         push: bool,
-        /// Publica via fork + Pull Request (não precisa permissão no repo)
+        /// Publishes via fork + Pull Request (does not require write access)
         #[arg(long)]
         pr: bool,
-        /// URL do seu fork (ex: https://github.com/rancidavi-dotcom/SnaskPackages)
+        /// Your fork URL (e.g. https://github.com/you/SnaskPackages)
         #[arg(long)]
         fork: Option<String>,
-        /// Nome da branch (default: pkg/<nome>-v<versao>)
+        /// Branch name (default: pkg/<name>-v<version>)
         #[arg(long)]
         branch: Option<String>,
     },
@@ -249,6 +251,11 @@ fn main() {
                 eprintln!("Failed to search packages: {}", e);
             }
         },
+        Commands::Doctor => {
+            if let Err(e) = doctor() {
+                eprintln!("Doctor error: {}", e);
+            }
+        }
         Commands::Lib { cmd } => {
             match cmd {
                 LibCommands::Init { name, version, description } => {
@@ -281,13 +288,148 @@ fn main() {
     }
 }
 
+fn doctor() -> Result<(), String> {
+    println!("Snask Doctor (v0.3.1)\n");
+
+    let home = std::env::var("HOME").map_err(|_| "HOME environment variable not found.".to_string())?;
+    let snask_dir = std::path::PathBuf::from(format!("{}/.snask", home));
+    let snask_lib = snask_dir.join("lib");
+    let snask_bin = snask_dir.join("bin");
+    let snask_registry = snask_dir.join("registry");
+    let snask_packages = snask_dir.join("packages");
+
+    println!("[paths]");
+    println!("- home: {}", home);
+    println!("- snask: {}", snask_dir.display());
+    println!("- lib: {}", snask_lib.display());
+    println!("- bin: {}", snask_bin.display());
+    println!("- registry: {}", snask_registry.display());
+    println!("- packages: {}", snask_packages.display());
+    println!();
+
+    fn check_cmd(cmd: &str, args: &[&str]) -> (bool, String) {
+        let out = Command::new(cmd).args(args).output();
+        match out {
+            Err(e) => (false, format!("missing ({})", e)),
+            Ok(o) => {
+                if !o.status.success() {
+                    return (false, "present but failed".to_string());
+                }
+                let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                (true, if s.is_empty() { "ok".to_string() } else { s })
+            }
+        }
+    }
+
+    println!("[toolchain]");
+    let (ok_clang, clang_v) = check_cmd("clang-18", &["--version"]);
+    println!(
+        "- clang-18: {}{}",
+        if ok_clang { "OK" } else { "FAIL" },
+        if ok_clang {
+            format!(" ({})", clang_v.lines().next().unwrap_or(""))
+        } else {
+            format!(" ({})", clang_v)
+        }
+    );
+    let (ok_llc, llc_v) = check_cmd("llc-18", &["--version"]);
+    println!(
+        "- llc-18: {}{}",
+        if ok_llc { "OK" } else { "FAIL" },
+        if ok_llc {
+            format!(" ({})", llc_v.lines().next().unwrap_or(""))
+        } else {
+            format!(" ({})", llc_v)
+        }
+    );
+    let (ok_gcc, gcc_v) = check_cmd("gcc", &["--version"]);
+    println!(
+        "- gcc: {}{}",
+        if ok_gcc { "OK" } else { "FAIL" },
+        if ok_gcc {
+            format!(" ({})", gcc_v.lines().next().unwrap_or(""))
+        } else {
+            format!(" ({})", gcc_v)
+        }
+    );
+    let (ok_git, git_v) = check_cmd("git", &["--version"]);
+    println!(
+        "- git: {}{}",
+        if ok_git { "OK" } else { "FAIL" },
+        format!(" ({})", git_v)
+    );
+    println!();
+
+    println!("[runtime]");
+    let runtime_o = snask_lib.join("runtime.o");
+    let linkargs = snask_lib.join("runtime.linkargs");
+    println!("- runtime.o: {}", if runtime_o.exists() { "OK" } else { "MISSING (run: snask setup)" });
+    println!("- runtime.linkargs: {}", if linkargs.exists() { "OK" } else { "MISSING (run: snask setup)" });
+    println!();
+
+    println!("[registry]");
+    if snask_registry.exists() {
+        let git_dir = snask_registry.join(".git");
+        if git_dir.exists() {
+            let out = Command::new("git")
+                .args(["rev-parse", "HEAD"])
+                .current_dir(&snask_registry)
+                .output();
+            match out {
+                Ok(o) if o.status.success() => {
+                    let rev = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                    println!("- repo: OK (rev {})", rev);
+                }
+                _ => println!("- repo: OK (git rev unknown)"),
+            }
+        } else {
+            println!("- repo: OK (not a git repo?)");
+        }
+    } else {
+        println!("- repo: MISSING (will be created on first registry fetch)");
+    }
+    let registry_json = snask_registry.join("registry.json");
+    println!(
+        "- registry.json: {}",
+        if registry_json.exists() {
+            "OK"
+        } else {
+            "MISSING (run: snask update / snask install <pkg>)"
+        }
+    );
+    println!();
+
+    println!("[packages]");
+    if snask_packages.exists() {
+        let count = std::fs::read_dir(&snask_packages).map(|rd| rd.filter(|e| e.is_ok()).count()).unwrap_or(0);
+        println!("- installed packages dir: OK (entries {})", count);
+    } else {
+        println!("- installed packages dir: MISSING");
+    }
+    println!();
+
+    println!("[summary]");
+    if !ok_clang || !ok_llc {
+        println!("- FAIL: LLVM toolchain missing. Install clang-18 + llc-18.");
+    }
+    if !runtime_o.exists() {
+        println!("- FAIL: runtime missing. Run: snask setup");
+    }
+    if ok_clang && ok_llc && runtime_o.exists() {
+        println!("- OK: core toolchain + runtime look good.");
+    }
+
+    Ok(())
+}
+
 fn resolve_entry_file(cli_file: Option<String>) -> Result<String, String> {
     if let Some(f) = cli_file {
         return Ok(f);
     }
 
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-    if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
+    if crate::sps::find_manifest(&cwd).is_some() {
+        let (m, _p) = crate::sps::load_manifest_from(&cwd)?;
         return Ok(m.package.entry);
     }
     Err("SPS: no input file provided and `snask.snif` was not found in the current directory.\n\nHow to fix:\n- Build a file directly: `snask build main.snask`\n- Or create an SPS project: `snask init` and then `snask build`\n".to_string())
@@ -300,12 +442,13 @@ fn build_entry(cli_file: Option<String>, output_name: Option<String>, target: Op
     spinner.enable_steady_tick(std::time::Duration::from_millis(90));
 
     // Se estiver em um projeto SPS, resolve deps e gera lock antes de build.
-    if let Ok((m, _p)) = crate::sps::load_manifest_from(&cwd) {
+    if crate::sps::find_manifest(&cwd).is_some() {
+        let (m, _p) = crate::sps::load_manifest_from(&cwd)?;
         spinner.set_message(format!("SPS: snask.snif (entry: {})", m.package.entry));
         // pin pelo lock (se existir) antes de resolver
-        spinner.set_message("SPS: verificando snask.lock".to_string());
+        spinner.set_message("SPS(lock): checking snask.lock".to_string());
         sps_pin_from_lock(&cwd, &m)?;
-        spinner.set_message("SPS: resolving dependencies".to_string());
+        spinner.set_message("SPS(deps): resolving dependencies".to_string());
         sps_resolve_deps_and_lock(&cwd, &m)?;
         let opt = m.opt_level_for(true);
         let file_path = cli_file.unwrap_or_else(|| m.package.entry.clone());
@@ -340,7 +483,7 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
             .unwrap()
             .progress_chars("=>-"),
     );
-    pb.set_message("Lendo arquivo");
+    pb.set_message("Reading file");
     let source = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
     pb.inc(1);
 
@@ -359,22 +502,25 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
 
     if !has_main {
         pb.finish_and_clear();
-        return Err("Error: every Snask program must contain a 'class main'.".to_string());
+        return Err(
+            "Error: every Snask program must contain a `class main` with a `fun start()` entrypoint.\n\nHow to fix:\n- Add:\n  class main\n      fun start()\n          print(\"hello\");\n"
+                .to_string(),
+        );
     }
 
-    pb.set_message("Resolvendo imports");
+    pb.set_message("Resolving imports");
     let mut resolved_program = Vec::new();
     let mut resolved_modules = std::collections::HashSet::new();
     resolved_modules.insert(file_path.to_string());
     resolve_imports(&mut program, &mut resolved_program, &mut resolved_modules)?;
     pb.inc(1);
 
-    pb.set_message("Análise semântica");
+    pb.set_message("Semantic analysis");
     let mut analyzer = SemanticAnalyzer::new();
     analyzer.analyze(&resolved_program);
     if !analyzer.errors.is_empty() {
         pb.finish_and_clear();
-        let mut out = String::from("Análise semântica encontrou erros:\n");
+        let mut out = String::from("Semantic analysis failed:\n");
         for e in &analyzer.errors {
             out.push_str(&format!("- {}\n", format_semantic_error(e)));
         }
@@ -382,7 +528,7 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
     }
     pb.inc(1);
 
-    pb.set_message("Gerando LLVM IR");
+    pb.set_message("Generating LLVM IR");
     let context = Context::create();
     let mut generator = LLVMGenerator::new(&context, file_path);
     let ir = generator.generate(resolved_program)?;
@@ -392,7 +538,7 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
     let obj_file = "temp_snask.o";
     fs::write(ir_file, ir).map_err(|e| e.to_string())?;
 
-    pb.set_message(format!("Compilando (llc-18 -O{})", opt_level));
+    pb.set_message(format!("Compiling (llc-18 -O{})", opt_level));
     let opt_flag = format!("-O{}", opt_level);
     let mut llc = Command::new("llc-18");
     llc
@@ -410,7 +556,7 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
         .status()
         .map_err(|e| e.to_string())?;
 
-    pb.set_message("Linkando (clang-18)");
+    pb.set_message("Linking (clang-18)");
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let runtime_path = if let Some(t) = &target {
         format!("{}/.snask/lib/{}/runtime.o", home, t)
@@ -418,7 +564,14 @@ fn build_file_with_opt(file_path: &str, output_name: Option<String>, opt_level: 
         format!("{}/.snask/lib/runtime.o", home)
     };
     if !std::path::Path::new(&runtime_path).exists() {
-        return Err(format!("Runtime não encontrado em '{}'. Rode `snask setup{}`.", runtime_path, target.as_ref().map(|t| format!(" --target {}", t)).unwrap_or_default()));
+        return Err(format!(
+            "Runtime not found at '{}'.\n\nHow to fix:\n- Run: `snask setup{}`\n",
+            runtime_path,
+            target
+                .as_ref()
+                .map(|t| format!(" --target {}", t))
+                .unwrap_or_default()
+        ));
     }
     let final_output = output_name.unwrap_or_else(|| file_path.replace(".snask", ""));
 
@@ -525,10 +678,10 @@ fn sps_resolve_deps_and_lock(dir: &std::path::Path, manifest: &crate::sps::SpsMa
             let req = manifest.dependencies.get(name).map(|s| s.as_str()).unwrap_or("*");
             if req != "*" && req != pkg.version() {
                 return Err(format!(
-                    "SPS: constraint de versão não satisfeita para '{}': pedido '{}', registry '{}'",
-                    name,
-                    req,
-                    pkg.version()
+                    "SPS: version constraint not satisfied for '{name}': requested '{req}', registry provides '{got}'.\n\nHow to fix:\n- Change the version in `snask.snif` (dependencies.{name})\n- Or run `snask update {name}` and then `snask build`\n",
+                    name = name,
+                    req = req,
+                    got = pkg.version()
                 ));
             }
         }
@@ -781,10 +934,10 @@ fn sps_pin_from_lock(dir: &std::path::Path, manifest: &crate::sps::SpsManifest) 
             let req = manifest.dependencies.get(name).map(|s| s.as_str()).unwrap_or("*");
             if req != "*" && req != pkg.version() {
                 return Err(format!(
-                    "SPS: constraint de versão não satisfeita para '{}': pedido '{}', registry '{}'",
-                    name,
-                    req,
-                    pkg.version()
+                    "SPS: version constraint not satisfied for '{name}': requested '{req}', registry provides '{got}'.\n\nHow to fix:\n- Change the version in `snask.snif` (dependencies.{name})\n- Or run `snask update {name}` and then `snask build`\n",
+                    name = name,
+                    req = req,
+                    got = pkg.version()
                 ));
             }
         }
@@ -846,14 +999,14 @@ fn self_update() -> Result<(), String> {
     let status = Command::new("cargo").arg("build").arg("--release").status().map_err(|e| e.to_string())?;
     if !status.success() { return Err("Build failed.".to_string()); }
 
-    println!("✅ Snask updated successfully to v0.3.0!");
+    println!("✅ Snask updated successfully to v0.3.1!");
     Ok(())
 }
 
 fn run_setup(target: Option<String>) -> Result<(), String> {
-    println!("🚀 Starting Snask setup v0.3.0...");
+    println!("🚀 Starting Snask setup v0.3.1...");
     
-    let home = std::env::var("HOME").map_err(|_| "Variável HOME não encontrada.".to_string())?;
+    let home = std::env::var("HOME").map_err(|_| "HOME environment variable not found.".to_string())?;
     let snask_dir = format!("{}/.snask", home);
     let snask_lib = format!("{}/lib", snask_dir);
     let snask_bin = format!("{}/bin", snask_dir);
@@ -989,7 +1142,7 @@ fn run_setup(target: Option<String>) -> Result<(), String> {
         }
     }
 
-    println!("✅ Snask v0.3.0 setup complete!");
+    println!("✅ Snask v0.3.1 setup complete!");
     println!("Tip: restart your terminal or run 'source ~/.bashrc' to use the 'snask' command anywhere.");
     
     Ok(())
@@ -1091,9 +1244,9 @@ fn install_self_binary(current_exe: &std::path::Path, dest_path: &std::path::Pat
 }
 
 fn run_uninstall() -> Result<(), String> {
-    println!("🗑️  Uninstalling Snask v0.3.0...");
+    println!("🗑️  Uninstalling Snask v0.3.1...");
     
-    let home = std::env::var("HOME").map_err(|_| "Variável HOME não encontrada.".to_string())?;
+    let home = std::env::var("HOME").map_err(|_| "HOME environment variable not found.".to_string())?;
     let snask_dir = format!("{}/.snask", home);
     
     if std::path::Path::new(&snask_dir).exists() {
