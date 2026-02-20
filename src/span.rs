@@ -16,6 +16,18 @@ impl Position {
     pub fn start() -> Self {
         Position { line: 1, column: 1, offset: 0 }
     }
+
+    pub fn from_line_col(line: usize, column: usize) -> Self {
+        Position { line, column, offset: 0 }
+    }
+
+    pub fn advance_cols(&self, cols: usize) -> Self {
+        Position {
+            line: self.line,
+            column: self.column.saturating_add(cols),
+            offset: self.offset.saturating_add(cols),
+        }
+    }
 }
 
 impl fmt::Display for Position {
@@ -47,13 +59,26 @@ impl Span {
 
     /// Combina dois spans em um único span que cobre ambos
     pub fn merge(&self, other: &Span) -> Span {
-        let start = if self.start.offset < other.start.offset {
+        fn pos_lt(a: Position, b: Position) -> bool {
+            if a.offset != 0 || b.offset != 0 {
+                return a.offset < b.offset;
+            }
+            (a.line, a.column) < (b.line, b.column)
+        }
+        fn pos_gt(a: Position, b: Position) -> bool {
+            if a.offset != 0 || b.offset != 0 {
+                return a.offset > b.offset;
+            }
+            (a.line, a.column) > (b.line, b.column)
+        }
+
+        let start = if pos_lt(self.start, other.start) {
             self.start
         } else {
             other.start
         };
 
-        let end = if self.end.offset > other.end.offset {
+        let end = if pos_gt(self.end, other.end) {
             self.end
         } else {
             other.end
@@ -64,7 +89,13 @@ impl Span {
 
     /// Retorna o comprimento do span em caracteres
     pub fn len(&self) -> usize {
-        self.end.offset.saturating_sub(self.start.offset)
+        if self.start.offset != 0 || self.end.offset != 0 {
+            return self.end.offset.saturating_sub(self.start.offset);
+        }
+        if self.start.line == self.end.line {
+            return self.end.column.saturating_sub(self.start.column);
+        }
+        0
     }
 
     pub fn is_empty(&self) -> bool {

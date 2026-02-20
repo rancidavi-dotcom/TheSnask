@@ -1,0 +1,13 @@
+{
+  package: { name: "snask_vault", version: "0.1.0", entry: "main.snask", },
+  dependencies: { gui: "*", gui_app: "*", gui_layout: "*", gui_widgets: "*", snif: "*", json: "*", os: "*", sfs: "*", string: "*", prelude: "*", },
+  build: { opt_level: 2, },
+  app: {
+    id: "snask-vault",
+    name: "Snask Vault",
+    comment: "Simple password vault demo built with Snask",
+    icon: "assets/snask-vault.svg",
+    terminal: false,
+    categories: "Utility;Security;",
+  },
+}

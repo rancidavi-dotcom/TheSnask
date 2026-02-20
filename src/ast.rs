@@ -1,10 +1,18 @@
 use crate::types::Type;
+use crate::span::{Span, Position};
 
 // Moved from parser.rs to be a central part of the AST
 #[derive(Debug, PartialEq, Clone)]
 pub struct Location {
     pub line: usize,
     pub column: usize,
+}
+
+impl Location {
+    pub fn to_span(&self) -> Span {
+        let p = Position::from_line_col(self.line, self.column);
+        Span::single(p)
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -46,6 +54,18 @@ pub enum LiteralValue {
 pub struct Expr {
     pub kind: ExprKind,
     pub loc: Location,
+    pub span: Span,
+}
+
+impl Expr {
+    pub fn new(kind: ExprKind, loc: Location) -> Self {
+        let span = loc.to_span();
+        Expr { kind, loc, span }
+    }
+
+    pub fn with_span(kind: ExprKind, loc: Location, span: Span) -> Self {
+        Expr { kind, loc, span }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -195,6 +215,18 @@ pub struct DictSet {
 pub struct Stmt {
     pub kind: StmtKind,
     pub loc: Location,
+    pub span: Span,
+}
+
+impl Stmt {
+    pub fn new(kind: StmtKind, loc: Location) -> Self {
+        let span = loc.to_span();
+        Stmt { kind, loc, span }
+    }
+
+    pub fn with_span(kind: StmtKind, loc: Location, span: Span) -> Self {
+        Stmt { kind, loc, span }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -220,6 +252,11 @@ pub enum StmtKind {
     DictDeclaration(DictDecl),
     DictSet(DictSet),
     Import(String),
+    FromImport {
+        from: Vec<String>,
+        is_current_dir: bool,
+        module: String,
+    },
 }
 
 pub type Program = Vec<Stmt>;

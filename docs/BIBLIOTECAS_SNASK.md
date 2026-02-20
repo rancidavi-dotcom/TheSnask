@@ -11,7 +11,8 @@ Exception: `prelude` is designed to be imported and used **without prefixes** (e
 import "json";
 import "snif";
 import "os";
-import "gui";
+import "gui"; // legacy
+import "snask_gtk"; // recommended
 ```
 
 ## Common libraries
@@ -21,7 +22,12 @@ import "gui";
 - `sfs` — filesystem/path helpers.
 - `requests` — HTTP helpers.
 - `sqlite` — SQLite bindings (library-only).
-- `gui` — GTK3 GUI bindings (library-only).
+- `gui` — GTK3 GUI bindings (library-only). *(Legacy name; still supported.)*
+- `snask_gtk` — **Snask_GTK** GUI bindings (recommended name).
+- `snask_gtk_layout` — layout helpers for `snask_gtk`.
+- `snask_gtk_widgets` — higher-level widgets for `snask_gtk`.
+- `snask_gtk_app` — app scaffolding for `snask_gtk`.
+- `snask_skia` — **experimental** Skia-based 2D graphics API (scaffolding).
 - `log` — logging helpers.
 - `prelude` — short helpers (`assert`, `println`, etc.).
 

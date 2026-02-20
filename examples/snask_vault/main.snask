@@ -1,0 +1,229 @@
+import "gui";
+import "gui_layout";
+import "gui_widgets";
+import "json";
+import "os";
+import "sfs";
+
+from src import storage;
+from src import validate;
+from src import master;
+from src import gui_shaders;
+
+// Vault paths (computed at runtime)
+mut _vault_dir = nil;
+mut _vault_path = nil;
+
+// ----------------------------
+// App state
+// ----------------------------
+
+mut _vault = nil;
+mut _master = nil;
+mut _selected = -1;
+
+mut _win = nil;
+mut _master_dialog = nil;
+mut _master_entry = nil;
+
+mut _add_dialog = nil;
+mut _add_name = nil;
+mut _add_user = nil;
+mut _add_pass = nil;
+mut _add_note = nil;
+
+fun entry_title(e)
+    let name = json::get(e, "name");
+    let user = json::get(e, "user");
+    let pass = json::get(e, "pass");
+    return name + " — " + user + " — " + pass;
+
+fun render()
+    let root = gui::vbox();
+    gui::set_child(_win, root);
+    gui_shaders::root(root);
+
+    gui_layout::section(root, "Entries");
+    let lst = gui::listbox();
+    gui_shaders::listbox(lst);
+    gui::add_expand(root, lst);
+
+    let entries = json::get(_vault, "entries");
+    mut i = 0;
+    let n = json::len(entries);
+    while i < n
+        let e = json::index(entries, i);
+        let r = gui::list_add_text(lst, entry_title(e));
+        gui_shaders::row(r);
+        // store selected index via ctx
+        gui::on_select_ctx(lst, num_to_str(i), "on_select");
+        i = i + 1;
+
+    gui_layout::spacer_h(root);
+    let row = gui::hbox();
+    gui::add(root, row);
+    let b_add = gui::button("Add");
+    let b_del = gui::button("Delete");
+    gui_shaders::button(b_add);
+    gui_shaders::button(b_del);
+    gui_shaders::danger(b_del);
+    gui::on_click(b_add, "on_add");
+    gui::on_click(b_del, "on_delete");
+    gui::add_expand(row, b_add);
+    gui::add_expand(row, b_del);
+
+    gui::show_all(_win);
+    return true;
+
+fun on_select(ctx, _row_text)
+    _selected = str_to_num(ctx);
+    return true;
+
+// ----------------------------
+// Unlock dialog
+// ----------------------------
+
+fun prompt_master()
+    _master_dialog = gui::window("Unlock Vault", 420, 120);
+    gui::set_resizable(_master_dialog, false);
+    let box = gui_layout::vbox_with(_master_dialog);
+    gui_shaders::root(box);
+    let has_hash = json::has(_vault, "master_hash") and is_nil(json::get(_vault, "master_hash")) == false;
+    mut title = "Master password:";
+    if has_hash == false
+        title = "Create master password:";
+    _master_entry = gui_widgets::labeled_entry(box, title, "type here");
+    gui_shaders::entry(_master_entry);
+    gui_widgets::button_row(box, "OK", "on_master_ok", nil, nil);
+    gui::show_all(_master_dialog);
+    return true;
+
+fun on_master_ok()
+    let master = gui::get_text(_master_entry);
+    let has_hash = json::has(_vault, "master_hash") and is_nil(json::get(_vault, "master_hash")) == false;
+
+    if has_hash
+        let h = json::get(_vault, "master_hash");
+        if master::verify_password(master, h) == false
+            gui_widgets::msg_err("Vault", "Wrong master password.");
+            return true;
+        _master = master;
+        gui::quit();
+        return true;
+
+    if len(master) < 4
+        gui_widgets::msg_err("Vault", "Master password must be at least 4 characters.");
+        return true;
+
+    let h = master::hash_password(master);
+    json::set(_vault, "master_hash", h);
+    storage::save(_vault_dir, _vault_path, _vault);
+    _master = master;
+    gui::quit();
+    return true;
+
+// ----------------------------
+// Add dialog
+// ----------------------------
+
+fun add_dialog()
+    _add_dialog = gui::window("Add entry", 520, 240);
+    gui::set_resizable(_add_dialog, false);
+    let box = gui_layout::vbox_with(_add_dialog);
+    gui_shaders::root(box);
+    _add_name = gui_widgets::labeled_entry(box, "Name:", "e.g. GitHub");
+    _add_user = gui_widgets::labeled_entry(box, "Username:", "email/user");
+    _add_pass = gui_widgets::labeled_entry(box, "Password:", "secret");
+    _add_note = gui_widgets::labeled_entry(box, "Note:", "optional");
+    gui_shaders::entry(_add_name);
+    gui_shaders::entry(_add_user);
+    gui_shaders::entry(_add_pass);
+    gui_shaders::entry(_add_note);
+    gui_widgets::button_row(box, "Save", "on_add_save", "Cancel", "on_add_cancel");
+    gui::show_all(_add_dialog);
+    return true;
+
+fun on_add_cancel()
+    gui::quit();
+    return true;
+
+fun on_add_save()
+    let name = gui::get_text(_add_name);
+    let user = gui::get_text(_add_user);
+    let pass = gui::get_text(_add_pass);
+    let note = gui::get_text(_add_note);
+    if validate::is_blank(name) or validate::is_blank(user) or validate::is_blank(pass)
+        gui_widgets::msg_err("Vault", "Name, username, and password are required.");
+        return true;
+
+    let e = json::new_object();
+    json::set(e, "name", name);
+    json::set(e, "user", user);
+    json::set(e, "pass", pass);
+    json::set(e, "note", note);
+    json::set(e, "created_at", os::now());
+
+    let entries = json::get(_vault, "entries");
+    json::set(entries, num_to_str(json::len(entries)), e);
+    json::set(_vault, "entries", entries);
+    storage::save(_vault_dir, _vault_path, _vault);
+    gui_widgets::msg_ok("Vault", "Entry saved.");
+    gui::quit();
+    return true;
+
+// ----------------------------
+// Main actions
+// ----------------------------
+
+fun on_add()
+    add_dialog();
+    gui::run();
+    render();
+    return true;
+
+fun on_delete()
+    if _selected < 0
+        gui_widgets::msg_err("Vault", "Select an entry first.");
+        return true;
+    let entries = json::get(_vault, "entries");
+    let n = json::len(entries);
+    let new_entries = json::new_array();
+    mut i = 0;
+    mut j = 0;
+    while i < n
+        if i != _selected
+            json::set(new_entries, num_to_str(j), json::index(entries, i));
+            j = j + 1;
+        i = i + 1;
+    json::set(_vault, "entries", new_entries);
+    storage::save(_vault_dir, _vault_path, _vault);
+    gui_widgets::msg_ok("Vault", "Entry deleted.");
+    _selected = -1;
+    render();
+    return true;
+
+// ----------------------------
+// App entrypoint
+// ----------------------------
+
+class main
+    fun start()
+        gui_shaders::install();
+        _vault_dir = ".snask_vault";
+        _vault_path = "vault.snif";
+
+        _vault = storage::load(_vault_dir, _vault_path);
+
+        if gui::init() == false
+            print("GUI init failed");
+            return nil;
+
+        prompt_master();
+        gui::run();
+        if is_nil(_master)
+            return nil;
+
+        _win = gui::window("Snask Vault (demo)", 640, 520);
+        gui::set_resizable(_win, true);
+        render();
+        gui::run();

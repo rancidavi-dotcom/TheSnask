@@ -42,6 +42,7 @@ SNIF is Snask’s configuration/interchange format (see `docs/snif/spec.md`).
 
 ## 7) Desktop + tooling mindset
 Snask is designed around building “real” apps:
-- Desktop GUIs (GTK on Linux) via `import "gui"`.
+- Desktop GUIs (GTK on Linux) via `import "snask_gtk"` (recommended) or `import "gui"` (legacy).
+- Future: modern 2D graphics (Skia) via `import "snask_skia"` *(experimental scaffolding today)*.
 - Developer tools (CLIs, automation, packaging) via SPS and the package ecosystem.
 - Built-in primitives (SNIF, HTTP, SQLite, threads) exposed via import-only libraries.

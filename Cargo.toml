@@ -25,3 +25,5 @@ uuid = { version = "1.6", features = ["v4"] }
 rand = "0.8"
 rusqlite = { version = "0.31.0", features = ["bundled"] } # Adicione esta linha
 libc = "0.2"
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "io-std"] }
+tower-lsp = "0.20"

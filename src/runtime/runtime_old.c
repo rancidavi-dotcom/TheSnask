@@ -24,6 +24,22 @@
 #include <gtk/gtk.h>
 #endif
 
+// --- Skia (optional) ---
+// When SNASK_SKIA is enabled, the runtime should compile against a Skia SDK and use the Skia C/C++ API.
+// Today, if SNASK_SKIA is not enabled, snask_skia uses a Cairo fallback (via GTK3).
+#ifdef SNASK_SKIA
+// NOTE: Real Skia integration requires external headers/libs. Keep includes guarded.
+// Example SDKs usually ship headers under something like:
+//   - include/core/SkSurface.h (C++)
+// or a C API wrapper (if provided by the SDK).
+//
+// For now we compile the Cairo fallback unless SNASK_SKIA is present.
+#endif
+
+#ifdef SNASK_SKIA
+#include "skia_bridge.h"
+#endif
+
 // --- SQLite ---
 // Opcional: compilado quando SNASK_SQLITE estiver definido e os headers sqlite3 existirem.
 #ifdef SNASK_SQLITE
@@ -2159,12 +2175,111 @@ void gui_hbox(SnaskValue* out) {
     out->num = 0;
 }
 
+void gui_eventbox(SnaskValue* out) {
+    GtkWidget* eb = gtk_event_box_new();
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(eb);
+    out->num = 0;
+}
+
 void gui_scrolled(SnaskValue* out) {
     GtkWidget* sw = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
     out->tag = (double)SNASK_STR;
     out->ptr = gui_ptr_to_handle(sw);
     out->num = 0;
+}
+
+void gui_flowbox(SnaskValue* out) {
+    GtkWidget* fb = gtk_flow_box_new();
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(fb);
+    out->num = 0;
+}
+
+void gui_flow_add(SnaskValue* out, SnaskValue* flow_h, SnaskValue* child_h) {
+    if ((int)flow_h->tag != SNASK_STR || (int)child_h->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* flow = (GtkWidget*)gui_handle_to_ptr((const char*)flow_h->ptr);
+    GtkWidget* child = (GtkWidget*)gui_handle_to_ptr((const char*)child_h->ptr);
+    if (!flow || !child || !GTK_IS_FLOW_BOX(flow)) { out->tag = (double)SNASK_NIL; return; }
+    gtk_flow_box_insert(GTK_FLOW_BOX(flow), child, -1);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void gui_frame(SnaskValue* out) {
+    GtkWidget* f = gtk_frame_new(NULL);
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(f);
+    out->num = 0;
+}
+
+void gui_set_margin(SnaskValue* out, SnaskValue* widget_h, SnaskValue* margin_v) {
+    if ((int)widget_h->tag != SNASK_STR || (int)margin_v->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)widget_h->ptr);
+    if (!w) { out->tag = (double)SNASK_NIL; return; }
+    int m = (int)margin_v->num;
+    gtk_widget_set_margin_start(w, m);
+    gtk_widget_set_margin_end(w, m);
+    gtk_widget_set_margin_top(w, m);
+    gtk_widget_set_margin_bottom(w, m);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void gui_icon(SnaskValue* out, SnaskValue* name, SnaskValue* size_v) {
+    if ((int)name->tag != SNASK_STR || (int)size_v->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* img = gtk_image_new_from_icon_name((const char*)name->ptr, GTK_ICON_SIZE_DIALOG);
+    if (GTK_IS_IMAGE(img)) gtk_image_set_pixel_size(GTK_IMAGE(img), (int)size_v->num);
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(img);
+    out->num = 0;
+}
+
+void gui_css(SnaskValue* out, SnaskValue* css) {
+    if ((int)css->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkCssProvider* provider = gtk_css_provider_new();
+    gtk_css_provider_load_from_data(provider, (const char*)css->ptr, -1, NULL);
+    GdkScreen* screen = gdk_screen_get_default();
+    if (screen) {
+        gtk_style_context_add_provider_for_screen(
+            screen,
+            GTK_STYLE_PROVIDER(provider),
+            GTK_STYLE_PROVIDER_PRIORITY_USER
+        );
+    }
+    g_object_unref(provider);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void gui_add_class(SnaskValue* out, SnaskValue* widget_h, SnaskValue* cls) {
+    if ((int)widget_h->tag != SNASK_STR || (int)cls->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)widget_h->ptr);
+    if (!w) { out->tag = (double)SNASK_NIL; return; }
+    GtkStyleContext* sc = gtk_widget_get_style_context(w);
+    if (sc) gtk_style_context_add_class(sc, (const char*)cls->ptr);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+static gboolean gui_on_tap_cb(GtkWidget* _widget, GdkEventButton* _ev, gpointer user_data) {
+    (void)_widget;
+    (void)_ev;
+    GuiCallbackCtx* ctx = (GuiCallbackCtx*)user_data;
+    if (!ctx) return FALSE;
+    if (ctx->ctx) (void)gui_call_handler_2(ctx->handler_name, ctx->widget_handle, ctx->ctx);
+    else (void)gui_call_handler_1(ctx->handler_name, ctx->widget_handle);
+    return FALSE;
+}
+
+void gui_on_tap_ctx(SnaskValue* out, SnaskValue* widget_h, SnaskValue* handler_name, SnaskValue* ctx_str) {
+    if ((int)widget_h->tag != SNASK_STR || (int)handler_name->tag != SNASK_STR || (int)ctx_str->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    GtkWidget* w = (GtkWidget*)gui_handle_to_ptr((const char*)widget_h->ptr);
+    if (!w) { out->tag = (double)SNASK_NIL; return; }
+    gtk_widget_add_events(w, GDK_BUTTON_PRESS_MASK);
+    GuiCallbackCtx* ctx = (GuiCallbackCtx*)calloc(1, sizeof(GuiCallbackCtx));
+    ctx->handler_name = strdup((const char*)handler_name->ptr);
+    ctx->widget_handle = strdup((const char*)widget_h->ptr);
+    ctx->ctx = strdup((const char*)ctx_str->ptr);
+    g_signal_connect_data(w, "button-press-event", G_CALLBACK(gui_on_tap_cb), ctx, (GClosureNotify)gui_free_ctx, 0);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
 }
 
 void gui_listbox(SnaskValue* out) {
@@ -2222,6 +2337,13 @@ void gui_set_child(SnaskValue* out, SnaskValue* parent_h, SnaskValue* child_h) {
     GtkWidget* parent = (GtkWidget*)gui_handle_to_ptr((const char*)parent_h->ptr);
     GtkWidget* child = (GtkWidget*)gui_handle_to_ptr((const char*)child_h->ptr);
     if (!parent || !child) { out->tag = (double)SNASK_NIL; return; }
+    // GtkWindow (GtkBin) can only contain one child.
+    if (GTK_IS_BIN(parent)) {
+        GtkWidget* old = gtk_bin_get_child(GTK_BIN(parent));
+        if (old) {
+            gtk_container_remove(GTK_CONTAINER(parent), old);
+        }
+    }
     gtk_container_add(GTK_CONTAINER(parent), child);
     out->tag = (double)SNASK_BOOL;
     out->num = 1.0;
@@ -2233,7 +2355,14 @@ void gui_add(SnaskValue* out, SnaskValue* box_h, SnaskValue* child_h) {
     GtkWidget* box = (GtkWidget*)gui_handle_to_ptr((const char*)box_h->ptr);
     GtkWidget* child = (GtkWidget*)gui_handle_to_ptr((const char*)child_h->ptr);
     if (!box || !child) { out->tag = (double)SNASK_NIL; return; }
-    gtk_box_pack_start(GTK_BOX(box), child, FALSE, FALSE, 0);
+    if (GTK_IS_BOX(box)) {
+        gtk_box_pack_start(GTK_BOX(box), child, FALSE, FALSE, 0);
+    } else if (GTK_IS_CONTAINER(box)) {
+        gtk_container_add(GTK_CONTAINER(box), child);
+    } else {
+        out->tag = (double)SNASK_NIL;
+        return;
+    }
     out->tag = (double)SNASK_BOOL;
     out->num = 1.0;
     out->ptr = NULL;
@@ -2244,7 +2373,14 @@ void gui_add_expand(SnaskValue* out, SnaskValue* box_h, SnaskValue* child_h) {
     GtkWidget* box = (GtkWidget*)gui_handle_to_ptr((const char*)box_h->ptr);
     GtkWidget* child = (GtkWidget*)gui_handle_to_ptr((const char*)child_h->ptr);
     if (!box || !child) { out->tag = (double)SNASK_NIL; return; }
-    gtk_box_pack_start(GTK_BOX(box), child, TRUE, TRUE, 0);
+    if (GTK_IS_BOX(box)) {
+        gtk_box_pack_start(GTK_BOX(box), child, TRUE, TRUE, 0);
+    } else if (GTK_IS_CONTAINER(box)) {
+        gtk_container_add(GTK_CONTAINER(box), child);
+    } else {
+        out->tag = (double)SNASK_NIL;
+        return;
+    }
     out->tag = (double)SNASK_BOOL;
     out->num = 1.0;
     out->ptr = NULL;
@@ -2262,6 +2398,13 @@ void gui_entry(SnaskValue* out) {
     GtkWidget* e = gtk_entry_new();
     out->tag = (double)SNASK_STR;
     out->ptr = gui_ptr_to_handle(e);
+    out->num = 0;
+}
+
+void gui_textview(SnaskValue* out) {
+    GtkWidget* tv = gtk_text_view_new();
+    out->tag = (double)SNASK_STR;
+    out->ptr = gui_ptr_to_handle(tv);
     out->num = 0;
 }
 
@@ -2320,6 +2463,10 @@ void gui_set_text(SnaskValue* out, SnaskValue* widget_h, SnaskValue* text) {
     if (GTK_IS_LABEL(w)) gtk_label_set_text(GTK_LABEL(w), (const char*)text->ptr);
     else if (GTK_IS_BUTTON(w)) gtk_button_set_label(GTK_BUTTON(w), (const char*)text->ptr);
     else if (GTK_IS_ENTRY(w)) gtk_entry_set_text(GTK_ENTRY(w), (const char*)text->ptr);
+    else if (GTK_IS_TEXT_VIEW(w)) {
+        GtkTextBuffer* buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(w));
+        gtk_text_buffer_set_text(buf, (const char*)text->ptr, -1);
+    }
     out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
 }
 
@@ -2334,7 +2481,20 @@ void gui_get_text(SnaskValue* out, SnaskValue* widget_h) {
         out->num = 0;
         return;
     }
-    out->tag = (double)SNASK_NIL;
+    if (GTK_IS_TEXT_VIEW(w)) {
+        GtkTextBuffer* buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(w));
+        GtkTextIter start, end;
+        gtk_text_buffer_get_bounds(buf, &start, &end);
+        char* t = gtk_text_buffer_get_text(buf, &start, &end, TRUE);
+        out->tag = (double)SNASK_STR;
+        out->ptr = snask_gc_strdup(t ? t : "");
+        out->num = 0;
+        if (t) g_free(t);
+        return;
+    }
+    out->tag = (double)SNASK_STR;
+    out->ptr = snask_gc_strdup("");
+    out->num = 0;
 }
 
 void gui_on_click(SnaskValue* out, SnaskValue* widget_h, SnaskValue* handler_name) {
@@ -2394,6 +2554,311 @@ void gui_msg_error(SnaskValue* out, SnaskValue* title, SnaskValue* msg) {
     out->tag = (double)SNASK_NIL;
 }
 
+// --- Snask_Skia (experimental) ---
+// Default backend is Cairo (human-friendly, always available with GTK3).
+// If the runtime is built with SNASK_SKIA, apps can opt into real Skia by setting:
+//   USE_SKIA = 1
+// (Snask will automatically call `skia_use_real(true)` before main::start.)
+//
+// Handles are strings:
+// - Cairo: "skia_surface:cairo:<id>"
+// - Skia:  "skia_surface:skia:<id>"
+
+typedef struct {
+    int w;
+    int h;
+    double r, g, b, a;
+    cairo_surface_t* surface;
+    cairo_t* cr;
+} SnaskSkiaSurface;
+
+// Need Cairo types even when SNASK_SKIA is enabled (default backend is Cairo).
+// Cairo is available when GTK3 headers are enabled.
+#ifdef SNASK_GUI_GTK
+#include <cairo.h>
+#endif
+
+static SnaskSkiaSurface** skia_surfaces = NULL;
+static size_t skia_surfaces_len = 0;
+static size_t skia_surfaces_cap = 0;
+
+static void skia_track_surface(SnaskSkiaSurface* s) {
+    if (!s) return;
+    if (skia_surfaces_len == skia_surfaces_cap) {
+        size_t nc = skia_surfaces_cap ? skia_surfaces_cap * 2 : 64;
+        SnaskSkiaSurface** n = (SnaskSkiaSurface**)realloc(skia_surfaces, nc * sizeof(SnaskSkiaSurface*));
+        if (!n) return;
+        skia_surfaces = n;
+        skia_surfaces_cap = nc;
+    }
+    skia_surfaces[skia_surfaces_len++] = s;
+}
+
+static SnaskSkiaSurface* skia_get_surface(const char* handle) {
+    if (!handle) return NULL;
+    const char* pfx = "skia_surface:cairo:";
+    size_t pfx_len = strlen(pfx);
+    if (strncmp(handle, pfx, pfx_len) != 0) return NULL;
+    long id = strtol(handle + pfx_len, NULL, 10);
+    if (id < 0) return NULL;
+    size_t idx = (size_t)id;
+    if (idx >= skia_surfaces_len) return NULL;
+    return skia_surfaces[idx];
+}
+
+#ifdef SNASK_SKIA
+static int snask_skia_default_backend = 0; // 0=cairo, 1=skia
+
+void skia_use_real(SnaskValue* out, SnaskValue* enabled) {
+    if ((int)enabled->tag != SNASK_BOOL) { out->tag = (double)SNASK_NIL; return; }
+    snask_skia_default_backend = (enabled->num != 0.0) ? 1 : 0;
+    out->tag = (double)SNASK_BOOL;
+    out->num = 1.0;
+    out->ptr = NULL;
+}
+
+void skia_version(SnaskValue* out) {
+    out->tag = (double)SNASK_STR;
+    out->ptr = snask_gc_strdup(snask_skia_impl_version());
+    out->num = 0;
+}
+#else
+void skia_version(SnaskValue* out) {
+    out->tag = (double)SNASK_STR;
+    out->ptr = snask_gc_strdup("cairo-backend");
+    out->num = 0;
+}
+void skia_use_real(SnaskValue* out, SnaskValue* _b) { (void)_b; out->tag = (double)SNASK_BOOL; out->num = 0.0; out->ptr = NULL; }
+#endif
+
+void skia_surface(SnaskValue* out, SnaskValue* wv, SnaskValue* hv) {
+    if ((int)wv->tag != SNASK_NUM || (int)hv->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
+    int w = (int)wv->num;
+    int h = (int)hv->num;
+    if (w <= 0 || h <= 0 || w > 16384 || h > 16384) { out->tag = (double)SNASK_NIL; return; }
+
+#ifdef SNASK_SKIA
+    if (snask_skia_default_backend == 1) {
+        int id = snask_skia_impl_surface_create(w, h);
+        if (id < 0) { out->tag = (double)SNASK_NIL; return; }
+        char buf[64];
+        snprintf(buf, sizeof(buf), "skia_surface:skia:%d", id);
+        out->tag = (double)SNASK_STR;
+        out->ptr = snask_gc_strdup(buf);
+        out->num = 0;
+        return;
+    }
+#endif
+
+    SnaskSkiaSurface* s = (SnaskSkiaSurface*)calloc(1, sizeof(SnaskSkiaSurface));
+    if (!s) { out->tag = (double)SNASK_NIL; return; }
+    s->w = w; s->h = h;
+    s->r = 1.0; s->g = 1.0; s->b = 1.0; s->a = 1.0;
+    s->surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+    s->cr = cairo_create(s->surface);
+    if (!s->surface || !s->cr) { out->tag = (double)SNASK_NIL; return; }
+
+    // Default: clear transparent
+    cairo_set_source_rgba(s->cr, 0, 0, 0, 0);
+    cairo_set_operator(s->cr, CAIRO_OPERATOR_SOURCE);
+    cairo_paint(s->cr);
+    cairo_set_operator(s->cr, CAIRO_OPERATOR_OVER);
+
+    skia_track_surface(s);
+    char buf[64];
+    snprintf(buf, sizeof(buf), "skia_surface:cairo:%zu", skia_surfaces_len - 1);
+    out->tag = (double)SNASK_STR;
+    out->ptr = snask_gc_strdup(buf);
+    out->num = 0;
+}
+
+static int skia_parse_handle(const char* handle, bool* is_skia) {
+    if (is_skia) *is_skia = false;
+    if (!handle) return -1;
+    const char* pfx_skia = "skia_surface:skia:";
+    const char* pfx_cairo = "skia_surface:cairo:";
+    if (strncmp(handle, pfx_skia, strlen(pfx_skia)) == 0) {
+        if (is_skia) *is_skia = true;
+        return (int)strtol(handle + strlen(pfx_skia), NULL, 10);
+    }
+    if (strncmp(handle, pfx_cairo, strlen(pfx_cairo)) == 0) {
+        if (is_skia) *is_skia = false;
+        return (int)strtol(handle + strlen(pfx_cairo), NULL, 10);
+    }
+    return -1;
+}
+
+void skia_surface_width(SnaskValue* out, SnaskValue* surface_h) {
+    if ((int)surface_h->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    bool is_skia = false;
+    int id = skia_parse_handle((const char*)surface_h->ptr, &is_skia);
+#ifdef SNASK_SKIA
+    if (is_skia) {
+        int w = snask_skia_impl_surface_width(id);
+        if (w < 0) { out->tag = (double)SNASK_NIL; return; }
+        out->tag = (double)SNASK_NUM; out->num = (double)w; out->ptr = NULL;
+        return;
+    }
+#endif
+    SnaskSkiaSurface* s = skia_get_surface((const char*)surface_h->ptr);
+    if (!s) { out->tag = (double)SNASK_NIL; return; }
+    out->tag = (double)SNASK_NUM; out->num = (double)s->w; out->ptr = NULL;
+}
+
+void skia_surface_height(SnaskValue* out, SnaskValue* surface_h) {
+    if ((int)surface_h->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    bool is_skia = false;
+    int id = skia_parse_handle((const char*)surface_h->ptr, &is_skia);
+#ifdef SNASK_SKIA
+    if (is_skia) {
+        int h = snask_skia_impl_surface_height(id);
+        if (h < 0) { out->tag = (double)SNASK_NIL; return; }
+        out->tag = (double)SNASK_NUM; out->num = (double)h; out->ptr = NULL;
+        return;
+    }
+#endif
+    SnaskSkiaSurface* s = skia_get_surface((const char*)surface_h->ptr);
+    if (!s) { out->tag = (double)SNASK_NIL; return; }
+    out->tag = (double)SNASK_NUM; out->num = (double)s->h; out->ptr = NULL;
+}
+
+void skia_surface_clear(SnaskValue* out, SnaskValue* surface_h, SnaskValue* rv, SnaskValue* gv, SnaskValue* bv, SnaskValue* av) {
+    if ((int)surface_h->tag != SNASK_STR || (int)rv->tag != SNASK_NUM || (int)gv->tag != SNASK_NUM || (int)bv->tag != SNASK_NUM || (int)av->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
+    bool is_skia = false;
+    int id = skia_parse_handle((const char*)surface_h->ptr, &is_skia);
+#ifdef SNASK_SKIA
+    if (is_skia) {
+        bool ok = snask_skia_impl_surface_clear(id, rv->num, gv->num, bv->num, av->num);
+        out->tag = (double)SNASK_BOOL; out->num = ok ? 1.0 : 0.0; out->ptr = NULL;
+        return;
+    }
+#endif
+    SnaskSkiaSurface* s = skia_get_surface((const char*)surface_h->ptr);
+    if (!s || !s->cr) { out->tag = (double)SNASK_NIL; return; }
+    cairo_save(s->cr);
+    cairo_set_source_rgba(s->cr, rv->num, gv->num, bv->num, av->num);
+    cairo_set_operator(s->cr, CAIRO_OPERATOR_SOURCE);
+    cairo_paint(s->cr);
+    cairo_restore(s->cr);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void skia_surface_set_color(SnaskValue* out, SnaskValue* surface_h, SnaskValue* rv, SnaskValue* gv, SnaskValue* bv, SnaskValue* av) {
+    if ((int)surface_h->tag != SNASK_STR || (int)rv->tag != SNASK_NUM || (int)gv->tag != SNASK_NUM || (int)bv->tag != SNASK_NUM || (int)av->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
+    bool is_skia = false;
+    int id = skia_parse_handle((const char*)surface_h->ptr, &is_skia);
+#ifdef SNASK_SKIA
+    if (is_skia) {
+        bool ok = snask_skia_impl_surface_set_color(id, rv->num, gv->num, bv->num, av->num);
+        out->tag = (double)SNASK_BOOL; out->num = ok ? 1.0 : 0.0; out->ptr = NULL;
+        return;
+    }
+#endif
+    SnaskSkiaSurface* s = skia_get_surface((const char*)surface_h->ptr);
+    if (!s) { out->tag = (double)SNASK_NIL; return; }
+    s->r = rv->num; s->g = gv->num; s->b = bv->num; s->a = av->num;
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void skia_draw_rect(SnaskValue* out, SnaskValue* surface_h, SnaskValue* xv, SnaskValue* yv, SnaskValue* wv, SnaskValue* hv, SnaskValue* fillv) {
+    if ((int)surface_h->tag != SNASK_STR || (int)xv->tag != SNASK_NUM || (int)yv->tag != SNASK_NUM || (int)wv->tag != SNASK_NUM || (int)hv->tag != SNASK_NUM || (int)fillv->tag != SNASK_BOOL) { out->tag = (double)SNASK_NIL; return; }
+    bool is_skia = false;
+    int id = skia_parse_handle((const char*)surface_h->ptr, &is_skia);
+#ifdef SNASK_SKIA
+    if (is_skia) {
+        bool ok = snask_skia_impl_draw_rect(id, xv->num, yv->num, wv->num, hv->num, fillv->num != 0.0);
+        out->tag = (double)SNASK_BOOL; out->num = ok ? 1.0 : 0.0; out->ptr = NULL;
+        return;
+    }
+#endif
+    SnaskSkiaSurface* s = skia_get_surface((const char*)surface_h->ptr);
+    if (!s || !s->cr) { out->tag = (double)SNASK_NIL; return; }
+    cairo_set_source_rgba(s->cr, s->r, s->g, s->b, s->a);
+    cairo_rectangle(s->cr, xv->num, yv->num, wv->num, hv->num);
+    if (fillv->num != 0.0) cairo_fill(s->cr); else cairo_stroke(s->cr);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void skia_draw_circle(SnaskValue* out, SnaskValue* surface_h, SnaskValue* cxv, SnaskValue* cyv, SnaskValue* rv, SnaskValue* fillv) {
+    if ((int)surface_h->tag != SNASK_STR || (int)cxv->tag != SNASK_NUM || (int)cyv->tag != SNASK_NUM || (int)rv->tag != SNASK_NUM || (int)fillv->tag != SNASK_BOOL) { out->tag = (double)SNASK_NIL; return; }
+    bool is_skia = false;
+    int id = skia_parse_handle((const char*)surface_h->ptr, &is_skia);
+#ifdef SNASK_SKIA
+    if (is_skia) {
+        bool ok = snask_skia_impl_draw_circle(id, cxv->num, cyv->num, rv->num, fillv->num != 0.0);
+        out->tag = (double)SNASK_BOOL; out->num = ok ? 1.0 : 0.0; out->ptr = NULL;
+        return;
+    }
+#endif
+    SnaskSkiaSurface* s = skia_get_surface((const char*)surface_h->ptr);
+    if (!s || !s->cr) { out->tag = (double)SNASK_NIL; return; }
+    cairo_set_source_rgba(s->cr, s->r, s->g, s->b, s->a);
+    cairo_arc(s->cr, cxv->num, cyv->num, rv->num, 0.0, 2.0 * M_PI);
+    if (fillv->num != 0.0) cairo_fill(s->cr); else cairo_stroke(s->cr);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void skia_draw_line(SnaskValue* out, SnaskValue* surface_h, SnaskValue* x1v, SnaskValue* y1v, SnaskValue* x2v, SnaskValue* y2v, SnaskValue* stroke_wv) {
+    if ((int)surface_h->tag != SNASK_STR || (int)x1v->tag != SNASK_NUM || (int)y1v->tag != SNASK_NUM || (int)x2v->tag != SNASK_NUM || (int)y2v->tag != SNASK_NUM || (int)stroke_wv->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
+    bool is_skia = false;
+    int id = skia_parse_handle((const char*)surface_h->ptr, &is_skia);
+#ifdef SNASK_SKIA
+    if (is_skia) {
+        bool ok = snask_skia_impl_draw_line(id, x1v->num, y1v->num, x2v->num, y2v->num, stroke_wv->num);
+        out->tag = (double)SNASK_BOOL; out->num = ok ? 1.0 : 0.0; out->ptr = NULL;
+        return;
+    }
+#endif
+    SnaskSkiaSurface* s = skia_get_surface((const char*)surface_h->ptr);
+    if (!s || !s->cr) { out->tag = (double)SNASK_NIL; return; }
+    cairo_set_source_rgba(s->cr, s->r, s->g, s->b, s->a);
+    cairo_set_line_width(s->cr, stroke_wv->num <= 0 ? 1.0 : stroke_wv->num);
+    cairo_move_to(s->cr, x1v->num, y1v->num);
+    cairo_line_to(s->cr, x2v->num, y2v->num);
+    cairo_stroke(s->cr);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void skia_draw_text(SnaskValue* out, SnaskValue* surface_h, SnaskValue* xv, SnaskValue* yv, SnaskValue* textv, SnaskValue* sizev) {
+    if ((int)surface_h->tag != SNASK_STR || (int)xv->tag != SNASK_NUM || (int)yv->tag != SNASK_NUM || (int)textv->tag != SNASK_STR || (int)sizev->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
+    bool is_skia = false;
+    int id = skia_parse_handle((const char*)surface_h->ptr, &is_skia);
+#ifdef SNASK_SKIA
+    if (is_skia) {
+        bool ok = snask_skia_impl_draw_text(id, xv->num, yv->num, (const char*)textv->ptr, sizev->num);
+        out->tag = (double)SNASK_BOOL; out->num = ok ? 1.0 : 0.0; out->ptr = NULL;
+        return;
+    }
+#endif
+    SnaskSkiaSurface* s = skia_get_surface((const char*)surface_h->ptr);
+    if (!s || !s->cr) { out->tag = (double)SNASK_NIL; return; }
+    cairo_set_source_rgba(s->cr, s->r, s->g, s->b, s->a);
+    cairo_select_font_face(s->cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+    cairo_set_font_size(s->cr, sizev->num <= 0 ? 14.0 : sizev->num);
+    cairo_move_to(s->cr, xv->num, yv->num);
+    cairo_show_text(s->cr, (const char*)textv->ptr);
+    out->tag = (double)SNASK_BOOL; out->num = 1.0; out->ptr = NULL;
+}
+
+void skia_save_png(SnaskValue* out, SnaskValue* surface_h, SnaskValue* pathv) {
+    if ((int)surface_h->tag != SNASK_STR || (int)pathv->tag != SNASK_STR) { out->tag = (double)SNASK_NIL; return; }
+    bool is_skia = false;
+    int id = skia_parse_handle((const char*)surface_h->ptr, &is_skia);
+#ifdef SNASK_SKIA
+    if (is_skia) {
+        bool ok = snask_skia_impl_save_png(id, (const char*)pathv->ptr);
+        out->tag = (double)SNASK_BOOL; out->num = ok ? 1.0 : 0.0; out->ptr = NULL;
+        return;
+    }
+#endif
+    SnaskSkiaSurface* s = skia_get_surface((const char*)surface_h->ptr);
+    if (!s || !s->surface) { out->tag = (double)SNASK_NIL; return; }
+    cairo_status_t st = cairo_surface_write_to_png(s->surface, (const char*)pathv->ptr);
+    out->tag = (double)SNASK_BOOL;
+    out->num = (st == CAIRO_STATUS_SUCCESS) ? 1.0 : 0.0;
+    out->ptr = NULL;
+}
+
 #else
 
 void gui_init(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
@@ -2405,7 +2870,15 @@ void gui_set_resizable(SnaskValue* out, SnaskValue* _w, SnaskValue* _b) { (void)
 void gui_autosize(SnaskValue* out, SnaskValue* _w) { (void)_w; out->tag = (double)SNASK_NIL; }
 void gui_vbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_hbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_eventbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_scrolled(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_flowbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_flow_add(SnaskValue* out, SnaskValue* _f, SnaskValue* _c) { (void)_f; (void)_c; out->tag = (double)SNASK_NIL; }
+void gui_frame(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_set_margin(SnaskValue* out, SnaskValue* _w, SnaskValue* _m) { (void)_w; (void)_m; out->tag = (double)SNASK_NIL; }
+void gui_icon(SnaskValue* out, SnaskValue* _n, SnaskValue* _s) { (void)_n; (void)_s; out->tag = (double)SNASK_NIL; }
+void gui_css(SnaskValue* out, SnaskValue* _c) { (void)_c; out->tag = (double)SNASK_NIL; }
+void gui_add_class(SnaskValue* out, SnaskValue* _w, SnaskValue* _c) { (void)_w; (void)_c; out->tag = (double)SNASK_NIL; }
 void gui_listbox(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_list_add_text(SnaskValue* out, SnaskValue* _l, SnaskValue* _t) { (void)_l; (void)_t; out->tag = (double)SNASK_NIL; }
 void gui_on_select_ctx(SnaskValue* out, SnaskValue* _l, SnaskValue* _h, SnaskValue* _c) { (void)_l; (void)_h; (void)_c; out->tag = (double)SNASK_NIL; }
@@ -2414,6 +2887,7 @@ void gui_add(SnaskValue* out, SnaskValue* _b, SnaskValue* _c) { (void)_b; (void)
 void gui_add_expand(SnaskValue* out, SnaskValue* _b, SnaskValue* _c) { (void)_b; (void)_c; out->tag = (double)SNASK_NIL; }
 void gui_label(SnaskValue* out, SnaskValue* _t) { (void)_t; out->tag = (double)SNASK_NIL; }
 void gui_entry(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
+void gui_textview(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_set_placeholder(SnaskValue* out, SnaskValue* _e, SnaskValue* _t) { (void)_e; (void)_t; out->tag = (double)SNASK_NIL; }
 void gui_set_editable(SnaskValue* out, SnaskValue* _e, SnaskValue* _b) { (void)_e; (void)_b; out->tag = (double)SNASK_NIL; }
 void gui_button(SnaskValue* out, SnaskValue* _t) { (void)_t; out->tag = (double)SNASK_NIL; }
@@ -2424,14 +2898,35 @@ void gui_set_text(SnaskValue* out, SnaskValue* _w, SnaskValue* _t) { (void)_w; (
 void gui_get_text(SnaskValue* out, SnaskValue* _w) { (void)_w; out->tag = (double)SNASK_NIL; }
 void gui_on_click(SnaskValue* out, SnaskValue* _w, SnaskValue* _h) { (void)_w; (void)_h; out->tag = (double)SNASK_NIL; }
 void gui_on_click_ctx(SnaskValue* out, SnaskValue* _w, SnaskValue* _h, SnaskValue* _c) { (void)_w; (void)_h; (void)_c; out->tag = (double)SNASK_NIL; }
+void gui_on_tap_ctx(SnaskValue* out, SnaskValue* _w, SnaskValue* _h, SnaskValue* _c) { (void)_w; (void)_h; (void)_c; out->tag = (double)SNASK_NIL; }
 void gui_separator_h(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_separator_v(SnaskValue* out) { out->tag = (double)SNASK_NIL; }
 void gui_msg_info(SnaskValue* out, SnaskValue* _t, SnaskValue* _m) { (void)_t; (void)_m; out->tag = (double)SNASK_NIL; }
 void gui_msg_error(SnaskValue* out, SnaskValue* _t, SnaskValue* _m) { (void)_t; (void)_m; out->tag = (double)SNASK_NIL; }
 
+void skia_version(SnaskValue* out) { out->tag = (double)SNASK_STR; out->ptr = snask_gc_strdup("stub"); out->num = 0; }
+void skia_surface(SnaskValue* out, SnaskValue* _w, SnaskValue* _h) { (void)_w; (void)_h; out->tag = (double)SNASK_NIL; }
+void skia_surface_width(SnaskValue* out, SnaskValue* _s) { (void)_s; out->tag = (double)SNASK_NIL; }
+void skia_surface_height(SnaskValue* out, SnaskValue* _s) { (void)_s; out->tag = (double)SNASK_NIL; }
+void skia_surface_clear(SnaskValue* out, SnaskValue* _s, SnaskValue* _r, SnaskValue* _g, SnaskValue* _b, SnaskValue* _a) { (void)_s; (void)_r; (void)_g; (void)_b; (void)_a; out->tag = (double)SNASK_NIL; }
+void skia_surface_set_color(SnaskValue* out, SnaskValue* _s, SnaskValue* _r, SnaskValue* _g, SnaskValue* _b, SnaskValue* _a) { (void)_s; (void)_r; (void)_g; (void)_b; (void)_a; out->tag = (double)SNASK_NIL; }
+void skia_draw_rect(SnaskValue* out, SnaskValue* _s, SnaskValue* _x, SnaskValue* _y, SnaskValue* _w, SnaskValue* _h, SnaskValue* _f) { (void)_s; (void)_x; (void)_y; (void)_w; (void)_h; (void)_f; out->tag = (double)SNASK_NIL; }
+void skia_draw_circle(SnaskValue* out, SnaskValue* _s, SnaskValue* _cx, SnaskValue* _cy, SnaskValue* _r, SnaskValue* _f) { (void)_s; (void)_cx; (void)_cy; (void)_r; (void)_f; out->tag = (double)SNASK_NIL; }
+void skia_draw_line(SnaskValue* out, SnaskValue* _s, SnaskValue* _x1, SnaskValue* _y1, SnaskValue* _x2, SnaskValue* _y2, SnaskValue* _sw) { (void)_s; (void)_x1; (void)_y1; (void)_x2; (void)_y2; (void)_sw; out->tag = (double)SNASK_NIL; }
+void skia_draw_text(SnaskValue* out, SnaskValue* _s, SnaskValue* _x, SnaskValue* _y, SnaskValue* _t, SnaskValue* _sz) { (void)_s; (void)_x; (void)_y; (void)_t; (void)_sz; out->tag = (double)SNASK_NIL; }
+void skia_save_png(SnaskValue* out, SnaskValue* _s, SnaskValue* _p) { (void)_s; (void)_p; out->tag = (double)SNASK_NIL; }
+
 #endif
 
 // ---------------- calc helpers ----------------
+void mod(SnaskValue* out, SnaskValue* a, SnaskValue* b) {
+    if (!a || !b || (int)a->tag != SNASK_NUM || (int)b->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; return; }
+    if (b->num == 0.0) { out->tag = (double)SNASK_NIL; return; }
+    out->tag = (double)SNASK_NUM;
+    out->num = fmod(a->num, b->num);
+    out->ptr = NULL;
+}
+
 void str_to_num(SnaskValue* out, SnaskValue* s) {
     if (!s || (int)s->tag != SNASK_STR || !s->ptr) { out->tag = (double)SNASK_NIL; return; }
     char* end = NULL;
@@ -3373,7 +3868,15 @@ SNASK_ALIAS2(gui_set_resizable)
 SNASK_ALIAS1(gui_autosize)
 SNASK_ALIAS0(gui_vbox)
 SNASK_ALIAS0(gui_hbox)
+SNASK_ALIAS0(gui_eventbox)
 SNASK_ALIAS0(gui_scrolled)
+SNASK_ALIAS0(gui_flowbox)
+SNASK_ALIAS2(gui_flow_add)
+SNASK_ALIAS0(gui_frame)
+SNASK_ALIAS2(gui_set_margin)
+SNASK_ALIAS2(gui_icon)
+SNASK_ALIAS1(gui_css)
+SNASK_ALIAS2(gui_add_class)
 SNASK_ALIAS0(gui_listbox)
 SNASK_ALIAS2(gui_list_add_text)
 SNASK_ALIAS3(gui_on_select_ctx)
@@ -3382,6 +3885,7 @@ SNASK_ALIAS2(gui_add)
 SNASK_ALIAS2(gui_add_expand)
 SNASK_ALIAS1(gui_label)
 SNASK_ALIAS0(gui_entry)
+SNASK_ALIAS0(gui_textview)
 SNASK_ALIAS2(gui_set_placeholder)
 SNASK_ALIAS2(gui_set_editable)
 SNASK_ALIAS1(gui_button)
@@ -3392,6 +3896,7 @@ SNASK_ALIAS2(gui_set_text)
 SNASK_ALIAS1(gui_get_text)
 SNASK_ALIAS2(gui_on_click)
 SNASK_ALIAS3(gui_on_click_ctx)
+SNASK_ALIAS3(gui_on_tap_ctx)
 SNASK_ALIAS0(gui_separator_h)
 SNASK_ALIAS0(gui_separator_v)
 SNASK_ALIAS2(gui_msg_info)

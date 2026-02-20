@@ -1,0 +1,6 @@
+{
+  package: { name: "snask_vault", version: "0.1.0", entry: "main.snask", },
+  dependencies: { gui: "*", gui_app: "*", gui_layout: "*", gui_widgets: "*", snif: "*", json: "*", os: "*", sfs: "*", string: "*", prelude: "*", },
+  build: { opt_level: 2, },
+}
+

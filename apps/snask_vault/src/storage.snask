@@ -1,0 +1,41 @@
+import "json";
+import "snif";
+import "sfs";
+import "os";
+
+fun ensure_dir(dir_path)
+    sfs::mkdir(dir_path);
+    return true;
+
+fun new_vault()
+    let v = json::new_object();
+    json::set(v, "version", "1");
+    json::set(v, "salt", os::random_hex(8));
+    json::set(v, "entries", json::new_array());
+    return v;
+
+fun save(vault_dir, vault_path, vault_obj)
+    ensure_dir(vault_dir);
+    // SNIF file: today we persist as pretty JSON (valid SNIF subset in our runtime),
+    // but we also support loading legacy JSON if SNIF parsing fails.
+    return sfs::write(vault_path, json::pretty(vault_obj));
+
+fun load(vault_dir, vault_path)
+    ensure_dir(vault_dir);
+    if sfs::exists(vault_path) == false
+        let v = new_vault();
+        save(vault_dir, vault_path, v);
+        return v;
+
+    // Try SNIF first
+    let r = snif::read_snif_safe(vault_path);
+    if json::get(r, "ok")
+        return json::get(r, "value");
+
+    // Fallback: legacy JSON stored in a .snif file
+    let txt = sfs::read(vault_path);
+    let j = json::parse(txt);
+    if is_nil(j) == false
+        return j;
+
+    return new_vault();

@@ -17,6 +17,8 @@ pub struct SpsManifest {
     pub scripts: BTreeMap<String, String>,
     #[serde(default)]
     pub profile: ProfileSection,
+    #[serde(default)]
+    pub app: Option<AppSection>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -39,6 +41,30 @@ pub struct ProfileSection {
     pub release: BuildSection,
     #[serde(default)]
     pub dev: BuildSection,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct AppSection {
+    /// Reverse-DNS or simple ID, used for desktop files/app IDs.
+    pub id: String,
+    /// Human-friendly name.
+    pub name: String,
+    /// Short description.
+    #[serde(default)]
+    pub comment: String,
+    /// Icon path (relative to project root) or icon name.
+    #[serde(default)]
+    pub icon: String,
+    /// Whether this app needs a terminal.
+    #[serde(default)]
+    pub terminal: bool,
+    /// Desktop categories (semicolon-separated).
+    #[serde(default = "default_categories")]
+    pub categories: String,
+}
+
+fn default_categories() -> String {
+    "Utility;".to_string()
 }
 
 fn default_entry() -> String {
@@ -335,6 +361,20 @@ fn manifest_to_snif(m: &SpsManifest) -> String {
     out.push_str("  },\n");
 
     out.push_str(&format!("  build: {{ opt_level: {}, }},\n", m.build.opt_level));
+    if let Some(app) = &m.app {
+        out.push_str("  app: { ");
+        out.push_str(&format!("id: \"{}\", ", app.id.replace('\"', "")));
+        out.push_str(&format!("name: \"{}\", ", app.name.replace('\"', "")));
+        if !app.comment.trim().is_empty() {
+            out.push_str(&format!("comment: \"{}\", ", app.comment.replace('\"', "")));
+        }
+        if !app.icon.trim().is_empty() {
+            out.push_str(&format!("icon: \"{}\", ", app.icon.replace('\"', "")));
+        }
+        out.push_str(&format!("terminal: {}, ", if app.terminal { "true" } else { "false" }));
+        out.push_str(&format!("categories: \"{}\", ", app.categories.replace('\"', "")));
+        out.push_str("},\n");
+    }
     if !m.scripts.is_empty() {
         out.push_str("  scripts: {\n");
         for (k, v) in &m.scripts {
@@ -427,7 +467,25 @@ fn manifest_from_snif(src: &str) -> Result<SpsManifest, String> {
 
     let profile = ProfileSection::default();
 
-    Ok(SpsManifest { package, dependencies, build, scripts, profile })
+    let app = match root_obj.get("app") {
+        None => None,
+        Some(v) => {
+            let o = snif_get_obj(v, "app")?;
+            let id = snif_get_str(o, "id", Some(package.name.clone()))?;
+            let name = snif_get_str(o, "name", Some(package.name.clone()))?;
+            let comment = snif_get_str(o, "comment", Some("".to_string()))?;
+            let icon = snif_get_str(o, "icon", Some("".to_string()))?;
+            let terminal = match o.get("terminal") {
+                None => false,
+                Some(SnifValue::Bool(b)) => *b,
+                Some(_) => return Err("Expected bool for app.terminal".to_string()),
+            };
+            let categories = snif_get_str(o, "categories", Some(default_categories()))?;
+            Some(AppSection { id, name, comment, icon, terminal, categories })
+        }
+    };
+
+    Ok(SpsManifest { package, dependencies, build, scripts, profile, app })
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

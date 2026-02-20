@@ -16,6 +16,7 @@ fn is_library_native(name: &str) -> bool {
     }
     name.starts_with("sqlite_")
         || name.starts_with("gui_")
+        || name.starts_with("skia_")
         || name.starts_with("blaze_")
         || name.starts_with("auth_")
         || name.starts_with("sfs_")
@@ -32,6 +33,7 @@ fn is_library_native(name: &str) -> bool {
 fn library_native_help(name: &str) -> String {
     let lib = if name.starts_with("sqlite_") { "sqlite" }
     else if name.starts_with("gui_") { "gui" }
+    else if name.starts_with("skia_") { "snask_skia" }
     else if name.starts_with("blaze_") { "blaze" }
     else if name.starts_with("auth_") { "blaze_auth" }
     else if name.starts_with("sfs_") || name.starts_with("path_") { "sfs" }
@@ -78,6 +80,13 @@ impl<'ctx> LLVMGenerator<'ctx> {
 
     pub fn generate(&mut self, program: Program) -> Result<String, String> {
         self.declare_runtime();
+
+        let want_auto_use_skia = program.iter().any(|st| match &st.kind {
+            StmtKind::VarDeclaration(d) => d.name == "USE_SKIA",
+            StmtKind::MutDeclaration(d) => d.name == "USE_SKIA",
+            StmtKind::ConstDeclaration(d) => d.name == "USE_SKIA",
+            _ => false,
+        });
         
         // Declara funções globais e preenche mapa de classes
         for stmt in &program { 
@@ -103,11 +112,33 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.builder.position_at_end(entry);
         self.current_func = Some(main_func);
 
-        // Sempre executa top-level statements (globals) antes do start.
+        // Always execute top-level statements (globals) before start.
         // Isso permite que módulos importados inicializem estado (mut/let/const) mesmo quando existe main::start.
         for stmt in &program {
             if !matches!(stmt.kind, StmtKind::FuncDeclaration(_) | StmtKind::ClassDeclaration(_)) {
                 self.generate_statement(stmt.clone())?;
+            }
+        }
+
+        // DX: optional real Skia backend switch.
+        // If the user defines `USE_SKIA = 1` at top-level, enable Skia before calling main::start.
+        // Default remains Cairo.
+        if want_auto_use_skia {
+            if let Some(p) = self.variables.get("USE_SKIA") {
+                let v = self.builder.build_load(self.value_type, *p, "use_skia_val").unwrap().into_struct_value();
+                let n = self.builder.build_extract_value(v, 1, "use_skia_n").unwrap().into_float_value();
+                let is_true = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, n, self.context.f64_type().const_float(0.0), "use_skia_true").unwrap();
+                let b = self.builder.build_unsigned_int_to_float(is_true, self.context.f64_type(), "use_skia_bf").unwrap();
+                let mut bs = self.value_type.get_undef();
+                bs = self.builder.build_insert_value(bs, self.context.f64_type().const_float(2.0), 0, "t").unwrap().into_struct_value(); // BOOL
+                bs = self.builder.build_insert_value(bs, b, 1, "v").unwrap().into_struct_value();
+                bs = self.builder.build_insert_value(bs, self.ptr_type.const_null(), 2, "p").unwrap().into_struct_value();
+                let b_ptr = self.builder.build_alloca(self.value_type, "use_skia_arg").unwrap();
+                self.builder.build_store(b_ptr, bs).unwrap();
+
+                let f = self.functions.get("skia_use_real").unwrap();
+                let r_a = self.builder.build_alloca(self.value_type, "ra_use_skia").unwrap();
+                self.builder.build_call(*f, &[r_a.into(), b_ptr.into()], "use_skia").unwrap();
             }
         }
 
@@ -239,6 +270,8 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("s_upper".to_string(), f_upper);
         self.functions.insert("upper".to_string(), f_upper);
 
+        self.functions.insert("mod".to_string(), self.module.add_function("mod", fn_2, None));
+
         self.functions.insert("substring".to_string(), self.module.add_function("substring", fn_3, None));
 
         let f_time = self.module.add_function("s_time", void_type.fn_type(&[self.ptr_type.into()], false), None);
@@ -331,6 +364,20 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("gui_separator_v".to_string(), self.module.add_function("gui_separator_v", void_type.fn_type(&[self.ptr_type.into()], false), None));
         self.functions.insert("gui_msg_info".to_string(), self.module.add_function("gui_msg_info", fn_2, None));
         self.functions.insert("gui_msg_error".to_string(), self.module.add_function("gui_msg_error", fn_2, None));
+
+        // Skia (experimental)
+        self.functions.insert("skia_version".to_string(), self.module.add_function("skia_version", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("skia_use_real".to_string(), self.module.add_function("skia_use_real", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_surface".to_string(), self.module.add_function("skia_surface", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_surface_width".to_string(), self.module.add_function("skia_surface_width", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_surface_height".to_string(), self.module.add_function("skia_surface_height", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_surface_clear".to_string(), self.module.add_function("skia_surface_clear", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_surface_set_color".to_string(), self.module.add_function("skia_surface_set_color", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_draw_rect".to_string(), self.module.add_function("skia_draw_rect", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_draw_circle".to_string(), self.module.add_function("skia_draw_circle", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_draw_line".to_string(), self.module.add_function("skia_draw_line", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_draw_text".to_string(), self.module.add_function("skia_draw_text", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_save_png".to_string(), self.module.add_function("skia_save_png", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
 
         self.functions.insert("str_to_num".to_string(), self.module.add_function("str_to_num", fn_1, None));
         self.functions.insert("num_to_str".to_string(), self.module.add_function("num_to_str", fn_1, None));
@@ -427,6 +474,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
             "blaze_run","blaze_qs_get","blaze_cookie_get",
             "auth_random_hex","auth_now","auth_const_time_eq","auth_hash_password","auth_verify_password","auth_session_id","auth_csrf_token","auth_cookie_kv","auth_cookie_session","auth_cookie_delete","auth_bearer_header","auth_ok","auth_fail","auth_version",
             "gui_init","gui_run","gui_quit","gui_window","gui_set_title","gui_set_resizable","gui_autosize","gui_vbox","gui_hbox","gui_eventbox","gui_scrolled","gui_flowbox","gui_flow_add","gui_frame","gui_set_margin","gui_icon","gui_css","gui_add_class","gui_listbox","gui_list_add_text","gui_on_select_ctx","gui_set_child","gui_add","gui_add_expand","gui_label","gui_entry","gui_set_placeholder","gui_set_editable","gui_button","gui_set_enabled","gui_set_visible","gui_show_all","gui_set_text","gui_get_text","gui_on_click","gui_on_click_ctx","gui_on_tap_ctx","gui_separator_h","gui_separator_v","gui_msg_info","gui_msg_error",
+            "skia_version","skia_use_real","skia_surface","skia_surface_width","skia_surface_height","skia_surface_clear","skia_surface_set_color","skia_draw_rect","skia_draw_circle","skia_draw_line","skia_draw_text","skia_save_png",
             "sqlite_open","sqlite_close","sqlite_exec","sqlite_query","sqlite_prepare","sqlite_finalize","sqlite_reset","sqlite_bind_text","sqlite_bind_num","sqlite_bind_null","sqlite_step","sqlite_column","sqlite_column_count","sqlite_column_name",
             "thread_spawn","thread_join","thread_detach",
             // JSON / SNIF
@@ -958,11 +1006,23 @@ impl<'ctx> LLVMGenerator<'ctx> {
 
                     let s_name = self.sanitize_name(name);
                     let f_name = format!("f_{}", s_name);
-                    // Ordem de busca: f_nome (usuário/lib), depois nome (nativas do runtime)
-                    let f = self.module.get_function(&f_name)
+                    // Lookup order:
+                    // - If this is an internal "__" alias, prefer resolving to the real runtime symbol (without "__")
+                    //   so we don't require `__*` symbols to exist at link time.
+                    // - Then: f_<name> (user/lib), then direct/runtime names.
+                    let internal_alias = name.strip_prefix("__").and_then(|n| {
+                        self.functions
+                            .get(n)
+                            .cloned()
+                            .or_else(|| self.module.get_function(n))
+                    });
+
+                    let f = internal_alias
+                        .or_else(|| self.module.get_function(&f_name))
                         .or_else(|| self.module.get_function(&s_name))
                         .or_else(|| self.module.get_function(name))
                         .or_else(|| self.functions.get(name).cloned())
+                        .or_else(|| name.strip_prefix("__").and_then(|n| self.functions.get(n).cloned()))
                         .ok_or_else(|| format!("Função {} não encontrada.", name))?;
                     let mut l_args = Vec::new();
                     let r_a = self.builder.build_alloca(self.value_type, "ra").unwrap();

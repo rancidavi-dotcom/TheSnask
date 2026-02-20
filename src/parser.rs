@@ -2,10 +2,50 @@ use crate::ast::{
     Program, Stmt, StmtKind, Expr, ExprKind, VarDecl, MutDecl, ConstDecl, LiteralValue, 
     BinaryOp, UnaryOp, ConditionalStmt, IfBlock, LoopStmt, FuncDecl, Location
 };
+use crate::span::{Position, Span};
 use crate::types::Type;
 use std::iter::Peekable;
 use std::str::FromStr;
 use std::str::Chars;
+
+#[derive(Debug, Clone)]
+pub struct ParseError {
+    pub code: &'static str,
+    pub message: String,
+    pub span: Span,
+    pub help: Option<String>,
+    pub notes: Vec<String>,
+}
+
+impl ParseError {
+    pub fn new(code: &'static str, message: String, span: Span) -> Self {
+        ParseError {
+            code,
+            message,
+            span,
+            help: None,
+            notes: Vec::new(),
+        }
+    }
+
+    pub fn with_help(mut self, help: String) -> Self {
+        self.help = Some(help);
+        self
+    }
+
+    pub fn with_note(mut self, note: String) -> Self {
+        self.notes.push(note);
+        self
+    }
+}
+
+type ParseResult<T> = Result<T, ParseError>;
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
 
 
 
@@ -30,6 +70,7 @@ pub enum Token {
     List(Location),
     Dict(Location),
     Import(Location),
+    From(Location),
     True(Location),
     False(Location),
     Nil(Location),
@@ -105,6 +146,7 @@ impl Token {
             Token::List(loc) |
             Token::Dict(loc) |
             Token::Import(loc) |
+            Token::From(loc) |
             Token::True(loc) |
             Token::False(loc) |
             Token::Nil(loc) |
@@ -169,6 +211,7 @@ impl Token {
             Token::List(_) => "'list'".to_string(),
             Token::Dict(_) => "'dict'".to_string(),
             Token::Import(_) => "'import'".to_string(),
+            Token::From(_) => "'from'".to_string(),
             Token::True(_) => "'true'".to_string(),
             Token::False(_) => "'false'".to_string(),
             Token::Nil(_) => "'nil'".to_string(),
@@ -504,6 +547,7 @@ impl<'a> Tokenizer<'a> {
             "list" => Token::List(loc),
             "dict" => Token::Dict(loc),
             "import" => Token::Import(loc),
+            "from" => Token::From(loc),
             "true" => Token::True(loc),
             "false" => Token::False(loc),
             "nil" => Token::Nil(loc),
@@ -631,10 +675,14 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(input: &'a str) -> Result<Self, String> {
+    pub fn new(input: &'a str) -> ParseResult<Self> {
         let mut tokenizer = Tokenizer::new(input);
-        let current_token = tokenizer.next_token()?;
-        let peek_token = tokenizer.next_token()?; // Initialize peek_token
+        let current_token = tokenizer.next_token().map_err(|e| {
+            ParseError::new("SNASK-PARSE-TOKENIZE", e, Span::single(Position::start()))
+        })?;
+        let peek_token = tokenizer.next_token().map_err(|e| {
+            ParseError::new("SNASK-PARSE-TOKENIZE", e, Span::single(Position::start()))
+        })?; // Initialize peek_token
         Ok(Parser {
             tokenizer,
             current_token,
@@ -653,44 +701,139 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn consume_token(&mut self, expected_variant: &Token) -> Result<Token, String> {
+    fn span_len(loc: &Location, len: usize) -> Span {
+        let start = Position::from_line_col(loc.line, loc.column);
+        let end = start.advance_cols(len.max(1));
+        Span::new(start, end)
+    }
+
+    fn span1(loc: &Location) -> Span {
+        Self::span_len(loc, 1)
+    }
+
+    fn token_len(tok: &Token) -> usize {
+        match tok {
+            Token::Identifier(s, _) => s.len().max(1),
+            Token::Number(n, _) => format!("{}", n).len().max(1),
+            Token::String(s, _) => (s.len() + 2).max(1),
+            Token::Let(_) => 3,
+            Token::Mut(_) => 3,
+            Token::Const(_) => 5,
+            Token::Print(_) => 5,
+            Token::Input(_) => 5,
+            Token::Fun(_) => 3,
+            Token::Class(_) => 5,
+            Token::SelfKw(_) => 4,
+            Token::Return(_) => 6,
+            Token::If(_) => 2,
+            Token::Elif(_) => 4,
+            Token::Else(_) => 4,
+            Token::While(_) => 5,
+            Token::For(_) => 3,
+            Token::In(_) => 2,
+            Token::List(_) => 4,
+            Token::Dict(_) => 4,
+            Token::Import(_) => 6,
+            Token::From(_) => 4,
+            Token::True(_) => 4,
+            Token::False(_) => 5,
+            Token::Nil(_) => 3,
+            Token::And(_) => 3,
+            Token::Or(_) => 2,
+            Token::Not(_) => 3,
+            Token::DoubleSlash(_) => 2,
+            Token::PlusEqual(_) | Token::MinusEqual(_) | Token::StarEqual(_) | Token::SlashEqual(_) => 2,
+            Token::EqualEqual(_) | Token::BangEqual(_) | Token::LessEqual(_) | Token::GreaterEqual(_) | Token::DoubleColon(_) => 2,
+            Token::TripleEqual(_) => 3,
+            _ => 1,
+        }
+    }
+
+    fn token_span(tok: &Token) -> Span {
+        let loc = tok.get_location().clone();
+        Self::span_len(&loc, Self::token_len(tok))
+    }
+
+    fn consume_token(&mut self, expected_variant: &Token) -> ParseResult<Token> {
         if std::mem::discriminant(&self.current_token) == std::mem::discriminant(expected_variant) {
             let consumed_token = self.current_token.clone();
             self.current_token = self.peek_token.clone();
-            self.peek_token = self.tokenizer.next_token()?;
+            self.peek_token = self.tokenizer.next_token().map_err(|e| {
+                ParseError::new(
+                    "SNASK-PARSE-TOKENIZE",
+                    e,
+                    Span::single(Position::start()),
+                )
+            })?;
             Ok(consumed_token)
         } else {
-            let found_loc = self.current_token.get_location().clone();
-            let mut msg = format!(
-                "Expected {}, but found {} at line {}, column {}",
+            let found = self.current_token.clone();
+            let span = Self::token_span(&found);
+            let msg = format!(
+                "Expected {}, but found {}.",
                 expected_variant.friendly_name(),
-                self.current_token.friendly_name(),
-                found_loc.line,
-                found_loc.column
+                found.friendly_name()
             );
-            if matches!(expected_variant, Token::Semicolon(_)) {
-                msg.push_str(" (hint: you probably missed a ';' at the end of the line)");
-            }
-            if matches!(expected_variant, Token::Indent(_)) {
-                msg.push_str(" (hint: check the block indentation; keep it consistent throughout the file)");
-            }
-            Err(msg)
+
+            let mut err = if matches!(expected_variant, Token::Semicolon(_)) {
+                ParseError::new("SNASK-PARSE-SEMICOLON", msg, span).with_help(
+                    "You probably missed a ';' at the end of the line.".to_string(),
+                )
+            } else if matches!(expected_variant, Token::RightParen(_))
+                && matches!(found, Token::Newline(_) | Token::Dedent(_) | Token::Eof(_))
+            {
+                ParseError::new("SNASK-PARSE-MISSING-RPAREN", msg, span).with_help(
+                    "You probably missed a closing ')'.".to_string(),
+                )
+            } else if matches!(expected_variant, Token::RightBracket(_))
+                && matches!(found, Token::Newline(_) | Token::Dedent(_) | Token::Eof(_))
+            {
+                ParseError::new("SNASK-PARSE-MISSING-RBRACKET", msg, span).with_help(
+                    "You probably missed a closing ']'.".to_string(),
+                )
+            } else if matches!(expected_variant, Token::RightBrace(_))
+                && matches!(found, Token::Newline(_) | Token::Dedent(_) | Token::Eof(_))
+            {
+                ParseError::new("SNASK-PARSE-MISSING-RBRACE", msg, span).with_help(
+                    "You probably missed a closing '}'.".to_string(),
+                )
+            } else if matches!(expected_variant, Token::Indent(_)) {
+                ParseError::new("SNASK-PARSE-INDENT", msg, span).with_help(
+                    "Check block indentation; keep it consistent throughout the file.".to_string(),
+                )
+            } else {
+                ParseError::new("SNASK-PARSE-EXPECTED", msg, span)
+            };
+
+            err = err.with_note(format!("expected: {}", expected_variant.friendly_name()));
+            Err(err)
         }
     }
     
-    fn consume_identifier(&mut self) -> Result<(String, Location), String> {
+    fn consume_identifier(&mut self) -> ParseResult<(String, Location)> {
         let (name, loc) = match self.current_token.clone() {
             Token::Identifier(s, loc) => (s, loc),
             _ => {
-                let found_loc = self.current_token.get_location().clone();
-                return Err(format!("Expected identifier, but found {} at line {}, column {}", self.current_token.friendly_name(), found_loc.line, found_loc.column));
+                let found = self.current_token.clone();
+                let span = Self::token_span(&found);
+                return Err(ParseError::new(
+                    "SNASK-PARSE-IDENT",
+                    format!("Expected identifier, but found {}.", found.friendly_name()),
+                    span,
+                ));
             }
         };
         // This was the bug: it was consuming directly from tokenizer,
         // bypassing the peek_token mechanism.
         // It should update current_token from peek_token, and peek_token from tokenizer.
         self.current_token = self.peek_token.clone();
-        self.peek_token = self.tokenizer.next_token()?;
+        self.peek_token = self.tokenizer.next_token().map_err(|e| {
+            ParseError::new(
+                "SNASK-PARSE-TOKENIZE",
+                e,
+                Span::single(Position::start()),
+            )
+        })?;
         Ok((name, loc))
     }
     
@@ -698,7 +841,7 @@ impl<'a> Parser<'a> {
         matches!(self.current_token, Token::Eof(_))
     }
 
-    pub fn parse_program(&mut self) -> Result<Program, String> {
+    pub fn parse_program(&mut self) -> ParseResult<Program> {
         let mut program = Vec::new();
         while !self.at_end() {
             // Ignora novas linhas no topo do arquivo
@@ -712,7 +855,7 @@ impl<'a> Parser<'a> {
         Ok(program)
     }
 
-    fn parse_statement(&mut self) -> Result<Stmt, String> {
+    fn parse_statement(&mut self) -> ParseResult<Stmt> {
         if let Token::Identifier(_, loc) = self.current_token.clone() {
             let op_tok = match self.peek_token {
                 Token::Equal(_) |
@@ -730,15 +873,15 @@ impl<'a> Parser<'a> {
                 let rhs = self.parse_expression(Precedence::Assignment)?;
                 let value = match op_tok {
                     Token::Equal(_) => rhs,
-                    Token::PlusEqual(_) => Expr { kind: ExprKind::Binary { op: BinaryOp::Add, left: Box::new(Expr { kind: ExprKind::Variable(name.clone()), loc: loc.clone() }), right: Box::new(rhs) }, loc: loc.clone() },
-                    Token::MinusEqual(_) => Expr { kind: ExprKind::Binary { op: BinaryOp::Subtract, left: Box::new(Expr { kind: ExprKind::Variable(name.clone()), loc: loc.clone() }), right: Box::new(rhs) }, loc: loc.clone() },
-                    Token::StarEqual(_) => Expr { kind: ExprKind::Binary { op: BinaryOp::Multiply, left: Box::new(Expr { kind: ExprKind::Variable(name.clone()), loc: loc.clone() }), right: Box::new(rhs) }, loc: loc.clone() },
-                    Token::SlashEqual(_) => Expr { kind: ExprKind::Binary { op: BinaryOp::Divide, left: Box::new(Expr { kind: ExprKind::Variable(name.clone()), loc: loc.clone() }), right: Box::new(rhs) }, loc: loc.clone() },
+                    Token::PlusEqual(_) => Expr { kind: ExprKind::Binary { op: BinaryOp::Add, left: Box::new(Expr { kind: ExprKind::Variable(name.clone()), loc: loc.clone(), span: loc.to_span() }), right: Box::new(rhs) }, loc: loc.clone(), span: loc.to_span() },
+                    Token::MinusEqual(_) => Expr { kind: ExprKind::Binary { op: BinaryOp::Subtract, left: Box::new(Expr { kind: ExprKind::Variable(name.clone()), loc: loc.clone(), span: loc.to_span() }), right: Box::new(rhs) }, loc: loc.clone(), span: loc.to_span() },
+                    Token::StarEqual(_) => Expr { kind: ExprKind::Binary { op: BinaryOp::Multiply, left: Box::new(Expr { kind: ExprKind::Variable(name.clone()), loc: loc.clone(), span: loc.to_span() }), right: Box::new(rhs) }, loc: loc.clone(), span: loc.to_span() },
+                    Token::SlashEqual(_) => Expr { kind: ExprKind::Binary { op: BinaryOp::Divide, left: Box::new(Expr { kind: ExprKind::Variable(name.clone()), loc: loc.clone(), span: loc.to_span() }), right: Box::new(rhs) }, loc: loc.clone(), span: loc.to_span() },
                     _ => rhs,
                 };
                 self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
                 let kind = StmtKind::VarAssignment(crate::ast::VarSet { name, value });
-                return Ok(Stmt { kind, loc });
+                return Ok(Stmt { kind, loc: loc.clone(), span: loc.to_span() });
             }
         }
 
@@ -759,6 +902,7 @@ impl<'a> Parser<'a> {
             Token::Class(_) => self.parse_class_declaration(),
             Token::Return(_) => self.parse_return_statement(),
             Token::Import(_) => self.parse_import_statement(),
+            Token::From(_) => self.parse_from_import_statement(),
             _ => {
                 let loc = self.current_token.get_location().clone();
                 let expr = self.parse_expression(Precedence::Assignment)?;
@@ -768,42 +912,115 @@ impl<'a> Parser<'a> {
                     _ => StmtKind::Expression(expr),
                 };
                 self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-                Ok(Stmt { kind, loc })
+                Ok(Stmt { kind, loc: loc.clone(), span: loc.to_span() })
             }
         }
     }
 
-    fn parse_input_statement(&mut self) -> Result<Stmt, String> {
+    fn parse_input_statement(&mut self) -> ParseResult<Stmt> {
         let loc = self.consume_token(&Token::Input(Location{line:0, column:0}))?.get_location().clone();
         let (name, _) = self.consume_identifier()?;
         let var_type = self.parse_type_annotation()?
-            .ok_or_else(|| "Expected a type annotation (e.g. ': str') after the variable name in the 'input' statement.".to_string())?;
+            .ok_or_else(|| ParseError::new(
+                "SNASK-PARSE-TYPE-ANNOT",
+                "Expected a type annotation (e.g. ': str') after the variable name in the 'input' statement.".to_string(),
+                Self::span1(&loc),
+            ))?;
         
-        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
+        let end_loc = self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?.get_location().clone();
+        let span = Self::span1(&loc).merge(&Self::span1(&end_loc));
         Ok(Stmt {
             kind: StmtKind::Input { name, var_type },
-            loc,
+            loc: loc.clone(),
+            span,
         })
     }
 
-    fn parse_import_statement(&mut self) -> Result<Stmt, String> {
+    fn parse_import_statement(&mut self) -> ParseResult<Stmt> {
         let loc = self.consume_token(&Token::Import(Location{line:0, column:0}))?.get_location().clone();
         let path = match self.current_token.clone() {
             Token::String(s, _) => {
                 self.consume_token(&Token::String("".to_string(), Location{line:0, column:0}))?;
                 s
             },
-            _ => return Err(format!("Expected string literal after 'import', found {}", self.current_token.friendly_name())),
+            _ => {
+                let found = self.current_token.clone();
+                return Err(ParseError::new(
+                    "SNASK-PARSE-IMPORT",
+                    format!("Expected string literal after 'import', found {}.", found.friendly_name()),
+                    Self::token_span(&found),
+                ));
+            }
         };
         
-        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
+        let end_loc = self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?.get_location().clone();
+        let span = Self::span1(&loc).merge(&Self::span1(&end_loc));
         Ok(Stmt {
             kind: StmtKind::Import(path),
-            loc,
+            loc: loc.clone(),
+            span,
         })
     }
+
+    fn parse_from_import_statement(&mut self) -> ParseResult<Stmt> {
+        let loc = self.consume_token(&Token::From(Location{line:0, column:0}))?.get_location().clone();
+
+        // from / import module;
+        // from dir/subdir import module;
+        let mut is_current_dir = false;
+        let mut from_parts: Vec<String> = Vec::new();
+
+        match self.current_token.clone() {
+            Token::Slash(_) => {
+                self.consume_token(&Token::Slash(Location { line: 0, column: 0 }))?;
+                is_current_dir = true;
+            }
+            Token::Identifier(_, _) => {
+                // Parse identifiers separated by '/'
+                loop {
+                    let (seg, _) = self.consume_identifier()?;
+                    from_parts.push(seg);
+                    if matches!(self.current_token, Token::Slash(_)) {
+                        self.consume_token(&Token::Slash(Location { line: 0, column: 0 }))?;
+                        continue;
+                    }
+                    break;
+                }
+            }
+            _ => {
+                let found = self.current_token.clone();
+                return Err(ParseError::new(
+                    "SNASK-PARSE-FROM",
+                    format!(
+                        "Expected '/' or a directory name after 'from', found {}.",
+                        found.friendly_name()
+                    ),
+                    Self::token_span(&found),
+                ));
+            }
+        }
+
+        self.consume_token(&Token::Import(Location { line: 0, column: 0 }))?;
+
+        let (module, _) = self.consume_identifier()?;
+
+        let end_loc = self
+            .consume_token(&Token::Semicolon(Location { line: 0, column: 0 }))?
+            .get_location()
+            .clone();
+        let span = Self::span1(&loc).merge(&Self::span1(&end_loc));
+        Ok(Stmt::with_span(
+            StmtKind::FromImport {
+                from: from_parts,
+                is_current_dir,
+                module,
+            },
+            loc,
+            span,
+        ))
+    }
     
-    fn parse_block(&mut self) -> Result<Vec<Stmt>, String> {
+    fn parse_block(&mut self) -> ParseResult<Vec<Stmt>> {
         // Se houver uma nova linha antes do bloco, consome.
         if let Token::Newline(_) = self.current_token {
             self.consume_token(&Token::Newline(Location{line:0, column:0}))?;
@@ -826,7 +1043,7 @@ impl<'a> Parser<'a> {
         Ok(stmts)
     }
 
-    fn parse_class_declaration(&mut self) -> Result<Stmt, String> {
+    fn parse_class_declaration(&mut self) -> ParseResult<Stmt> {
         let loc = self.consume_token(&Token::Class(Location{line:0, column:0}))?.get_location().clone();
         let (name, _) = self.consume_identifier()?;
         
@@ -853,7 +1070,14 @@ impl<'a> Parser<'a> {
                     let stmt = self.parse_fun_declaration()?;
                     if let StmtKind::FuncDeclaration(d) = stmt.kind { methods.push(d); }
                 }
-                _ => return Err(format!("Unexpected token in class: {} at line {}, column {}", self.current_token.friendly_name(), self.current_token.get_location().line, self.current_token.get_location().column)),
+                _ => {
+                    let found = self.current_token.clone();
+                    return Err(ParseError::new(
+                        "SNASK-PARSE-CLASS",
+                        format!("Unexpected token in class: {}.", found.friendly_name()),
+                        Self::token_span(&found),
+                    ));
+                }
             }
         }
         
@@ -861,16 +1085,29 @@ impl<'a> Parser<'a> {
             self.consume_token(&Token::Dedent(Location{line:0, column:0}))?;
         }
 
-        Ok(Stmt {
-            kind: StmtKind::ClassDeclaration(crate::ast::ClassDecl { name, properties, methods }),
+        let mut span = Self::span_len(&loc, 5);
+        if let Some(_last) = methods.last() {
+            // Best-effort: methods are declarations; span points to class keyword..last method
+            // (method spans are already on their statements in the body parsing above)
+            span = span.merge(&Self::span1(&loc));
+            // Can't access stmt spans here; fallback to class keyword.
+        }
+        Ok(Stmt::with_span(
+            StmtKind::ClassDeclaration(crate::ast::ClassDecl { name, properties, methods }),
             loc,
-        })
+            span,
+        ))
     }
 
-    fn parse_if_statement(&mut self) -> Result<Stmt, String> {
+    fn parse_if_statement(&mut self) -> ParseResult<Stmt> {
         let loc = self.consume_token(&Token::If(Location{line:0, column:0}))?.get_location().clone();
         let condition = self.parse_expression(Precedence::Assignment)?;
         let body = self.parse_block()?;
+
+        let mut span = Self::span_len(&loc, 2).merge(&condition.span);
+        if let Some(last) = body.last() {
+            span = span.merge(&last.span);
+        }
         
         let if_block = IfBlock { condition, body };
         let mut elif_blocks = Vec::new();
@@ -879,45 +1116,72 @@ impl<'a> Parser<'a> {
             self.consume_token(&Token::Elif(Location{line:0, column:0}))?;
             let condition = self.parse_expression(Precedence::Assignment)?;
             let body = self.parse_block()?;
+            span = span.merge(&condition.span);
+            if let Some(last) = body.last() {
+                span = span.merge(&last.span);
+            }
             elif_blocks.push(IfBlock { condition, body });
         }
         
         let else_block = if let Token::Else(_) = self.current_token {
             self.consume_token(&Token::Else(Location{line:0, column:0}))?;
-            Some(self.parse_block()?)
+            let b = self.parse_block()?;
+            if let Some(last) = b.last() {
+                span = span.merge(&last.span);
+            }
+            Some(b)
         } else {
             None
         };
 
-        Ok(Stmt {
-            kind: StmtKind::Conditional(ConditionalStmt { if_block, elif_blocks, else_block }),
+        Ok(Stmt::with_span(
+            StmtKind::Conditional(ConditionalStmt {
+                if_block,
+                elif_blocks,
+                else_block,
+            }),
             loc,
-        })
+            span,
+        ))
     }
 
-    fn parse_while_statement(&mut self) -> Result<Stmt, String> {
+    fn parse_while_statement(&mut self) -> ParseResult<Stmt> {
         let loc = self.consume_token(&Token::While(Location{line:0, column:0}))?.get_location().clone();
         let condition = self.parse_expression(Precedence::Assignment)?;
         let body = self.parse_block()?;
-        Ok(Stmt {
-            kind: StmtKind::Loop(LoopStmt::While { condition, body }),
+        let mut span = Self::span_len(&loc, 5).merge(&condition.span);
+        if let Some(last) = body.last() {
+            span = span.merge(&last.span);
+        }
+        Ok(Stmt::with_span(
+            StmtKind::Loop(LoopStmt::While { condition, body }),
             loc,
-        })
+            span,
+        ))
     }
 
-    fn parse_for_statement(&mut self) -> Result<Stmt, String> {
+    fn parse_for_statement(&mut self) -> ParseResult<Stmt> {
         let loc = self.consume_token(&Token::For(Location{line:0, column:0}))?.get_location().clone();
         let (iterator, _) = self.consume_identifier()?;
         self.consume_token(&Token::In(Location{line:0, column:0}))?;
         let iterable = self.parse_expression(Precedence::Assignment)?;
         let body = self.parse_block()?;
-        Ok(Stmt {
-            kind: StmtKind::Loop(LoopStmt::For { iterator, iterable, body }),
+        let mut span = Self::span_len(&loc, 3).merge(&iterable.span);
+        if let Some(last) = body.last() {
+            span = span.merge(&last.span);
+        }
+        Ok(Stmt::with_span(
+            StmtKind::Loop(LoopStmt::For {
+                iterator,
+                iterable,
+                body,
+            }),
             loc,
-        })
+            span,
+        ))
     }
 
-    fn parse_fun_declaration(&mut self) -> Result<Stmt, String> {
+    fn parse_fun_declaration(&mut self) -> ParseResult<Stmt> {
         let loc = self.consume_token(&Token::Fun(Location{line:0, column:0}))?.get_location().clone();
         let (name, _) = self.consume_identifier()?;
         self.consume_token(&Token::LeftParen(Location{line:0, column:0}))?;
@@ -943,74 +1207,106 @@ impl<'a> Parser<'a> {
         let return_type: Option<Type> = self.parse_type_annotation()?;
         let body = self.parse_block()?;
 
-        Ok(Stmt {
-            kind: StmtKind::FuncDeclaration(FuncDecl { name, params, return_type, body }),
+        let mut span = Self::span_len(&loc, 3);
+        if let Some(last) = body.last() {
+            span = span.merge(&last.span);
+        }
+        Ok(Stmt::with_span(
+            StmtKind::FuncDeclaration(FuncDecl {
+                name,
+                params,
+                return_type,
+                body,
+            }),
             loc,
-        })
+            span,
+        ))
     }
 
-    fn parse_return_statement(&mut self) -> Result<Stmt, String> {
+    fn parse_return_statement(&mut self) -> ParseResult<Stmt> {
         let loc = self.consume_token(&Token::Return(Location { line: 0, column: 0 }))?.get_location().clone();
         let value = self.parse_expression(Precedence::Assignment)?;
-        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-        Ok(Stmt {
-            kind: StmtKind::Return(value),
-            loc,
-        })
+        let end_loc = self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?.get_location().clone();
+        let span = Self::span1(&loc).merge(&value.span).merge(&Self::span1(&end_loc));
+        Ok(Stmt::with_span(StmtKind::Return(value), loc, span))
     }
 
-    fn parse_type_annotation(&mut self) -> Result<Option<Type>, String> {
+    fn parse_type_annotation(&mut self) -> ParseResult<Option<Type>> {
         if matches!(self.current_token, Token::Colon(_)) {
             self.consume_token(&Token::Colon(Location{line:0, column:0}))?;
             let (type_name, _) = self.consume_identifier()?;
-            let var_type = Type::from_str(&type_name).map_err(|_| format!("Tipo desconhecido: {}", type_name))?;
+            let var_type = Type::from_str(&type_name).map_err(|_| {
+                ParseError::new(
+                    "SNASK-PARSE-TYPE",
+                    format!("Unknown type: {}", type_name),
+                    Self::span_len(&self.current_token.get_location().clone(), type_name.len().max(1)),
+                )
+            })?;
             Ok(Some(var_type))
         } else {
             Ok(None)
         }
     }
 
-    fn parse_var_declaration(&mut self) -> Result<Stmt, String> {
+    fn parse_var_declaration(&mut self) -> ParseResult<Stmt> {
         let loc = self.consume_token(&Token::Let(Location{line:0, column:0}))?.get_location().clone();
         let (name, _) = self.consume_identifier()?;
         let var_type = self.parse_type_annotation()?;
         self.consume_token(&Token::Equal(Location{line:0, column:0}))?;
         let value = self.parse_expression(Precedence::Assignment)?;
-        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-        Ok(Stmt {
-            kind: StmtKind::VarDeclaration(VarDecl { name, var_type, value }),
+        let end_loc = self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?.get_location().clone();
+        let span = Self::span1(&loc).merge(&value.span).merge(&Self::span1(&end_loc));
+        Ok(Stmt::with_span(
+            StmtKind::VarDeclaration(VarDecl {
+                name,
+                var_type,
+                value,
+            }),
             loc,
-        })
+            span,
+        ))
     }
 
-    fn parse_mut_declaration(&mut self) -> Result<Stmt, String> {
+    fn parse_mut_declaration(&mut self) -> ParseResult<Stmt> {
         let loc = self.consume_token(&Token::Mut(Location{line:0, column:0}))?.get_location().clone();
         let (name, _) = self.consume_identifier()?;
         let var_type = self.parse_type_annotation()?;
         self.consume_token(&Token::Equal(Location{line:0, column:0}))?;
         let value = self.parse_expression(Precedence::Assignment)?;
-        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-        Ok(Stmt {
-            kind: StmtKind::MutDeclaration(MutDecl { name, var_type, value }),
+        let end_loc = self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?.get_location().clone();
+        let span = Self::span1(&loc).merge(&value.span).merge(&Self::span1(&end_loc));
+        Ok(Stmt::with_span(
+            StmtKind::MutDeclaration(MutDecl {
+                name,
+                var_type,
+                value,
+            }),
             loc,
-        })
+            span,
+        ))
     }
 
-    fn parse_const_declaration(&mut self) -> Result<Stmt, String> {
+    fn parse_const_declaration(&mut self) -> ParseResult<Stmt> {
         let loc = self.consume_token(&Token::Const(Location{line:0, column:0}))?.get_location().clone();
         let (name, _) = self.consume_identifier()?;
         let var_type = self.parse_type_annotation()?;
         self.consume_token(&Token::Equal(Location{line:0, column:0}))?;
         let value = self.parse_expression(Precedence::Assignment)?;
-        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
+        let end_loc = self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?.get_location().clone();
+        let span = Self::span1(&loc).merge(&value.span).merge(&Self::span1(&end_loc));
 
-        Ok(Stmt {
-            kind: StmtKind::ConstDeclaration(ConstDecl { name, var_type, value }),
+        Ok(Stmt::with_span(
+            StmtKind::ConstDeclaration(ConstDecl {
+                name,
+                var_type,
+                value,
+            }),
             loc,
-        })
+            span,
+        ))
     }
 
-    fn parse_print_statement(&mut self) -> Result<Stmt, String> {
+    fn parse_print_statement(&mut self) -> ParseResult<Stmt> {
         let loc = self.consume_token(&Token::Print(Location{line:0, column:0}))?.get_location().clone();
         self.consume_token(&Token::LeftParen(Location{line:0, column:0}))?;
         let mut expressions = Vec::new();
@@ -1024,14 +1320,15 @@ impl<'a> Parser<'a> {
             }
         }
         self.consume_token(&Token::RightParen(Location{line:0, column:0}))?;
-        self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?;
-        Ok(Stmt {
-            kind: StmtKind::Print(expressions),
-            loc,
-        })
+        let end_loc = self.consume_token(&Token::Semicolon(Location{line:0, column:0}))?.get_location().clone();
+        let mut span = Self::span1(&loc).merge(&Self::span1(&end_loc));
+        for e in &expressions {
+            span = span.merge(&e.span);
+        }
+        Ok(Stmt::with_span(StmtKind::Print(expressions), loc, span))
     }
 
-    fn parse_expression(&mut self, precedence: Precedence) -> Result<Expr, String> {
+    fn parse_expression(&mut self, precedence: Precedence) -> ParseResult<Expr> {
         let mut expr = self.parse_prefix()?;
 
         while precedence <= self.get_precedence(&self.current_token) {
@@ -1057,7 +1354,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn binary_op_from_token(&self, token: &Token) -> Result<BinaryOp, String> {
+    fn binary_op_from_token(&self, token: &Token) -> ParseResult<BinaryOp> {
         match token {
             Token::Plus(_) => Ok(BinaryOp::Add),
             Token::Minus(_) => Ok(BinaryOp::Subtract),
@@ -1073,78 +1370,101 @@ impl<'a> Parser<'a> {
             Token::LessEqual(_) => Ok(BinaryOp::LessThanOrEquals),
             Token::Greater(_) => Ok(BinaryOp::GreaterThan),
             Token::GreaterEqual(_) => Ok(BinaryOp::GreaterThanOrEquals),
-            _ => Err("Operador binário inválido".to_string()),
+            _ => Err(ParseError::new(
+                "SNASK-PARSE-OP",
+                "Invalid binary operator.".to_string(),
+                Self::token_span(token),
+            )),
         }
     }
 
-    fn parse_prefix(&mut self) -> Result<Expr, String> {
+    fn parse_prefix(&mut self) -> ParseResult<Expr> {
         let loc = self.current_token.get_location().clone();
         match self.current_token.clone() {
             Token::Number(n, _) => {
                 self.consume_token(&Token::Number(0.0, loc.clone()))?;
-                Ok(Expr {
-                    kind: ExprKind::Literal(LiteralValue::Number(n)),
+                let span = Self::span_len(&loc, format!("{}", n).len());
+                Ok(Expr::with_span(
+                    ExprKind::Literal(LiteralValue::Number(n)),
                     loc,
-                })
+                    span,
+                ))
             }
             Token::String(s, _) => {
                 self.consume_token(&Token::String("".to_string(), loc.clone()))?;
-                
-                Ok(Expr {
-                    kind: ExprKind::Literal(LiteralValue::String(s)),
+                let span = Self::span_len(&loc, s.len().saturating_add(2));
+                Ok(Expr::with_span(
+                    ExprKind::Literal(LiteralValue::String(s)),
                     loc,
-                })
+                    span,
+                ))
             }
             Token::True(_) => {
                 self.consume_token(&Token::True(loc.clone()))?;
-                Ok(Expr {
-                    kind: ExprKind::Literal(LiteralValue::Boolean(true)),
-                    loc,
-                })
+                Ok(Expr::with_span(
+                    ExprKind::Literal(LiteralValue::Boolean(true)),
+                    loc.clone(),
+                    Self::span_len(&loc, 4),
+                ))
             }
             Token::False(_) => {
                 self.consume_token(&Token::False(loc.clone()))?;
-                Ok(Expr {
-                    kind: ExprKind::Literal(LiteralValue::Boolean(false)),
-                    loc,
-                })
+                Ok(Expr::with_span(
+                    ExprKind::Literal(LiteralValue::Boolean(false)),
+                    loc.clone(),
+                    Self::span_len(&loc, 5),
+                ))
             }
             Token::Nil(_) => {
                 self.consume_token(&Token::Nil(loc.clone()))?;
-                Ok(Expr {
-                    kind: ExprKind::Literal(LiteralValue::Nil),
-                    loc,
-                })
+                Ok(Expr::with_span(
+                    ExprKind::Literal(LiteralValue::Nil),
+                    loc.clone(),
+                    Self::span_len(&loc, 3),
+                ))
             }
             Token::Identifier(s, _) => {
+                let len = s.len();
                 self.consume_identifier()?;
-                Ok(Expr {
-                    kind: ExprKind::Variable(s),
-                    loc,
-                })
+                Ok(Expr::with_span(
+                    ExprKind::Variable(s),
+                    loc.clone(),
+                    Self::span_len(&loc, len),
+                ))
             }
             Token::SelfKw(_) => {
                 self.consume_token(&Token::SelfKw(loc.clone()))?;
-                Ok(Expr {
-                    kind: ExprKind::Variable("self".to_string()),
-                    loc,
-                })
+                Ok(Expr::with_span(
+                    ExprKind::Variable("self".to_string()),
+                    loc.clone(),
+                    Self::span_len(&loc, 4),
+                ))
             }
             Token::Minus(_) => {
                 self.consume_token(&Token::Minus(loc.clone()))?;
                 let expr = self.parse_expression(Precedence::Unary)?;
-                Ok(Expr {
-                    kind: ExprKind::Unary { op: UnaryOp::Negative, expr: Box::new(expr) },
+                let span = Self::span1(&loc).merge(&expr.span);
+                Ok(Expr::with_span(
+                    ExprKind::Unary {
+                        op: UnaryOp::Negative,
+                        expr: Box::new(expr),
+                    },
                     loc,
-                })
+                    span,
+                ))
             }
             Token::Not(_) => {
                 self.consume_token(&Token::Not(loc.clone()))?;
                 let expr = self.parse_expression(Precedence::Unary)?;
-                Ok(Expr {
-                    kind: ExprKind::Unary { op: UnaryOp::Not, expr: Box::new(expr) },
+                let span = Self::span_len(&loc, 3).merge(&expr.span);
+                Ok(Expr::with_span(
+                    ExprKind::Unary {
+                        op: UnaryOp::Not,
+                        expr: Box::new(expr),
+                    },
                     loc,
-                })
+                    span,
+                ))
             }
             Token::LeftParen(_) => {
                 self.consume_token(&Token::LeftParen(loc))?;
@@ -1154,14 +1474,18 @@ impl<'a> Parser<'a> {
             }
             Token::LeftBracket(_) => self.parse_list_literal(),
             Token::LeftBrace(_) => self.parse_dict_literal(),
-            _ => Err(format!(
-                "Esperada expressão, mas encontrado {} na linha {}, coluna {}",
-                self.current_token.friendly_name(), loc.line, loc.column
-            )),
+            _ => {
+                let found = self.current_token.clone();
+                Err(ParseError::new(
+                    "SNASK-PARSE-EXPR",
+                    format!("Expected expression, but found {}.", found.friendly_name()),
+                    Self::token_span(&found),
+                ))
+            }
         }
     }
 
-    fn parse_infix(&mut self, left: Expr) -> Result<Expr, String> {
+    fn parse_infix(&mut self, left: Expr) -> ParseResult<Expr> {
         let loc = self.current_token.get_location().clone();
         match self.current_token.clone() {
             Token::Plus(_) | Token::Minus(_) | Token::Star(_) | Token::Slash(_) | Token::DoubleSlash(_) |
@@ -1172,14 +1496,16 @@ impl<'a> Parser<'a> {
                 let precedence = self.get_precedence(&self.current_token);
                 self.consume_token(&self.current_token.clone())?;
                 let right = self.parse_expression(precedence)?;
-                Ok(Expr {
-                    kind: ExprKind::Binary {
+                let span = left.span.merge(&right.span);
+                Ok(Expr::with_span(
+                    ExprKind::Binary {
                         op,
                         left: Box::new(left),
                         right: Box::new(right),
                     },
                     loc,
-                })
+                    span,
+                ))
             }
             Token::LeftParen(_) => self.parse_call_expression(left),
             Token::LeftBracket(_) => self.parse_index_access(left),
@@ -1196,10 +1522,8 @@ impl<'a> Parser<'a> {
                     // Trata como Namespace (combina os nomes)
                     if let ExprKind::Variable(base_name) = left.kind {
                         let combined_name = format!("{}::{}", base_name, property_name);
-                        let combined_expr = Expr {
-                            kind: ExprKind::Variable(combined_name),
-                            loc: dot_loc,
-                        };
+                        let span = Self::span_len(&dot_loc, combined_name.len());
+                        let combined_expr = Expr::with_span(ExprKind::Variable(combined_name), dot_loc, span);
                         if matches!(self.current_token, Token::LeftParen(_)) {
                             return self.parse_call_expression(combined_expr);
                         } else {
@@ -1210,30 +1534,41 @@ impl<'a> Parser<'a> {
 
                 if matches!(self.current_token, Token::LeftParen(_)) {
                     // It's a method call
-                    let callee = Expr {
-                        kind: ExprKind::PropertyAccess {
+                    let span = left.span.merge(&Self::span_len(&dot_loc, property_name.len()));
+                    let callee = Expr::with_span(
+                        ExprKind::PropertyAccess {
                             target: Box::new(left),
                             property: property_name,
                         },
-                        loc: dot_loc,
-                    };
+                        dot_loc,
+                        span,
+                    );
                     self.parse_call_expression(callee)
                 } else {
                     // It's a property access
-                    Ok(Expr {
-                        kind: ExprKind::PropertyAccess {
+                    let span = left.span.merge(&Self::span_len(&dot_loc, property_name.len()));
+                    Ok(Expr::with_span(
+                        ExprKind::PropertyAccess {
                             target: Box::new(left),
                             property: property_name,
                         },
-                        loc: dot_loc,
-                    })
+                        dot_loc,
+                        span,
+                    ))
                 }
             }
-            _ => Err(format!("Unexpected token in expression: {} at line {}, column {}", self.current_token.friendly_name(), loc.line, loc.column)),
+            _ => {
+                let found = self.current_token.clone();
+                Err(ParseError::new(
+                    "SNASK-PARSE-EXPR",
+                    format!("Unexpected token in expression: {}.", found.friendly_name()),
+                    Self::token_span(&found),
+                ))
+            }
         }
     }
     
-    fn parse_call_expression(&mut self, callee: Expr) -> Result<Expr, String> {
+    fn parse_call_expression(&mut self, callee: Expr) -> ParseResult<Expr> {
         let loc = self.consume_token(&Token::LeftParen(Location{line:0, column:0}))?.get_location().clone();
         let mut args = Vec::new();
         if !matches!(self.current_token, Token::RightParen(_)) {
@@ -1245,15 +1580,23 @@ impl<'a> Parser<'a> {
                 self.consume_token(&Token::Comma(Location{line:0, column:0}))?;
             }
         }
-        self.consume_token(&Token::RightParen(Location{line:0, column:0}))?;
+        let end_loc = self.consume_token(&Token::RightParen(Location{line:0, column:0}))?.get_location().clone();
+        let mut span = callee.span.merge(&Self::span1(&end_loc));
+        for a in &args {
+            span = span.merge(&a.span);
+        }
         
-        Ok(Expr {
-            kind: ExprKind::FunctionCall { callee: Box::new(callee), args },
+        Ok(Expr::with_span(
+            ExprKind::FunctionCall {
+                callee: Box::new(callee),
+                args,
+            },
             loc,
-        })
+            span,
+        ))
     }
 
-    fn parse_list_literal(&mut self) -> Result<Expr, String> {
+    fn parse_list_literal(&mut self) -> ParseResult<Expr> {
         let loc = self.consume_token(&Token::LeftBracket(Location{line:0, column:0}))?.get_location().clone();
         let mut elements = Vec::new();
         if !matches!(self.current_token, Token::RightBracket(_)) {
@@ -1265,14 +1608,19 @@ impl<'a> Parser<'a> {
                 self.consume_token(&Token::Comma(Location{line:0, column:0}))?;
             }
         }
-        self.consume_token(&Token::RightBracket(Location{line:0, column:0}))?;
-        Ok(Expr {
-            kind: ExprKind::Literal(LiteralValue::List(elements)),
+        let end_loc = self.consume_token(&Token::RightBracket(Location{line:0, column:0}))?.get_location().clone();
+        let mut span = Self::span1(&loc).merge(&Self::span1(&end_loc));
+        for e in &elements {
+            span = span.merge(&e.span);
+        }
+        Ok(Expr::with_span(
+            ExprKind::Literal(LiteralValue::List(elements)),
             loc,
-        })
+            span,
+        ))
     }
 
-    fn parse_dict_literal(&mut self) -> Result<Expr, String> {
+    fn parse_dict_literal(&mut self) -> ParseResult<Expr> {
         let loc = self.consume_token(&Token::LeftBrace(Location{line:0, column:0}))?.get_location().clone();
         let mut pairs = Vec::new();
         if !matches!(self.current_token, Token::RightBrace(_)) {
@@ -1287,25 +1635,65 @@ impl<'a> Parser<'a> {
                 self.consume_token(&Token::Comma(Location{line:0, column:0}))?;
             }
         }
-        self.consume_token(&Token::RightBrace(Location{line:0, column:0}))?;
-        Ok(Expr {
-            kind: ExprKind::Literal(LiteralValue::Dict(pairs)),
+        let end_loc = self.consume_token(&Token::RightBrace(Location{line:0, column:0}))?.get_location().clone();
+        let mut span = Self::span1(&loc).merge(&Self::span1(&end_loc));
+        for (k, v) in &pairs {
+            span = span.merge(&k.span).merge(&v.span);
+        }
+        Ok(Expr::with_span(
+            ExprKind::Literal(LiteralValue::Dict(pairs)),
             loc,
-        })
+            span,
+        ))
     }
 
-    fn parse_index_access(&mut self, target: Expr) -> Result<Expr, String> {
+    fn parse_index_access(&mut self, target: Expr) -> ParseResult<Expr> {
         let loc = self.consume_token(&Token::LeftBracket(Location{line:0, column:0}))?.get_location().clone();
         let index = self.parse_expression(Precedence::Assignment)?;
-        self.consume_token(&Token::RightBracket(Location{line:0, column:0}))?;
-        Ok(Expr {
-            kind: ExprKind::IndexAccess { target: Box::new(target), index: Box::new(index) },
+        let end_loc = self.consume_token(&Token::RightBracket(Location{line:0, column:0}))?.get_location().clone();
+        let span = target.span.merge(&index.span).merge(&Self::span1(&end_loc));
+        Ok(Expr::with_span(
+            ExprKind::IndexAccess {
+                target: Box::new(target),
+                index: Box::new(index),
+            },
             loc,
-        })
+            span,
+        ))
     }
 }
 
-pub fn parse_program(source: &str) -> Result<Program, String> {
+pub fn parse_program(source: &str) -> ParseResult<Program> {
     let mut parser = Parser::new(source)?;
     parser.parse_program()
+}
+
+// Used by the LSP for semantic tokens / lightweight tooling.
+pub fn tokenize(source: &str) -> Result<Vec<Token>, String> {
+    let mut tokenizer = Tokenizer::new(source);
+    let mut out: Vec<Token> = Vec::new();
+    loop {
+        let t = tokenizer.next_token()?;
+        let is_eof = matches!(t, Token::Eof(_));
+        out.push(t);
+        if is_eof {
+            break;
+        }
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod parse_error_tests {
+    use super::*;
+
+    #[test]
+    fn parse_error_has_span_for_missing_semicolon() {
+        let src = "class main\n    fun start()\n        let x = 1\n";
+        let mut p = Parser::new(src).unwrap();
+        let e = p.parse_program().unwrap_err();
+        assert_eq!(e.code, "SNASK-PARSE-SEMICOLON");
+        assert!(e.span.start.line >= 1);
+        assert!(e.span.start.column >= 1);
+    }
 }

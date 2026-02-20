@@ -301,13 +301,12 @@ impl DiagnosticBag {
 
             if errors > 0 || warnings > 0 {
                 output.push_str(&format!(
-                    "{}error{}: {} generated{}, {} warning{} emitted{}\n",
+                    "{}error{}: {} generated{}, {} warning{} emitted\n",
                     BOLD,
                     RESET,
                     errors,
                     if errors == 1 { "" } else { "s" },
                     warnings,
-                    if warnings == 1 { "" } else { "s" },
                     if warnings == 1 { "" } else { "s" }
                 ));
             }

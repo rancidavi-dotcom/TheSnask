@@ -94,7 +94,7 @@ impl Repl {
                 }
             }
             Err(e) => {
-                eprintln!("❌ Syntax error: {}", e);
+                eprintln!("❌ Syntax error: {}", e.message);
             }
         }
     }
