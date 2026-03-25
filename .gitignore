@@ -1,0 +1,9 @@
+.gemini-local/
+target/
+*.o
+*.deb
+repo/
+pkg-snask/
+__pycache__/
+.aider*
+.DS_Store

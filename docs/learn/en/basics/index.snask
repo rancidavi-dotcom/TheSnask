@@ -1,0 +1,118 @@
+// docs/learn/en/basics/index.snask
+
+// Welcome to the Snask Tutorial!
+// This guide will teach you the basics of the Snask programming language.
+
+// Snask is a language designed for ... (briefly mention purpose if known, otherwise general).
+// It's compiled and executed using the `snask` CLI.
+
+// Section 1: Variables and Basic Types
+
+// Immutable variables with `let`
+let greeting = "Hello, Snask!";
+print(greeting);
+
+// Mutable variables with `mut`
+mut counter = 0;
+print("Initial counter: ");
+s_println(counter); // Assuming s_println is also global for now
+counter = counter + 1;
+print("Counter after increment: ");
+s_println(counter);
+
+// Numbers (float and int are often treated similarly, or there's implicit conversion)
+let pi_approx = 3.14;
+let year = 2023;
+print("Approx PI: ");
+s_println(pi_approx);
+print("Year: ");
+s_println(year);
+
+// Booleans and Nil
+let is_active = true;
+let result = nil;
+print("Is active: ");
+s_println(is_active);
+print("Result: ");
+s_println(result);
+
+// Section 2: Control Flow
+
+// If statements
+if is_active
+    print("System is active.");
+else
+    print("System is inactive.");
+
+// While loop
+mut count = 0;
+while count < 3
+    print("Loop iteration: ");
+    s_println(count);
+    count = count + 1;
+
+// Section 3: Functions
+
+fun greet(name: str) -> str
+    return "Hello, " + name + "!";
+
+let message = greet("World");
+print(message);
+
+// Section 4: Native Functions
+
+print("--- Testing Native Functions ---");
+
+// OS/Path
+print("Current OS: ");
+print(os::platform());
+print("
+");
+
+print("Current Directory: ");
+print(os::cwd());
+print("
+");
+
+let filename = "test_runtime_tutorial.txt";
+let file_content = "Hello from Snask Runtime Tutorial!
+";
+print("Writing to file: ");
+print(filename);
+sfs::write(filename, file_content);
+print("
+");
+
+let read_content = sfs::read(filename);
+print("Read from file: ");
+s_println(read_content);
+
+let file_size = sfs::size(filename);
+print("File size: ");
+s_println(file_size);
+
+// JSON
+let obj = sjson::new_object();
+let nested_array = sjson::new_array();
+sjson::arr_push(nested_array, 123);
+sjson::arr_push(nested_array, "test string");
+sjson::arr_push(obj, nested_array);
+sjson::arr_push(obj, true);
+sjson::arr_push(obj, nil);
+
+let json_str = json::stringify(obj);
+print("JSON stringified: ");
+s_println(json_str);
+
+// Calc
+let calc_result = calc::eval(" (3 + 4) * 2 / (10 - 3) ");
+print("Calculation result (3+4)*2/(10-3): ");
+s_println(calc_result);
+
+// Auth
+let session_id = blaze_auth::session_id();
+print("Session ID Generated: ");
+s_println(session_id);
+
+print("----------------------");
+print("Tutorial finished successfully!");

@@ -1,0 +1,1330 @@
+use inkwell::context::Context;
+use inkwell::module::Module;
+use inkwell::builder::Builder;
+use inkwell::values::{FunctionValue, PointerValue, StructValue};
+use inkwell::types::StructType;
+use crate::ast::{Program, Stmt, StmtKind, Expr, ExprKind, LiteralValue, BinaryOp, FuncDecl};
+use std::collections::HashMap;
+
+const TYPE_NIL: u32 = 0;
+const TYPE_NUM: u32 = 1;
+const TYPE_BOOL: u32 = 2;
+const TYPE_STR: u32 = 3;
+const TYPE_OBJ: u32 = 4;
+
+fn is_library_native(name: &str) -> bool {
+    if name.contains("::") {
+        return false;
+    }
+    name.starts_with("sqlite_")
+        || name.starts_with("gui_")
+        || name.starts_with("skia_")
+        || name.starts_with("blaze_")
+        || name.starts_with("auth_")
+        || name.starts_with("sfs_")
+        || name.starts_with("path_")
+        || name.starts_with("os_")
+        || name.starts_with("s_http_")
+        || name.starts_with("thread_")
+        || name.starts_with("json_")
+        || name.starts_with("sjson_")
+        || name.starts_with("snif_")
+        || name.starts_with("string_")
+}
+
+fn library_native_help(name: &str) -> String {
+    let lib = if name.starts_with("sqlite_") { "sqlite" }
+    else if name.starts_with("gui_") { "gui" }
+    else if name.starts_with("skia_") { "snask_skia" }
+    else if name.starts_with("blaze_") { "blaze" }
+    else if name.starts_with("auth_") { "blaze_auth" }
+    else if name.starts_with("sfs_") || name.starts_with("path_") { "sfs" }
+    else if name.starts_with("os_") { "os" }
+    else if name.starts_with("s_http_") { "requests" }
+    else if name.starts_with("thread_") { "os" }
+    else if name.starts_with("json_") { "json" }
+    else if name.starts_with("sjson_") { "sjson" }
+    else if name.starts_with("snif_") { "snif" }
+    else if name.starts_with("string_") { "string" }
+    else { "a library" };
+
+    format!(
+        "Native function '{name}' is reserved for libraries.\n\nHow to fix:\n- Use `import \"{lib}\"` and call functions via the module namespace (e.g. `{lib}::...`).",
+        name = name,
+        lib = lib
+    )
+}
+
+pub struct LLVMGenerator<'ctx> {
+    context: &'ctx Context,
+    module: Module<'ctx>,
+    builder: Builder<'ctx>,
+    variables: HashMap<String, PointerValue<'ctx>>,
+    functions: HashMap<String, FunctionValue<'ctx>>,
+    value_type: StructType<'ctx>,
+    ptr_type: inkwell::types::PointerType<'ctx>,
+    current_func: Option<FunctionValue<'ctx>>,
+    local_vars: HashMap<String, PointerValue<'ctx>>,
+    classes: HashMap<String, crate::ast::ClassDecl>,
+}
+
+impl<'ctx> LLVMGenerator<'ctx> {
+    pub fn new(context: &'ctx Context, module_name: &str) -> Self {
+        let module = context.create_module(module_name);
+        let builder = context.create_builder();
+        let _i32_type = context.i32_type();
+        let f64_type = context.f64_type();
+        let ptr_type = context.ptr_type(inkwell::AddressSpace::from(0));
+        let value_type = context.struct_type(&[f64_type.into(), f64_type.into(), ptr_type.into()], false);
+
+        LLVMGenerator { context, module, builder, variables: HashMap::new(), functions: HashMap::new(), value_type, ptr_type, current_func: None, local_vars: HashMap::new(), classes: HashMap::new() }
+    }
+
+    fn create_entry_block_alloca<T: inkwell::types::BasicType<'ctx>>(&self, ty: T, name: &str) -> PointerValue<'ctx> {
+        let builder = self.context.create_builder();
+        let entry = self.current_func.unwrap().get_first_basic_block().unwrap();
+        match entry.get_first_instruction() {
+            Some(inst) => builder.position_before(&inst),
+            None => builder.position_at_end(entry),
+        }
+        builder.build_alloca(ty, name).unwrap()
+    }
+
+    pub fn generate(&mut self, program: Program) -> Result<String, String> {
+        self.declare_runtime();
+
+        let want_auto_use_skia = program.iter().any(|st| match &st.kind {
+            StmtKind::VarDeclaration(d) => d.name == "USE_SKIA",
+            StmtKind::MutDeclaration(d) => d.name == "USE_SKIA",
+            StmtKind::ConstDeclaration(d) => d.name == "USE_SKIA",
+            _ => false,
+        });
+        
+        // Declara funções globais e preenche mapa de classes
+        for stmt in &program { 
+            if let StmtKind::FuncDeclaration(func) = &stmt.kind { self.declare_function(func)?; } 
+            if let StmtKind::ClassDeclaration(class) = &stmt.kind {
+                let mut c = class.clone();
+                for method in &mut c.methods {
+                    // Adiciona 'self' como primeiro parâmetro se não existir
+                    if !method.params.iter().any(|p| p.0 == "self") {
+                        method.params.insert(0, ("self".to_string(), crate::types::Type::Any));
+                    }
+                    let mut m = method.clone();
+                    m.name = format!("{}::{}", c.name, m.name);
+                    self.declare_function(&m)?;
+                }
+                self.classes.insert(c.name.clone(), c);
+            }
+        }
+
+        let i32_type = self.context.i32_type();
+        let main_func = self.module.add_function("main", i32_type.fn_type(&[], false), None);
+        let entry = self.context.append_basic_block(main_func, "entry");
+        self.builder.position_at_end(entry);
+        self.current_func = Some(main_func);
+
+        // Always execute top-level statements (globals) before start.
+        // Isso permite que módulos importados inicializem estado (mut/let/const) mesmo quando existe main::start.
+        for stmt in &program {
+            if !matches!(stmt.kind, StmtKind::FuncDeclaration(_) | StmtKind::ClassDeclaration(_)) {
+                self.generate_statement(stmt.clone())?;
+            }
+        }
+
+        // DX: optional real Skia backend switch.
+        // If the user defines `USE_SKIA = 1` at top-level, enable Skia before calling main::start.
+        // Default remains Cairo.
+        if want_auto_use_skia {
+            if let Some(p) = self.variables.get("USE_SKIA") {
+                let v = self.builder.build_load(self.value_type, *p, "use_skia_val").unwrap().into_struct_value();
+                let n = self.builder.build_extract_value(v, 1, "use_skia_n").unwrap().into_float_value();
+                let is_true = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, n, self.context.f64_type().const_float(0.0), "use_skia_true").unwrap();
+                let b = self.builder.build_unsigned_int_to_float(is_true, self.context.f64_type(), "use_skia_bf").unwrap();
+                let mut bs = self.value_type.get_undef();
+                bs = self.builder.build_insert_value(bs, self.context.f64_type().const_float(2.0), 0, "t").unwrap().into_struct_value(); // BOOL
+                bs = self.builder.build_insert_value(bs, b, 1, "v").unwrap().into_struct_value();
+                bs = self.builder.build_insert_value(bs, self.ptr_type.const_null(), 2, "p").unwrap().into_struct_value();
+                let b_ptr = self.create_entry_block_alloca(self.value_type, "use_skia_arg");
+                self.builder.build_store(b_ptr, bs).unwrap();
+
+                let f = self.functions.get("skia_use_real").unwrap();
+                let r_a = self.create_entry_block_alloca(self.value_type, "ra_use_skia");
+                self.builder.build_call(*f, &[r_a.into(), b_ptr.into()], "use_skia").unwrap();
+            }
+        }
+
+        // Se houver uma class main, chama o ponto de entrada (prioriza 'start' ou o primeiro método se start não existir)
+        let mut entry_point_found = false;
+        for stmt in &program {
+            if let StmtKind::ClassDeclaration(class) = &stmt.kind {
+                if class.name == "main" && !class.methods.is_empty() {
+                    // Busca 'start' ou pega o primeiro método
+                    let method = class.methods.iter()
+                        .find(|m| m.name == "start")
+                        .or_else(|| class.methods.get(0))
+                        .unwrap();
+                    
+                    let f_name = format!("main::{}", method.name);
+                    if let Some(f) = self.functions.get(&f_name) {
+                        let mut l_args = Vec::new();
+                        let r_a = self.create_entry_block_alloca(self.value_type, "ra");
+                        l_args.push(r_a.into());
+                        self.builder.build_call(*f, &l_args, "call_entry").unwrap();
+                        entry_point_found = true;
+                    }
+                    break;
+                }
+            }
+        }
+        let _ = entry_point_found;
+        
+        if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
+            self.builder.build_return(Some(&i32_type.const_int(0, false))).unwrap();
+        }
+
+        // Gera o corpo das funções
+        for stmt in program { 
+            if let StmtKind::FuncDeclaration(func) = &stmt.kind { self.generate_function_body(func.clone())?; } 
+            if let StmtKind::ClassDeclaration(class) = &stmt.kind {
+                // Pega a versão atualizada da classe (com o self injetado)
+                let c = self.classes.get(&class.name).unwrap().clone();
+                for mut method in c.methods {
+                    method.name = format!("{}::{}", c.name, method.name);
+                    self.generate_function_body(method)?;
+                }
+            }
+        }
+        Ok(self.module.print_to_string().to_string())
+    }
+
+    fn declare_runtime(&mut self) {
+        let _i32_type = self.context.i32_type();
+        let void_type = self.context.void_type();
+        
+        // Novas funções de print
+        self.module.add_function("s_print", void_type.fn_type(&[self.ptr_type.into()], false), None);
+        self.module.add_function("s_println", void_type.fn_type(&[], false), None);
+
+        let fn_1 = void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into()], false);
+        let fn_2 = void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false);
+        let fn_3 = void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false);
+        let fn_4 = void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false);
+        let fn_5 = void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false);
+        let fn_alloc = void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false);
+        
+        self.functions.insert("sfs_read".to_string(), self.module.add_function("sfs_read", fn_1, None));
+        self.functions.insert("sfs_write".to_string(), self.module.add_function("sfs_write", fn_2, None));
+        self.functions.insert("sfs_append".to_string(), self.module.add_function("sfs_append", fn_2, None));
+        self.functions.insert("sfs_write_mb".to_string(), self.module.add_function("sfs_write_mb", fn_2, None));
+        self.functions.insert("sfs_count_bytes".to_string(), self.module.add_function("sfs_count_bytes", fn_1, None));
+        self.functions.insert("sfs_bench_create_small_files".to_string(), self.module.add_function("sfs_bench_create_small_files", fn_3, None));
+        self.functions.insert("sfs_bench_count_entries".to_string(), self.module.add_function("sfs_bench_count_entries", fn_1, None));
+        self.functions.insert("sfs_bench_delete_small_files".to_string(), self.module.add_function("sfs_bench_delete_small_files", fn_2, None));
+        self.functions.insert("sfs_delete".to_string(), self.module.add_function("sfs_delete", fn_1, None));
+        self.functions.insert("sfs_exists".to_string(), self.module.add_function("sfs_exists", fn_1, None));
+        self.functions.insert("sfs_copy".to_string(), self.module.add_function("sfs_copy", fn_2, None));
+        self.functions.insert("sfs_move".to_string(), self.module.add_function("sfs_move", fn_2, None));
+        self.functions.insert("sfs_mkdir".to_string(), self.module.add_function("sfs_mkdir", fn_1, None));
+        self.functions.insert("sfs_is_file".to_string(), self.module.add_function("sfs_is_file", fn_1, None));
+        self.functions.insert("sfs_is_dir".to_string(), self.module.add_function("sfs_is_dir", fn_1, None));
+        self.functions.insert("sfs_listdir".to_string(), self.module.add_function("sfs_listdir", fn_1, None));
+        self.functions.insert("s_http_get".to_string(), self.module.add_function("s_http_get", fn_1, None));
+        self.functions.insert("s_http_post".to_string(), self.module.add_function("s_http_post", fn_2, None));
+        self.functions.insert("s_http_put".to_string(), self.module.add_function("s_http_put", fn_2, None));
+        self.functions.insert("s_http_delete".to_string(), self.module.add_function("s_http_delete", fn_1, None));
+        self.functions.insert("s_http_patch".to_string(), self.module.add_function("s_http_patch", fn_2, None));
+        let f_concat = self.module.add_function("s_concat", fn_2, None);
+        self.functions.insert("s_concat".to_string(), f_concat);
+        self.functions.insert("concat".to_string(), f_concat);
+
+        let f_abs = self.module.add_function("s_abs", fn_1, None);
+        self.functions.insert("s_abs".to_string(), f_abs);
+        self.functions.insert("abs".to_string(), f_abs);
+
+        let f_max = self.module.add_function("s_max", fn_2, None);
+        self.functions.insert("s_max".to_string(), f_max);
+        self.functions.insert("max".to_string(), f_max);
+
+        let f_min = self.module.add_function("s_min", fn_2, None);
+        self.functions.insert("s_min".to_string(), f_min);
+        self.functions.insert("min".to_string(), f_min);
+
+        let f_sqrt = self.module.add_function("s_sqrt", fn_1, None);
+        self.functions.insert("s_sqrt".to_string(), f_sqrt);
+        self.functions.insert("sqrt".to_string(), f_sqrt);
+
+        let f_sin = self.module.add_function("s_sin", fn_1, None);
+        self.functions.insert("s_sin".to_string(), f_sin);
+        self.functions.insert("sin".to_string(), f_sin);
+
+        let f_cos = self.module.add_function("s_cos", fn_1, None);
+        self.functions.insert("s_cos".to_string(), f_cos);
+        self.functions.insert("cos".to_string(), f_cos);
+
+        let f_floor = self.module.add_function("s_floor", fn_1, None);
+        self.functions.insert("s_floor".to_string(), f_floor);
+        self.functions.insert("floor".to_string(), f_floor);
+
+        let f_ceil = self.module.add_function("s_ceil", fn_1, None);
+        self.functions.insert("s_ceil".to_string(), f_ceil);
+        self.functions.insert("ceil".to_string(), f_ceil);
+
+        let f_round = self.module.add_function("s_round", fn_1, None);
+        self.functions.insert("s_round".to_string(), f_round);
+        self.functions.insert("round".to_string(), f_round);
+
+        let f_pow = self.module.add_function("s_pow", fn_2, None);
+        self.functions.insert("s_pow".to_string(), f_pow);
+        self.functions.insert("pow".to_string(), f_pow);
+
+        let f_len = self.module.add_function("s_len", fn_1, None);
+        self.functions.insert("s_len".to_string(), f_len);
+        self.functions.insert("len".to_string(), f_len);
+
+        // strict equality helper (===)
+        self.functions.insert("s_eq_strict".to_string(), self.module.add_function("s_eq_strict", fn_2, None));
+        // value equality helpers (== / !=)
+        self.functions.insert("s_eq".to_string(), self.module.add_function("s_eq", fn_2, None));
+        self.functions.insert("s_ne".to_string(), self.module.add_function("s_ne", fn_2, None));
+
+        let f_upper = self.module.add_function("s_upper", fn_1, None);
+        self.functions.insert("s_upper".to_string(), f_upper);
+        self.functions.insert("upper".to_string(), f_upper);
+
+        self.functions.insert("mod".to_string(), self.module.add_function("mod", fn_2, None));
+
+        self.functions.insert("substring".to_string(), self.module.add_function("substring", fn_3, None));
+
+        let f_time = self.module.add_function("s_time", void_type.fn_type(&[self.ptr_type.into()], false), None);
+        self.functions.insert("s_time".to_string(), f_time);
+        self.functions.insert("time".to_string(), f_time);
+
+        let f_sleep = self.module.add_function("s_sleep", fn_1, None);
+        self.functions.insert("s_sleep".to_string(), f_sleep);
+        self.functions.insert("sleep".to_string(), f_sleep);
+
+        let f_exit = self.module.add_function("s_exit", fn_1, None);
+        self.functions.insert("exit".to_string(), f_exit);
+        self.functions.insert("s_system".to_string(), self.module.add_function("s_system", fn_1, None));
+        self.functions.insert("is_nil".to_string(), self.module.add_function("is_nil", fn_1, None));
+        self.functions.insert("is_str".to_string(), self.module.add_function("is_str", fn_1, None));
+        self.functions.insert("is_obj".to_string(), self.module.add_function("is_obj", fn_1, None));
+        self.functions.insert("os_cwd".to_string(), self.module.add_function("os_cwd", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("os_platform".to_string(), self.module.add_function("os_platform", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("os_arch".to_string(), self.module.add_function("os_arch", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("os_getenv".to_string(), self.module.add_function("os_getenv", fn_1, None));
+        self.functions.insert("os_setenv".to_string(), self.module.add_function("os_setenv", fn_2, None));
+        self.functions.insert("os_random_hex".to_string(), self.module.add_function("os_random_hex", fn_1, None));
+
+        self.functions.insert("sfs_size".to_string(), self.module.add_function("sfs_size", fn_1, None));
+        self.functions.insert("sfs_mtime".to_string(), self.module.add_function("sfs_mtime", fn_1, None));
+        self.functions.insert("sfs_rmdir".to_string(), self.module.add_function("sfs_rmdir", fn_1, None));
+
+        self.functions.insert("path_basename".to_string(), self.module.add_function("path_basename", fn_1, None));
+        self.functions.insert("path_dirname".to_string(), self.module.add_function("path_dirname", fn_1, None));
+        self.functions.insert("path_extname".to_string(), self.module.add_function("path_extname", fn_1, None));
+        self.functions.insert("path_join".to_string(), self.module.add_function("path_join", fn_2, None));
+        self.functions.insert("blaze_run".to_string(), self.module.add_function("blaze_run", fn_2, None));
+        self.functions.insert("blaze_qs_get".to_string(), self.module.add_function("blaze_qs_get", fn_2, None));
+        self.functions.insert("blaze_cookie_get".to_string(), self.module.add_function("blaze_cookie_get", fn_2, None));
+        self.functions.insert("auth_random_hex".to_string(), self.module.add_function("auth_random_hex", fn_1, None));
+        self.functions.insert("auth_now".to_string(), self.module.add_function("auth_now", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("auth_const_time_eq".to_string(), self.module.add_function("auth_const_time_eq", fn_2, None));
+        self.functions.insert("auth_hash_password".to_string(), self.module.add_function("auth_hash_password", fn_1, None));
+        self.functions.insert("auth_verify_password".to_string(), self.module.add_function("auth_verify_password", fn_2, None));
+        self.functions.insert("auth_session_id".to_string(), self.module.add_function("auth_session_id", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("auth_csrf_token".to_string(), self.module.add_function("auth_csrf_token", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("auth_cookie_kv".to_string(), self.module.add_function("auth_cookie_kv", fn_2, None));
+        self.functions.insert("auth_cookie_session".to_string(), self.module.add_function("auth_cookie_session", fn_1, None));
+        self.functions.insert("auth_cookie_delete".to_string(), self.module.add_function("auth_cookie_delete", fn_1, None));
+        self.functions.insert("auth_bearer_header".to_string(), self.module.add_function("auth_bearer_header", fn_1, None));
+        self.functions.insert("auth_ok".to_string(), self.module.add_function("auth_ok", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("auth_fail".to_string(), self.module.add_function("auth_fail", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("auth_version".to_string(), self.module.add_function("auth_version", void_type.fn_type(&[self.ptr_type.into()], false), None));
+
+        // GUI (GTK) - handles are strings
+        self.functions.insert("gui_init".to_string(), self.module.add_function("gui_init", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_run".to_string(), self.module.add_function("gui_run", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_quit".to_string(), self.module.add_function("gui_quit", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_window".to_string(), self.module.add_function("gui_window", fn_3, None));
+        self.functions.insert("gui_set_title".to_string(), self.module.add_function("gui_set_title", fn_2, None));
+        self.functions.insert("gui_set_resizable".to_string(), self.module.add_function("gui_set_resizable", fn_2, None));
+        self.functions.insert("gui_autosize".to_string(), self.module.add_function("gui_autosize", fn_1, None));
+        self.functions.insert("gui_vbox".to_string(), self.module.add_function("gui_vbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_hbox".to_string(), self.module.add_function("gui_hbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_eventbox".to_string(), self.module.add_function("gui_eventbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_scrolled".to_string(), self.module.add_function("gui_scrolled", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_flowbox".to_string(), self.module.add_function("gui_flowbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_flow_add".to_string(), self.module.add_function("gui_flow_add", fn_2, None));
+        self.functions.insert("gui_frame".to_string(), self.module.add_function("gui_frame", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_set_margin".to_string(), self.module.add_function("gui_set_margin", fn_2, None));
+        self.functions.insert("gui_icon".to_string(), self.module.add_function("gui_icon", fn_2, None));
+        self.functions.insert("gui_css".to_string(), self.module.add_function("gui_css", fn_1, None));
+        self.functions.insert("gui_add_class".to_string(), self.module.add_function("gui_add_class", fn_2, None));
+        self.functions.insert("gui_listbox".to_string(), self.module.add_function("gui_listbox", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_list_add_text".to_string(), self.module.add_function("gui_list_add_text", fn_2, None));
+        self.functions.insert("gui_on_select_ctx".to_string(), self.module.add_function("gui_on_select_ctx", fn_3, None));
+        self.functions.insert("gui_set_child".to_string(), self.module.add_function("gui_set_child", fn_2, None));
+        self.functions.insert("gui_add".to_string(), self.module.add_function("gui_add", fn_2, None));
+        self.functions.insert("gui_add_expand".to_string(), self.module.add_function("gui_add_expand", fn_2, None));
+        self.functions.insert("gui_label".to_string(), self.module.add_function("gui_label", fn_1, None));
+        self.functions.insert("gui_entry".to_string(), self.module.add_function("gui_entry", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_textview".to_string(), self.module.add_function("gui_textview", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_set_placeholder".to_string(), self.module.add_function("gui_set_placeholder", fn_2, None));
+        self.functions.insert("gui_set_editable".to_string(), self.module.add_function("gui_set_editable", fn_2, None));
+        self.functions.insert("gui_button".to_string(), self.module.add_function("gui_button", fn_1, None));
+        self.functions.insert("gui_set_enabled".to_string(), self.module.add_function("gui_set_enabled", fn_2, None));
+        self.functions.insert("gui_set_visible".to_string(), self.module.add_function("gui_set_visible", fn_2, None));
+        self.functions.insert("gui_show_all".to_string(), self.module.add_function("gui_show_all", fn_1, None));
+        self.functions.insert("gui_set_text".to_string(), self.module.add_function("gui_set_text", fn_2, None));
+        self.functions.insert("gui_get_text".to_string(), self.module.add_function("gui_get_text", fn_1, None));
+        self.functions.insert("gui_on_click".to_string(), self.module.add_function("gui_on_click", fn_2, None));
+        self.functions.insert("gui_on_click_ctx".to_string(), self.module.add_function("gui_on_click_ctx", fn_3, None));
+        self.functions.insert("gui_on_tap_ctx".to_string(), self.module.add_function("gui_on_tap_ctx", fn_3, None));
+        self.functions.insert("gui_separator_h".to_string(), self.module.add_function("gui_separator_h", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_separator_v".to_string(), self.module.add_function("gui_separator_v", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("gui_msg_info".to_string(), self.module.add_function("gui_msg_info", fn_2, None));
+        self.functions.insert("gui_msg_error".to_string(), self.module.add_function("gui_msg_error", fn_2, None));
+
+        // Skia (experimental)
+        self.functions.insert("skia_version".to_string(), self.module.add_function("skia_version", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("skia_use_real".to_string(), self.module.add_function("skia_use_real", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_surface".to_string(), self.module.add_function("skia_surface", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_surface_width".to_string(), self.module.add_function("skia_surface_width", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_surface_height".to_string(), self.module.add_function("skia_surface_height", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_surface_clear".to_string(), self.module.add_function("skia_surface_clear", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_surface_set_color".to_string(), self.module.add_function("skia_surface_set_color", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_draw_rect".to_string(), self.module.add_function("skia_draw_rect", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_draw_circle".to_string(), self.module.add_function("skia_draw_circle", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_draw_line".to_string(), self.module.add_function("skia_draw_line", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_draw_text".to_string(), self.module.add_function("skia_draw_text", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        self.functions.insert("skia_save_png".to_string(), self.module.add_function("skia_save_png", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+
+        self.functions.insert("str_to_num".to_string(), self.module.add_function("str_to_num", fn_1, None));
+        self.functions.insert("num_to_str".to_string(), self.module.add_function("num_to_str", fn_1, None));
+        self.functions.insert("calc_eval".to_string(), self.module.add_function("calc_eval", fn_1, None));
+
+        // SQLite (optional at link time)
+        self.functions.insert("sqlite_open".to_string(), self.module.add_function("sqlite_open", fn_1, None));
+        self.functions.insert("sqlite_close".to_string(), self.module.add_function("sqlite_close", fn_1, None));
+        self.functions.insert("sqlite_exec".to_string(), self.module.add_function("sqlite_exec", fn_2, None));
+        self.functions.insert("sqlite_query".to_string(), self.module.add_function("sqlite_query", fn_2, None));
+        self.functions.insert("sqlite_prepare".to_string(), self.module.add_function("sqlite_prepare", fn_2, None));
+        self.functions.insert("sqlite_finalize".to_string(), self.module.add_function("sqlite_finalize", fn_1, None));
+        self.functions.insert("sqlite_reset".to_string(), self.module.add_function("sqlite_reset", fn_1, None));
+        self.functions.insert("sqlite_bind_text".to_string(), self.module.add_function("sqlite_bind_text", fn_3, None));
+        self.functions.insert("sqlite_bind_num".to_string(), self.module.add_function("sqlite_bind_num", fn_3, None));
+        self.functions.insert("sqlite_bind_null".to_string(), self.module.add_function("sqlite_bind_null", fn_2, None));
+        self.functions.insert("sqlite_step".to_string(), self.module.add_function("sqlite_step", fn_1, None));
+        self.functions.insert("sqlite_column".to_string(), self.module.add_function("sqlite_column", fn_2, None));
+        self.functions.insert("sqlite_column_count".to_string(), self.module.add_function("sqlite_column_count", fn_1, None));
+        self.functions.insert("sqlite_column_name".to_string(), self.module.add_function("sqlite_column_name", fn_2, None));
+
+        // Biblioteca String (Nativas)
+        self.functions.insert("string_len".to_string(), self.module.add_function("string_len", fn_1, None));
+        self.functions.insert("string_upper".to_string(), self.module.add_function("string_upper", fn_1, None));
+        self.functions.insert("string_lower".to_string(), self.module.add_function("string_lower", fn_1, None));
+        self.functions.insert("string_trim".to_string(), self.module.add_function("string_trim", fn_1, None));
+        self.functions.insert("string_split".to_string(), self.module.add_function("string_split", fn_2, None));
+        self.functions.insert("string_join".to_string(), self.module.add_function("string_join", fn_2, None));
+        self.functions.insert("string_replace".to_string(), self.module.add_function("string_replace", fn_3, None));
+        self.functions.insert("string_contains".to_string(), self.module.add_function("string_contains", fn_2, None));
+        self.functions.insert("string_starts_with".to_string(), self.module.add_function("string_starts_with", fn_2, None));
+        self.functions.insert("string_ends_with".to_string(), self.module.add_function("string_ends_with", fn_2, None));
+        self.functions.insert("string_chars".to_string(), self.module.add_function("string_chars", fn_1, None));
+        self.functions.insert("string_substring".to_string(), self.module.add_function("string_substring", fn_3, None));
+        self.functions.insert("string_format".to_string(), self.module.add_function("string_format", self.context.void_type().fn_type(&[self.ptr_type.into(), self.context.i32_type().into(), self.ptr_type.ptr_type(inkwell::AddressSpace::from(0)).into()], false), None));
+        self.functions.insert("string_index_of".to_string(), self.module.add_function("string_index_of", fn_2, None));
+        self.functions.insert("string_last_index_of".to_string(), self.module.add_function("string_last_index_of", fn_2, None));
+        self.functions.insert("string_repeat".to_string(), self.module.add_function("string_repeat", fn_2, None));
+        self.functions.insert("string_is_empty".to_string(), self.module.add_function("string_is_empty", fn_1, None));
+        self.functions.insert("string_is_blank".to_string(), self.module.add_function("string_is_blank", fn_1, None));
+        self.functions.insert("string_pad_start".to_string(), self.module.add_function("string_pad_start", fn_3, None));
+        self.functions.insert("string_pad_end".to_string(), self.module.add_function("string_pad_end", fn_3, None));
+        self.functions.insert("string_capitalize".to_string(), self.module.add_function("string_capitalize", fn_1, None));
+        self.functions.insert("string_title".to_string(), self.module.add_function("string_title", fn_1, None));
+        self.functions.insert("string_swapcase".to_string(), self.module.add_function("string_swapcase", fn_1, None));
+        self.functions.insert("string_count".to_string(), self.module.add_function("string_count", fn_2, None));
+        self.functions.insert("string_is_numeric".to_string(), self.module.add_function("string_is_numeric", fn_1, None));
+        self.functions.insert("string_is_alpha".to_string(), self.module.add_function("string_is_alpha", fn_1, None));
+        self.functions.insert("string_is_alphanumeric".to_string(), self.module.add_function("string_is_alphanumeric", fn_1, None));
+        self.functions.insert("string_is_ascii".to_string(), self.module.add_function("string_is_ascii", fn_1, None));
+        self.functions.insert("string_hex".to_string(), self.module.add_function("string_hex", fn_1, None));
+        self.functions.insert("string_from_char_code".to_string(), self.module.add_function("string_from_char_code", fn_1, None));
+        self.functions.insert("string_to_char_code".to_string(), self.module.add_function("string_to_char_code", fn_2, None));
+        self.functions.insert("string_reverse".to_string(), self.module.add_function("string_reverse", fn_1, None));
+
+        // Multithreading (pthread)
+        self.functions.insert("thread_spawn".to_string(), self.module.add_function("thread_spawn", fn_2, None));
+        self.functions.insert("thread_join".to_string(), self.module.add_function("thread_join", fn_1, None));
+        self.functions.insert("thread_detach".to_string(), self.module.add_function("thread_detach", fn_1, None));
+
+        self.functions.insert("s_alloc_obj".to_string(), self.module.add_function("s_alloc_obj", fn_alloc, None));
+        self.functions.insert("s_json_stringify".to_string(), self.module.add_function("s_json_stringify", fn_1, None));
+        self.functions.insert("json_stringify".to_string(), self.module.add_function("json_stringify", fn_1, None));
+        self.functions.insert("json_stringify_pretty".to_string(), self.module.add_function("json_stringify_pretty", fn_1, None));
+        self.functions.insert("json_parse".to_string(), self.module.add_function("json_parse", fn_1, None));
+        self.functions.insert("json_get".to_string(), self.module.add_function("json_get", fn_2, None));
+        self.functions.insert("json_has".to_string(), self.module.add_function("json_has", fn_2, None));
+        self.functions.insert("json_len".to_string(), self.module.add_function("json_len", fn_1, None));
+        self.functions.insert("json_index".to_string(), self.module.add_function("json_index", fn_2, None));
+        self.functions.insert("json_set".to_string(), self.module.add_function("json_set", fn_3, None));
+        self.functions.insert("json_keys".to_string(), self.module.add_function("json_keys", fn_1, None));
+        self.functions.insert("snif_new_object".to_string(), self.module.add_function("snif_new_object", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("snif_new_array".to_string(), self.module.add_function("snif_new_array", void_type.fn_type(&[self.ptr_type.into()], false), None));
+        self.functions.insert("snif_parse_ex".to_string(), self.module.add_function("snif_parse_ex", fn_1, None));
+        self.functions.insert("snif_type".to_string(), self.module.add_function("snif_type", fn_1, None));
+        self.functions.insert("snif_arr_len".to_string(), self.module.add_function("snif_arr_len", fn_1, None));
+        self.functions.insert("snif_arr_get".to_string(), self.module.add_function("snif_arr_get", fn_2, None));
+        self.functions.insert("snif_arr_set".to_string(), self.module.add_function("snif_arr_set", fn_3, None));
+        self.functions.insert("snif_arr_push".to_string(), self.module.add_function("snif_arr_push", fn_2, None));
+        self.functions.insert("snif_path_get".to_string(), self.module.add_function("snif_path_get", fn_2, None));
+        self.functions.insert("json_parse_ex".to_string(), self.module.add_function("json_parse_ex", fn_1, None));
+        self.functions.insert("s_get_member".to_string(), self.module.add_function("s_get_member", fn_2, None));
+        self.functions.insert("s_set_member".to_string(), self.module.add_function("s_set_member", void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into(), self.ptr_type.into()], false), None));
+        
+        // OM Arena functions
+        self.functions.insert("s_arena_alloc_obj".to_string(), self.module.add_function("s_arena_alloc_obj", fn_alloc, None));
+        self.functions.insert("s_arena_reset".to_string(), self.module.add_function("s_arena_reset", void_type.fn_type(&[], false), None));
+        self.functions.insert("free".to_string(), self.module.get_function("s_free_obj").unwrap_or_else(|| self.module.add_function("s_free_obj", fn_1, None)));
+        self.functions.insert("__s_call_by_name".to_string(), self.module.add_function("s_call_by_name", fn_4, None));
+
+        // Aliases "__" para nativas que devem ser acessadas via bibliotecas.
+        // O compilador reescreve chamadas dentro de módulos importados para usar "__<nome>".
+        for n in [
+            // Filesystem / Path / OS / HTTP
+            "sfs_read","sfs_write","sfs_append","sfs_write_mb","sfs_count_bytes",
+            "sfs_bench_create_small_files","sfs_bench_count_entries","sfs_bench_delete_small_files",
+            "sfs_delete","sfs_exists","sfs_copy","sfs_move","sfs_mkdir","sfs_is_file","sfs_is_dir","sfs_listdir","sfs_size","sfs_mtime","sfs_rmdir",
+            "path_basename","path_dirname","path_extname","path_join",
+            "os_cwd","os_platform","os_arch","os_getenv","os_setenv","os_random_hex",
+            "s_http_get","s_http_post","s_http_put","s_http_delete","s_http_patch",
+            // Frameworks / GUI / DB / Threads
+            "blaze_run","blaze_qs_get","blaze_cookie_get",
+            "auth_random_hex","auth_now","auth_const_time_eq","auth_hash_password","auth_verify_password","auth_session_id","auth_csrf_token","auth_cookie_kv","auth_cookie_session","auth_cookie_delete","auth_bearer_header","auth_ok","auth_fail","auth_version",
+            "gui_init","gui_run","gui_quit","gui_window","gui_set_title","gui_set_resizable","gui_autosize","gui_vbox","gui_hbox","gui_eventbox","gui_scrolled","gui_flowbox","gui_flow_add","gui_frame","gui_set_margin","gui_icon","gui_css","gui_add_class","gui_listbox","gui_list_add_text","gui_on_select_ctx","gui_set_child","gui_add","gui_add_expand","gui_label","gui_entry","gui_set_placeholder","gui_set_editable","gui_button","gui_set_enabled","gui_set_visible","gui_show_all","gui_set_text","gui_get_text","gui_on_click","gui_on_click_ctx","gui_on_tap_ctx","gui_separator_h","gui_separator_v","gui_msg_info","gui_msg_error",
+            "skia_version","skia_use_real","skia_surface","skia_surface_width","skia_surface_height","skia_surface_clear","skia_surface_set_color","skia_draw_rect","skia_draw_circle","skia_draw_line","skia_draw_text","skia_save_png",
+            "sqlite_open","sqlite_close","sqlite_exec","sqlite_query","sqlite_prepare","sqlite_finalize","sqlite_reset","sqlite_bind_text","sqlite_bind_num","sqlite_bind_null","sqlite_step","sqlite_column","sqlite_column_count","sqlite_column_name",
+            "thread_spawn","thread_join","thread_detach",
+            // JSON / SNIF
+            "json_stringify","json_stringify_pretty","json_parse","json_get","json_has","json_len","json_index","json_set","json_keys","json_parse_ex",
+            "snif_new_object","snif_new_array","snif_parse_ex","snif_type","snif_arr_len","snif_arr_get","snif_arr_set","snif_arr_push","snif_path_get",
+            // String (Novas)
+            "string_len","string_upper","string_lower","string_trim","string_split","string_join","string_replace","string_contains","string_starts_with","string_ends_with","string_chars","string_substring","string_format","string_index_of","string_last_index_of","string_repeat","string_is_empty","string_is_blank","string_pad_start","string_pad_end","string_capitalize","string_title","string_swapcase","string_count","string_is_numeric","string_is_alpha","string_is_alphanumeric","string_is_ascii","string_hex","string_from_char_code","string_to_char_code","string_reverse",
+        ] {
+            if let Some(f) = self.module.get_function(n) {
+                let alias = format!("__{}", n);
+                if self.module.get_function(&alias).is_none() {
+                    self.module.add_function(&alias, f.get_type(), None);
+                }
+            }
+        }
+    }
+
+    fn sanitize_name(&self, name: &str) -> String {
+        name.replace("::", "_NS_")
+    }
+
+    fn declare_function(&mut self, func: &FuncDecl) -> Result<(), String> {
+        let mut p_types: Vec<inkwell::types::BasicMetadataTypeEnum> = vec![self.ptr_type.into()];
+        for _ in &func.params { p_types.push(self.ptr_type.into()); }
+        let f_name = format!("f_{}", self.sanitize_name(&func.name));
+        let function = self.module.add_function(&f_name, self.context.void_type().fn_type(&p_types, false), None);
+        self.functions.insert(func.name.clone(), function);
+        Ok(())
+    }
+
+    fn generate_function_body(&mut self, func: FuncDecl) -> Result<(), String> {
+        let function = *self.functions.get(&func.name).unwrap();
+        let entry = self.context.append_basic_block(function, "entry");
+        self.builder.position_at_end(entry);
+        self.current_func = Some(function);
+        let old_vars = self.variables.clone();
+        self.local_vars.clear();
+        let r_ptr = function.get_nth_param(0).unwrap().into_pointer_value();
+        
+        // Parâmetros começam no índice 1, porque o 0 é o RA (Return Address/Pointer)
+        for (i, (name, _)) in func.params.iter().enumerate() {
+            let p_ptr = function.get_nth_param((i + 1) as u32).unwrap().into_pointer_value();
+            self.local_vars.insert(name.clone(), p_ptr);
+        }
+        for stmt in func.body { self.generate_statement(stmt)?; }
+        if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
+            let mut s = self.value_type.get_undef();
+            s = self.builder.build_insert_value(s, self.context.f64_type().const_float(TYPE_NIL as f64), 0, "t").unwrap().into_struct_value();
+            self.builder.build_store(r_ptr, s).unwrap();
+            self.builder.build_return(None).unwrap();
+        }
+        self.local_vars.clear();
+        self.variables = old_vars;
+        Ok(())
+    }
+
+    fn generate_statement(&mut self, stmt: Stmt) -> Result<(), String> {
+        match stmt.kind {
+            StmtKind::VarDeclaration(d) => {
+                let v = self.evaluate_expression(d.value)?;
+                if self.current_func.unwrap().get_name().to_str().unwrap() == "main" {
+                    // Top-level globals: usa GlobalValue para permitir acesso em outras funções.
+                    let f64_type = self.context.f64_type();
+                    let init = self.value_type.const_named_struct(&[
+                        f64_type.const_float(TYPE_NIL as f64).into(),
+                        f64_type.const_float(0.0).into(),
+                        self.ptr_type.const_null().into(),
+                    ]);
+                    let gv = self.module.add_global(self.value_type, None, &format!("g_{}", d.name));
+                    gv.set_initializer(&init);
+                    let p = gv.as_pointer_value();
+                    self.builder.build_store(p, v).unwrap();
+                    self.variables.insert(d.name, p);
+                } else {
+                    let a = self.create_entry_block_alloca(self.value_type, &d.name);
+                    self.builder.build_store(a, v).unwrap();
+                    self.local_vars.insert(d.name, a);
+                }
+            }
+            StmtKind::MutDeclaration(d) => {
+                let v = self.evaluate_expression(d.value)?;
+                if self.current_func.unwrap().get_name().to_str().unwrap() == "main" {
+                    let f64_type = self.context.f64_type();
+                    let init = self.value_type.const_named_struct(&[
+                        f64_type.const_float(TYPE_NIL as f64).into(),
+                        f64_type.const_float(0.0).into(),
+                        self.ptr_type.const_null().into(),
+                    ]);
+                    let gv = self.module.add_global(self.value_type, None, &format!("g_{}", d.name));
+                    gv.set_initializer(&init);
+                    let p = gv.as_pointer_value();
+                    self.builder.build_store(p, v).unwrap();
+                    self.variables.insert(d.name, p);
+                } else {
+                    let a = self.create_entry_block_alloca(self.value_type, &d.name);
+                    self.builder.build_store(a, v).unwrap();
+                    self.local_vars.insert(d.name, a);
+                }
+            }
+            StmtKind::ConstDeclaration(d) => {
+                let v = self.evaluate_expression(d.value)?;
+                if self.current_func.unwrap().get_name().to_str().unwrap() == "main" {
+                    let f64_type = self.context.f64_type();
+                    let init = self.value_type.const_named_struct(&[
+                        f64_type.const_float(TYPE_NIL as f64).into(),
+                        f64_type.const_float(0.0).into(),
+                        self.ptr_type.const_null().into(),
+                    ]);
+                    let gv = self.module.add_global(self.value_type, None, &format!("g_{}", d.name));
+                    gv.set_initializer(&init);
+                    let p = gv.as_pointer_value();
+                    self.builder.build_store(p, v).unwrap();
+                    self.variables.insert(d.name, p);
+                } else {
+                    let a = self.create_entry_block_alloca(self.value_type, &d.name);
+                    self.builder.build_store(a, v).unwrap();
+                    self.local_vars.insert(d.name, a);
+                }
+            }
+            StmtKind::VarAssignment(s) => {
+                let v = self.evaluate_expression(s.value)?;
+                let p = self.local_vars.get(&s.name).or_else(|| self.variables.get(&s.name)).ok_or_else(|| format!("Var {} not found.", s.name))?;
+                self.builder.build_store(*p, v).unwrap();
+            }
+            StmtKind::PropertyAssignment(p) => {
+                let obj = self.evaluate_expression(p.target)?;
+                let mut index = -1;
+                for class in self.classes.values() {
+                    if let Some(i) = class.properties.iter().position(|prop| prop.name == p.property) {
+                        index = i as i32;
+                        break;
+                    }
+                }
+                if index == -1 {
+                    return Err(format!("Propriedade '{}' não encontrada em nenhuma classe.", p.property));
+                }
+                
+                let val = self.evaluate_expression(p.value)?;
+                
+                let set_f = self.functions.get("s_set_member").unwrap();
+                let idx_val = self.context.f64_type().const_float(index as f64);
+                let mut idx_struct = self.value_type.get_undef();
+                idx_struct = self.builder.build_insert_value(idx_struct, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
+                idx_struct = self.builder.build_insert_value(idx_struct, idx_val, 1, "v").unwrap().into_struct_value();
+                
+                let obj_p = self.create_entry_block_alloca(self.value_type, "objp");
+                self.builder.build_store(obj_p, obj).unwrap();
+                let idx_p = self.create_entry_block_alloca(self.value_type, "idxp");
+                self.builder.build_store(idx_p, idx_struct).unwrap();
+                let val_p = self.create_entry_block_alloca(self.value_type, "valp");
+                self.builder.build_store(val_p, val).unwrap();
+                
+                self.builder.build_call(*set_f, &[obj_p.into(), idx_p.into(), val_p.into()], "set").unwrap();
+            }
+            StmtKind::IndexAssignment(i) => {
+                let obj = self.evaluate_expression(i.target)?;
+                let idx = self.evaluate_expression(i.index)?;
+                let val = self.evaluate_expression(i.value)?;
+                
+                let set_f = self.functions.get("json_set").unwrap();
+                
+                let obj_p = self.create_entry_block_alloca(self.value_type, "objp");
+                self.builder.build_store(obj_p, obj).unwrap();
+                let idx_p = self.create_entry_block_alloca(self.value_type, "idxp");
+                self.builder.build_store(idx_p, idx).unwrap();
+                let val_p = self.create_entry_block_alloca(self.value_type, "valp");
+                self.builder.build_store(val_p, val).unwrap();
+                
+                let out_p = self.create_entry_block_alloca(self.value_type, "outp");
+                self.builder.build_call(*set_f, &[out_p.into(), obj_p.into(), idx_p.into(), val_p.into()], "idx_set").unwrap();
+            }
+            StmtKind::Print(exprs) => {
+                let p_func = self.module.get_function("s_print").unwrap();
+                let nl_func = self.module.get_function("s_println").unwrap();
+                for expr in exprs {
+                    let v = self.evaluate_expression(expr)?;
+                    let v_ptr = self.create_entry_block_alloca(self.value_type, "pv");
+                    self.builder.build_store(v_ptr, v).unwrap();
+                    self.builder.build_call(p_func, &[v_ptr.into()], "c").unwrap();
+                }
+                self.builder.build_call(nl_func, &[], "nl").unwrap();
+            }
+            StmtKind::Return(expr) => {
+                let _v = self.evaluate_expression(expr)?;
+                if self.current_func.unwrap().get_name().to_str().unwrap() != "main" {
+                    let op = self.current_func.unwrap().get_nth_param(0).unwrap().into_pointer_value();
+                    self.builder.build_store(op, _v).unwrap();
+                    self.builder.build_return(None).unwrap();
+                } else { 
+                    let i32_type = self.context.i32_type();
+                    self.builder.build_return(Some(&i32_type.const_int(0, false))).unwrap(); 
+                }
+            }
+            StmtKind::Conditional(c) => {
+                let parent = self.current_func.unwrap();
+                let then_bb = self.context.append_basic_block(parent, "then");
+                let else_bb = self.context.append_basic_block(parent, "else");
+                let merge_bb = self.context.append_basic_block(parent, "merge");
+
+                let cond_val = self.evaluate_expression(c.if_block.condition)?;
+                let n = self.builder.build_extract_value(cond_val, 1, "n").unwrap().into_float_value();
+                let is_true = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, n, self.context.f64_type().const_float(0.0), "is_true").unwrap();
+                
+                self.builder.build_conditional_branch(is_true, then_bb, else_bb).unwrap();
+
+                // THEN block
+                self.builder.position_at_end(then_bb);
+                for s in c.if_block.body { self.generate_statement(s)?; }
+                if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
+                    self.builder.build_unconditional_branch(merge_bb).unwrap();
+                }
+
+                // ELSE block
+                self.builder.position_at_end(else_bb);
+                if let Some(else_body) = c.else_block {
+                    for s in else_body { self.generate_statement(s)?; }
+                }
+                if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
+                    self.builder.build_unconditional_branch(merge_bb).unwrap();
+                }
+
+                self.builder.position_at_end(merge_bb);
+            }
+            StmtKind::Loop(l) => {
+                match l {
+                    crate::ast::LoopStmt::While { condition, body } => {
+                        let parent = self.current_func.unwrap();
+                        let cond_bb = self.context.append_basic_block(parent, "while_cond");
+                        let body_bb = self.context.append_basic_block(parent, "while_body");
+                        let end_bb = self.context.append_basic_block(parent, "while_end");
+
+                        self.builder.build_unconditional_branch(cond_bb).unwrap();
+
+                        self.builder.position_at_end(cond_bb);
+                        let cond_val = self.evaluate_expression(condition)?;
+                        let n = self.builder.build_extract_value(cond_val, 1, "wn").unwrap().into_float_value();
+                        let is_true = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, n, self.context.f64_type().const_float(0.0), "wtrue").unwrap();
+                        self.builder.build_conditional_branch(is_true, body_bb, end_bb).unwrap();
+
+                        self.builder.position_at_end(body_bb);
+                        for s in body {
+                            self.generate_statement(s)?;
+                            if self.builder.get_insert_block().unwrap().get_terminator().is_some() {
+                                break;
+                            }
+                        }
+                        if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
+                            self.builder.build_unconditional_branch(cond_bb).unwrap();
+                        }
+
+                        self.builder.position_at_end(end_bb);
+                    }
+                    crate::ast::LoopStmt::For { .. } => {
+                        return Err("Loop for ainda não suportado no backend LLVM.".to_string());
+                    }
+                }
+            }
+            StmtKind::FuncCall(expr) => {
+                self.evaluate_expression(expr)?;
+            }
+            StmtKind::Expression(expr) => {
+                self.evaluate_expression(expr)?;
+            }
+            StmtKind::ClassDeclaration(_) => {
+                // TODO: Implement LLVM class generation
+            }
+            StmtKind::UnsafeBlock(body) => {
+                // @unsafe is logically transparent but conceptually important here
+                for s in body { self.generate_statement(s)?; }
+            }
+            StmtKind::Zone { name: _, body } => {
+                for s in body { self.generate_statement(s.clone())?; }
+                if let Some(reset_fn) = self.functions.get("s_arena_reset") {
+                    self.builder.build_call(*reset_fn, &[], "arena_reset").unwrap();
+                }
+            }
+            StmtKind::Scope { name: _, body } => {
+                // Similar to zones
+                for s in body { self.generate_statement(s)?; }
+            }
+            StmtKind::Promote { target, .. } => {
+                let p = self.local_vars.get(&target).or_else(|| self.variables.get(&target)).ok_or_else(|| format!("Var {} not found for promotion.", target))?;
+                let v = self.builder.build_load(self.value_type, *p, "to_promote").unwrap().into_struct_value();
+                
+                let v_ptr = self.create_entry_block_alloca(self.value_type, "v_ptr");
+                self.builder.build_store(v_ptr, v).unwrap();
+                
+                let out_ptr = self.create_entry_block_alloca(self.value_type, "promoted_out");
+                let f_promote = self.functions.get("s_promote").unwrap();
+                self.builder.build_call(*f_promote, &[out_ptr.into(), v_ptr.into()], "call_promote").unwrap();
+                
+                let promoted_v = self.builder.build_load(self.value_type, out_ptr, "promoted_v").unwrap().into_struct_value();
+                self.builder.build_store(*p, promoted_v).unwrap();
+            }
+            StmtKind::Entangle { .. } => {
+                // Future OM feature: static anchoring
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn evaluate_expression(&self, expr: Expr) -> Result<StructValue<'ctx>, String> {
+        let nil_p = self.ptr_type.const_null();
+        match expr.kind {
+            ExprKind::Literal(lit) => match lit {
+                LiteralValue::Number(n) => {
+                    let mut s = self.value_type.get_undef();
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(n), 1, "v").unwrap().into_struct_value();
+                    s = self.builder.build_insert_value(s, nil_p, 2, "p").unwrap().into_struct_value();
+                    Ok(s)
+                },
+                LiteralValue::String(str_v) => {
+                    let g = self.builder.build_global_string_ptr(&str_v, "s").unwrap();
+                    let mut s = self.value_type.get_undef();
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(TYPE_STR as f64), 0, "t").unwrap().into_struct_value();
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(0.0), 1, "v").unwrap().into_struct_value();
+                    s = self.builder.build_insert_value(s, g.as_pointer_value(), 2, "p").unwrap().into_struct_value();
+                    Ok(s)
+                },
+                LiteralValue::Boolean(b) => {
+                    let mut s = self.value_type.get_undef();
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(2.0), 0, "t").unwrap().into_struct_value(); // 2 = BOOL
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(if b { 1.0 } else { 0.0 }), 1, "v").unwrap().into_struct_value();
+                    s = self.builder.build_insert_value(s, nil_p, 2, "p").unwrap().into_struct_value();
+                    Ok(s)
+                },
+                LiteralValue::Nil => {
+                    let mut s = self.value_type.get_undef();
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(0.0), 0, "t").unwrap().into_struct_value(); // 0 = NIL
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(0.0), 1, "v").unwrap().into_struct_value();
+                    s = self.builder.build_insert_value(s, nil_p, 2, "p").unwrap().into_struct_value();
+                    Ok(s)
+                },
+                LiteralValue::Dict(pairs) => {
+                    let fn_snif = self.functions.get("snif_new_object").unwrap();
+                    let out_p = self.create_entry_block_alloca(self.value_type, "dict_out");
+                    self.builder.build_call(*fn_snif, &[out_p.into()], "dict_new").unwrap();
+                    let obj_val = self.builder.build_load(self.value_type, out_p, "obj_val").unwrap().into_struct_value();
+
+                    if !pairs.is_empty() {
+                        let fn_set = self.functions.get("json_set").unwrap();
+                        let obj_p = self.create_entry_block_alloca(self.value_type, "objp");
+                        self.builder.build_store(obj_p, obj_val).unwrap();
+                        
+                        for (k_expr, v_expr) in pairs.clone() {
+                            let k_val = self.evaluate_expression(k_expr)?;
+                            let v_val = self.evaluate_expression(v_expr)?;
+                            
+                            let k_p = self.create_entry_block_alloca(self.value_type, "kp");
+                            self.builder.build_store(k_p, k_val).unwrap();
+                            
+                            let v_p = self.create_entry_block_alloca(self.value_type, "vp");
+                            self.builder.build_store(v_p, v_val).unwrap();
+                            
+                            let set_out_p = self.create_entry_block_alloca(self.value_type, "set_out");
+                            self.builder.build_call(*fn_set, &[set_out_p.into(), obj_p.into(), k_p.into(), v_p.into()], "set_call").unwrap();
+                        }
+                    }
+                    Ok(obj_val)
+                }
+                LiteralValue::List(items) => {
+                    let fn_snif = self.functions.get("snif_new_array").unwrap();
+                    let out_p = self.create_entry_block_alloca(self.value_type, "arr_out");
+                    self.builder.build_call(*fn_snif, &[out_p.into()], "arr_new").unwrap();
+                    let arr_val = self.builder.build_load(self.value_type, out_p, "arr_val").unwrap().into_struct_value();
+
+                    if !items.is_empty() {
+                        let fn_push = self.functions.get("snif_arr_push").unwrap();
+                        let arr_p = self.create_entry_block_alloca(self.value_type, "arrp");
+                        self.builder.build_store(arr_p, arr_val).unwrap();
+                        
+                        for item_expr in items.clone() {
+                            let v_val = self.evaluate_expression(item_expr)?;
+                            
+                            let v_p = self.create_entry_block_alloca(self.value_type, "vp");
+                            self.builder.build_store(v_p, v_val).unwrap();
+                            
+                            let push_out_p = self.create_entry_block_alloca(self.value_type, "push_out");
+                            self.builder.build_call(*fn_push, &[push_out_p.into(), arr_p.into(), v_p.into()], "push_call").unwrap();
+                        }
+                    }
+                    Ok(arr_val)
+                }
+                _ => Err(format!("Lit not supported: {:?}", lit)),
+            },
+            ExprKind::Variable(name) => {
+                if let Some(p) = self.local_vars.get(&name).or_else(|| self.variables.get(&name)) { 
+                    return Ok(self.builder.build_load(self.value_type, *p, &name).unwrap().into_struct_value()); 
+                }
+                Err(format!("Var {} not found.", name))
+            }
+            ExprKind::Binary { op, left, right } => {
+                let lhs = self.evaluate_expression(*left)?;
+                let rhs = self.evaluate_expression(*right)?;
+                let lt_f = self.builder.build_extract_value(lhs, 0, "lt").unwrap().into_float_value();
+                let rt_f = self.builder.build_extract_value(rhs, 0, "rt").unwrap().into_float_value();
+                let lt = self.builder.build_float_to_unsigned_int(lt_f, self.context.i32_type(), "lt_i").unwrap();
+                let rt = self.builder.build_float_to_unsigned_int(rt_f, self.context.i32_type(), "rt_i").unwrap();
+                if matches!(op, BinaryOp::Add) {
+                    let is_l_s = self.builder.build_int_compare(inkwell::IntPredicate::EQ, lt, self.context.i32_type().const_int(TYPE_STR as u64, false), "ils").unwrap();
+                    let is_r_s = self.builder.build_int_compare(inkwell::IntPredicate::EQ, rt, self.context.i32_type().const_int(TYPE_STR as u64, false), "irs").unwrap();
+                    let is_any_s = self.builder.build_or(is_l_s, is_r_s, "ias").unwrap();
+                    let parent = self.current_func.unwrap();
+                    let cat_bb = self.context.append_basic_block(parent, "cat");
+                    let add_bb = self.context.append_basic_block(parent, "add");
+                    let m_bb = self.context.append_basic_block(parent, "m");
+                    let res_p = self.create_entry_block_alloca(self.value_type, "rp");
+                    self.builder.build_conditional_branch(is_any_s, cat_bb, add_bb).unwrap();
+                    self.builder.position_at_end(cat_bb);
+                    let f = self.module.get_function("s_concat").unwrap();
+                    let lp = self.create_entry_block_alloca(self.value_type, "lp");
+                    let rp = self.create_entry_block_alloca(self.value_type, "rp");
+                    self.builder.build_store(lp, lhs).unwrap(); self.builder.build_store(rp, rhs).unwrap();
+                    self.builder.build_call(f, &[res_p.into(), lp.into(), rp.into()], "c").unwrap();
+                    self.builder.build_unconditional_branch(m_bb).unwrap();
+                    self.builder.position_at_end(add_bb);
+                    let lv = self.builder.build_extract_value(lhs, 1, "lv").unwrap().into_float_value();
+                    let rv = self.builder.build_extract_value(rhs, 1, "rv").unwrap().into_float_value();
+                    let res_v = self.builder.build_float_add(lv, rv, "v").unwrap();
+                    let mut s = self.value_type.get_undef();
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
+                    s = self.builder.build_insert_value(s, res_v, 1, "v").unwrap().into_struct_value();
+                    self.builder.build_store(res_p, s).unwrap();
+                    self.builder.build_unconditional_branch(m_bb).unwrap();
+                    self.builder.position_at_end(m_bb);
+                    return Ok(self.builder.build_load(self.value_type, res_p, "f").unwrap().into_struct_value());
+                }
+                let lv = self.builder.build_extract_value(lhs, 1, "lv").unwrap().into_float_value();
+                let rv = self.builder.build_extract_value(rhs, 1, "rv").unwrap().into_float_value();
+                let res = match op {
+                    BinaryOp::Subtract => self.builder.build_float_sub(lv, rv, "s").unwrap(),
+                    BinaryOp::Multiply => self.builder.build_float_mul(lv, rv, "m").unwrap(),
+                    BinaryOp::Divide => self.builder.build_float_div(lv, rv, "d").unwrap(),
+                    BinaryOp::IntDivide => {
+                        let div = self.builder.build_float_div(lv, rv, "idiv").unwrap();
+                        let i64t = self.context.i64_type();
+                        let as_i = self.builder.build_float_to_signed_int(div, i64t, "idiv_i").unwrap();
+                        self.builder.build_signed_int_to_float(as_i, self.context.f64_type(), "idiv_f").unwrap()
+                    }
+                    BinaryOp::And => {
+                        let lz = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, lv, self.context.f64_type().const_float(0.0), "lz").unwrap();
+                        let rz = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, rv, self.context.f64_type().const_float(0.0), "rz").unwrap();
+                        let both = self.builder.build_and(lz, rz, "and").unwrap();
+                        self.builder.build_unsigned_int_to_float(both, self.context.f64_type(), "bf").unwrap()
+                    }
+                    BinaryOp::Or => {
+                        let lz = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, lv, self.context.f64_type().const_float(0.0), "lz").unwrap();
+                        let rz = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, rv, self.context.f64_type().const_float(0.0), "rz").unwrap();
+                        let any = self.builder.build_or(lz, rz, "or").unwrap();
+                        self.builder.build_unsigned_int_to_float(any, self.context.f64_type(), "bf").unwrap()
+                    }
+                    BinaryOp::LessThan => {
+                        let cmp = self.builder.build_float_compare(inkwell::FloatPredicate::OLT, lv, rv, "lt").unwrap();
+                        self.builder.build_unsigned_int_to_float(cmp, self.context.f64_type(), "bf").unwrap()
+                    }
+                    BinaryOp::GreaterThan => {
+                        let cmp = self.builder.build_float_compare(inkwell::FloatPredicate::OGT, lv, rv, "gt").unwrap();
+                        self.builder.build_unsigned_int_to_float(cmp, self.context.f64_type(), "bf").unwrap()
+                    }
+                    BinaryOp::GreaterThanOrEquals => {
+                        let cmp = self.builder.build_float_compare(inkwell::FloatPredicate::OGE, lv, rv, "ge").unwrap();
+                        self.builder.build_unsigned_int_to_float(cmp, self.context.f64_type(), "bf").unwrap()
+                    }
+                    BinaryOp::LessThanOrEquals => {
+                        let cmp = self.builder.build_float_compare(inkwell::FloatPredicate::OLE, lv, rv, "le").unwrap();
+                        self.builder.build_unsigned_int_to_float(cmp, self.context.f64_type(), "bf").unwrap()
+                    }
+                    BinaryOp::Equals => {
+                        let f = *self.functions.get("s_eq").unwrap();
+                        let lp = self.create_entry_block_alloca(self.value_type, "lp");
+                        let rp = self.create_entry_block_alloca(self.value_type, "rp");
+                        self.builder.build_store(lp, lhs).unwrap();
+                        self.builder.build_store(rp, rhs).unwrap();
+                        let outp = self.create_entry_block_alloca(self.value_type, "op");
+                        self.builder.build_call(f, &[outp.into(), lp.into(), rp.into()], "eq").unwrap();
+                        let outv = self.builder.build_load(self.value_type, outp, "ov").unwrap().into_struct_value();
+                        self.builder.build_extract_value(outv, 1, "b").unwrap().into_float_value()
+                    }
+                    BinaryOp::NotEquals => {
+                        let f = *self.functions.get("s_ne").unwrap();
+                        let lp = self.create_entry_block_alloca(self.value_type, "lp");
+                        let rp = self.create_entry_block_alloca(self.value_type, "rp");
+                        self.builder.build_store(lp, lhs).unwrap();
+                        self.builder.build_store(rp, rhs).unwrap();
+                        let outp = self.create_entry_block_alloca(self.value_type, "op");
+                        self.builder.build_call(f, &[outp.into(), lp.into(), rp.into()], "ne").unwrap();
+                        let outv = self.builder.build_load(self.value_type, outp, "ov").unwrap().into_struct_value();
+                        self.builder.build_extract_value(outv, 1, "b").unwrap().into_float_value()
+                    }
+                    BinaryOp::StrictEquals => {
+                        let f = *self.functions.get("s_eq_strict").unwrap();
+                        let lp = self.create_entry_block_alloca(self.value_type, "lp");
+                        let rp = self.create_entry_block_alloca(self.value_type, "rp");
+                        self.builder.build_store(lp, lhs).unwrap();
+                        self.builder.build_store(rp, rhs).unwrap();
+                        let outp = self.create_entry_block_alloca(self.value_type, "op");
+                        self.builder.build_call(f, &[outp.into(), lp.into(), rp.into()], "se").unwrap();
+                        let outv = self.builder.build_load(self.value_type, outp, "ov").unwrap().into_struct_value();
+                        self.builder.build_extract_value(outv, 1, "b").unwrap().into_float_value()
+                    }
+                    _ => self.context.f64_type().const_float(0.0),
+                };
+                let mut s = self.value_type.get_undef();
+                s = self.builder.build_insert_value(s, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
+                s = self.builder.build_insert_value(s, res, 1, "v").unwrap().into_struct_value();
+                Ok(s)
+            }
+            ExprKind::PropertyAccess { target, property } => {
+                let obj = self.evaluate_expression(*target)?;
+                // Por simplicidade, assumimos que o alvo é um objeto e procuramos o índice da propriedade.
+                // Em um compilador completo, precisaríamos saber o tipo real do objeto.
+                // Como não temos um sistema de tipos forte no backend ainda, vamos inferir ou fixar.
+                
+                // Vamos tentar achar a propriedade em qualquer classe (hack temporário)
+                let mut index = -1;
+                for class in self.classes.values() {
+                    if let Some(i) = class.properties.iter().position(|p| p.name == property) {
+                        index = i as i32;
+                        break;
+                    }
+                }
+
+                if index == -1 { return Err(format!("Propriedade '{}' não encontrada em nenhuma classe.", property)); }
+
+                let get_f = self.functions.get("s_get_member").unwrap();
+                let idx_val = self.context.f64_type().const_float(index as f64);
+                let mut idx_struct = self.value_type.get_undef();
+                idx_struct = self.builder.build_insert_value(idx_struct, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
+                idx_struct = self.builder.build_insert_value(idx_struct, idx_val, 1, "v").unwrap().into_struct_value();
+                
+                let obj_p = self.create_entry_block_alloca(self.value_type, "objp");
+                self.builder.build_store(obj_p, obj).unwrap();
+                let idx_p = self.create_entry_block_alloca(self.value_type, "idxp");
+                self.builder.build_store(idx_p, idx_struct).unwrap();
+                
+                let res_p = self.create_entry_block_alloca(self.value_type, "rp");
+                self.builder.build_call(*get_f, &[res_p.into(), obj_p.into(), idx_p.into()], "get").unwrap();
+                
+                Ok(self.builder.build_load(self.value_type, res_p, "r").unwrap().into_struct_value())
+            }
+            ExprKind::IndexAccess { target, index } => {
+                let obj = self.evaluate_expression(*target)?;
+                let idx = self.evaluate_expression(*index)?;
+                
+                let get_f = self.functions.get("json_get").unwrap();
+                
+                let obj_p = self.create_entry_block_alloca(self.value_type, "objp");
+                self.builder.build_store(obj_p, obj).unwrap();
+                let idx_p = self.create_entry_block_alloca(self.value_type, "idxp");
+                self.builder.build_store(idx_p, idx).unwrap();
+                
+                let out_p = self.create_entry_block_alloca(self.value_type, "outp");
+                self.builder.build_call(*get_f, &[out_p.into(), obj_p.into(), idx_p.into()], "idx_get").unwrap();
+                
+                Ok(self.builder.build_load(self.value_type, out_p, "r").unwrap().into_struct_value())
+            }
+            ExprKind::FunctionCall { callee, args } => {
+                if let ExprKind::PropertyAccess { target, property } = &callee.kind {
+                    // É uma chamada de método! obj.metodo()
+                    let obj = self.evaluate_expression(*target.clone())?;
+                    
+                    // Procura o método em qualquer classe (hack temporário até termos tipos fortes)
+                    let mut method_full_name = String::new();
+                    for class in self.classes.values() {
+                        if class.methods.iter().any(|m| m.name == *property) {
+                            method_full_name = format!("{}::{}", class.name, property);
+                            break;
+                        }
+                    }
+
+                    if method_full_name.is_empty() { return Err(format!("Método '{}' não encontrado.", property)); }
+
+                    let f_name = format!("f_{}", self.sanitize_name(&method_full_name));
+                    let f = self.module.get_function(&f_name).ok_or_else(|| format!("Função {} não encontrada.", f_name))?;
+                    
+                    let mut l_args = Vec::new();
+                    let r_a = self.create_entry_block_alloca(self.value_type, "ra");
+                    l_args.push(r_a.into());
+                    
+                    // Adiciona o 'self' como primeiro argumento
+                    let obj_p = self.create_entry_block_alloca(self.value_type, "selfp");
+                    self.builder.build_store(obj_p, obj).unwrap();
+                    l_args.push(obj_p.into());
+
+                    // Adiciona os outros argumentos
+                    for arg in args {
+                        let v = self.evaluate_expression(arg.clone())?;
+                        let arg_a = self.create_entry_block_alloca(self.value_type, "a");
+                        self.builder.build_store(arg_a, v).unwrap();
+                        l_args.push(arg_a.into());
+                    }
+
+                    self.builder.build_call(f, &l_args, "mc").unwrap();
+                    return Ok(self.builder.build_load(self.value_type, r_a, "r").unwrap().into_struct_value());
+                }
+
+                if let ExprKind::Variable(name) = &callee.kind {
+                    if !name.starts_with("__") && is_library_native(name) {
+                        return Err(library_native_help(name));
+                    }
+
+                    if let Some(class) = self.classes.get(name).cloned() {
+                        // Class instantiation via FunctionCall (old style)
+                        let alloc_f = self.functions.get("s_alloc_obj").unwrap();
+                        let size_val = self.context.f64_type().const_float(class.properties.len() as f64);
+                        let mut size_struct = self.value_type.get_undef();
+                        size_struct = self.builder.build_insert_value(size_struct, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
+                        size_struct = self.builder.build_insert_value(size_struct, size_val, 1, "v").unwrap().into_struct_value();
+                        
+                        let size_ptr = self.create_entry_block_alloca(self.value_type, "szp");
+                        self.builder.build_store(size_ptr, size_struct).unwrap();
+
+                        let res_p = self.create_entry_block_alloca(self.value_type, "objp");
+                        // Passa também a tabela de nomes das propriedades (char**), usada por JSON/stringify e introspecção.
+                        let names_arg = if class.properties.is_empty() {
+                            self.ptr_type.const_null()
+                        } else {
+                            let global_name = format!("__snask_class_names_{}", self.sanitize_name(&class.name));
+                            let names_global = if let Some(g) = self.module.get_global(&global_name) {
+                                g
+                            } else {
+                                let i8_ptr = self.context.i8_type().ptr_type(inkwell::AddressSpace::from(0));
+                                let arr_ty = i8_ptr.array_type(class.properties.len() as u32);
+                                let g = self.module.add_global(arr_ty, None, &global_name);
+                                let mut elems = Vec::new();
+                                for prop in &class.properties {
+                                    let sp = self.builder.build_global_string_ptr(&prop.name, "prop_name").unwrap();
+                                    elems.push(sp.as_pointer_value());
+                                }
+                                let init = i8_ptr.const_array(&elems);
+                                g.set_initializer(&init);
+                                g.set_constant(true);
+                                g
+                            };
+                            let arr_ty = names_global.get_value_type().into_array_type();
+                            let zero = self.context.i32_type().const_int(0, false);
+                            let names_ptr = unsafe {
+                                self.builder
+                                    .build_in_bounds_gep(arr_ty, names_global.as_pointer_value(), &[zero, zero], "names_ptr")
+                                    .unwrap()
+                            };
+                            self.builder
+                                .build_pointer_cast(names_ptr, self.ptr_type, "names_voidp")
+                                .unwrap()
+                        };
+
+                        self.builder
+                            .build_call(*alloc_f, &[res_p.into(), size_ptr.into(), names_arg.into()], "alloc")
+                            .unwrap();
+                        
+                        let obj = self.builder.build_load(self.value_type, res_p, "obj").unwrap().into_struct_value();
+                        
+                        // Inicializa propriedades com valores padrão
+                        for (i, prop) in class.properties.iter().enumerate() {
+                            let val = self.evaluate_expression(prop.value.clone())?;
+                            let set_f = self.functions.get("s_set_member").unwrap();
+                            let idx_val = self.context.f64_type().const_float(i as f64);
+                            let mut idx_struct = self.value_type.get_undef();
+                            idx_struct = self.builder.build_insert_value(idx_struct, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
+                            idx_struct = self.builder.build_insert_value(idx_struct, idx_val, 1, "v").unwrap().into_struct_value();
+                            
+                            let ip = self.create_entry_block_alloca(self.value_type, "ip");
+                            let vp = self.create_entry_block_alloca(self.value_type, "vp");
+                            self.builder.build_store(ip, idx_struct).unwrap();
+                            self.builder.build_store(vp, val).unwrap();
+                            self.builder.build_call(*set_f, &[res_p.into(), ip.into(), vp.into()], "set").unwrap();
+                        }
+                        
+                        return Ok(obj);
+                    }
+
+                    let s_name = self.sanitize_name(name);
+                    let f_name = format!("f_{}", s_name);
+                    // Lookup order:
+                    // - If this is an internal "__" alias, prefer resolving to the real runtime symbol (without "__")
+                    //   so we don't require `__*` symbols to exist at link time.
+                    // - Then: f_<name> (user/lib), then direct/runtime names.
+                    let internal_alias = name.strip_prefix("__").and_then(|n| {
+                        self.functions
+                            .get(n)
+                            .cloned()
+                            .or_else(|| self.module.get_function(n))
+                    });
+
+                    let f = internal_alias
+                        .or_else(|| self.module.get_function(&f_name))
+                        .or_else(|| self.module.get_function(&s_name))
+                        .or_else(|| self.module.get_function(name))
+                        .or_else(|| self.functions.get(name).cloned())
+                        .or_else(|| name.strip_prefix("__").and_then(|n| self.functions.get(n).cloned()))
+                        .ok_or_else(|| format!("Função {} não encontrada.", name))?;
+                    let mut l_args = Vec::new();
+                    let r_a = self.create_entry_block_alloca(self.value_type, "ra");
+                    l_args.push(r_a.into());
+                    for arg in args {
+                        let v = self.evaluate_expression(arg.clone())?;
+                        let arg_a = self.create_entry_block_alloca(self.value_type, "a");
+                        self.builder.build_store(arg_a, v).unwrap();
+                        l_args.push(arg_a.into());
+                    }
+                    let _call_site = self.builder.build_call(f, &l_args, "c").unwrap();
+                    return Ok(self.builder.build_load(self.value_type, r_a, "r").unwrap().into_struct_value());
+                } else { Err("Indirect not supported.".to_string()) }
+            }
+            ExprKind::Unary { op, expr } => {
+                let v = self.evaluate_expression(*expr)?;
+                let n = self.builder.build_extract_value(v, 1, "n").unwrap().into_float_value();
+                let res_n = match op {
+                    crate::ast::UnaryOp::Negative => self.builder.build_float_mul(n, self.context.f64_type().const_float(-1.0), "neg").unwrap(),
+                    crate::ast::UnaryOp::Not => {
+                        let is_true = self.builder.build_float_compare(inkwell::FloatPredicate::ONE, n, self.context.f64_type().const_float(0.0), "is_true").unwrap();
+                        let is_false = self.builder.build_not(is_true, "not").unwrap();
+                        self.builder.build_unsigned_int_to_float(is_false, self.context.f64_type(), "bf").unwrap()
+                    }
+                };
+                let mut s = self.value_type.get_undef();
+                s = self.builder.build_insert_value(s, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
+                s = self.builder.build_insert_value(s, res_n, 1, "v").unwrap().into_struct_value();
+                s = self.builder.build_insert_value(s, nil_p, 2, "p").unwrap().into_struct_value();
+                Ok(s)
+            }
+            ExprKind::New { class, args, strategy } => {
+                let out_p = self.create_entry_block_alloca(self.value_type, "alloc_out");
+                let mut count = 0;
+                if let Some(c) = self.classes.get(&class) {
+                    count = (c.properties.len() + c.methods.len()) as u32;
+                }
+
+                if matches!(strategy, crate::ast::MemoryStrategy::Stack) {
+                    // TRUE OM STACK ALLOCATION (Zero Malloc)
+                    let i32_type = self.context.i32_type();
+                    let ptr_type = self.ptr_type;
+                    
+                    // 1. Allocate SnaskObject on stack
+                    let i8_type = self.context.i8_type();
+                    let void_ptr_type = i8_type.ptr_type(inkwell::AddressSpace::from(0));
+                    
+                    // SnaskObject = { names: char**, values: SnaskValue*, count: int }
+                    let obj_type = self.context.struct_type(&[
+                        void_ptr_type.into(), // names
+                        void_ptr_type.into(), // values
+                        i32_type.into(),      // count
+                    ], false);
+                    
+                    let obj_stack_ptr = self.create_entry_block_alloca(obj_type, "stack_obj");
+                    
+                    // 2. Allocate values array on stack
+                    let values_p = if count > 0 {
+                        let total_size = (count as u64) * 24; // Simple estimate: each SnaskValue struct is 24 bytes (3 f64-sized fields)
+                        // Actually let's use the actual struct type size if possible, or just build an array type
+                        let values_array_type = self.value_type.array_type(count);
+                        let array_ptr = self.create_entry_block_alloca(values_array_type, "stack_values");
+                        self.builder.build_pointer_cast(array_ptr, void_ptr_type, "values_void_p").unwrap()
+                    } else {
+                        void_ptr_type.const_null()
+                    };
+                    
+                    // 3. Populate SnaskObject
+                    // Store names (null for now)
+                    let names_ptr_p = unsafe { self.builder.build_struct_gep(obj_type, obj_stack_ptr, 0, "names_gep").unwrap() };
+                    self.builder.build_store(names_ptr_p, void_ptr_type.const_null()).unwrap();
+                    
+                    // Store values pointer
+                    let values_ptr_p = unsafe { self.builder.build_struct_gep(obj_type, obj_stack_ptr, 1, "values_gep").unwrap() };
+                    self.builder.build_store(values_ptr_p, values_p).unwrap();
+                    
+                    // Store count
+                    let count_ptr_p = unsafe { self.builder.build_struct_gep(obj_type, obj_stack_ptr, 2, "count_gep").unwrap() };
+                    self.builder.build_store(count_ptr_p, i32_type.const_int(count as u64, false)).unwrap();
+                    
+                    // 4. Create the SnaskValue wrapping this object
+                    let mut s = self.value_type.get_undef();
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(TYPE_OBJ as f64), 0, "t").unwrap().into_struct_value();
+                    s = self.builder.build_insert_value(s, self.context.f64_type().const_float(count as f64), 1, "v").unwrap().into_struct_value();
+                    s = self.builder.build_insert_value(s, self.builder.build_pointer_cast(obj_stack_ptr, ptr_type, "obj_ptr").unwrap(), 2, "p").unwrap().into_struct_value();
+                    
+                    self.builder.build_store(out_p, s).unwrap();
+                } else {
+                    let (fn_name, _is_arena) = if matches!(strategy, crate::ast::MemoryStrategy::Arena) {
+                        ("s_arena_alloc_obj", true)
+                    } else {
+                        ("s_alloc_obj", false)
+                    };
+                    
+                    let fn_alloc = self.functions.get(fn_name).unwrap();
+                    let size_val = self.context.f64_type().const_float(count as f64);
+                    let mut size_struct = self.value_type.get_undef();
+                    size_struct = self.builder.build_insert_value(size_struct, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
+                    size_struct = self.builder.build_insert_value(size_struct, size_val, 1, "v").unwrap().into_struct_value();
+                    size_struct = self.builder.build_insert_value(size_struct, nil_p, 2, "p").unwrap().into_struct_value();
+
+                    let size_p = self.create_entry_block_alloca(self.value_type, "sz_p");
+                    self.builder.build_store(size_p, size_struct).unwrap();
+                    
+                    self.builder.build_call(*fn_alloc, &[out_p.into(), size_p.into(), self.ptr_type.const_null().into()], "all").unwrap();
+                }
+                
+                let c_name = format!("{}::init", class);
+                if let Some(init_func) = self.functions.get(&c_name) {
+                    let init_ret_p = self.create_entry_block_alloca(self.value_type, "init_ret_p");
+                    let mut call_args: Vec<inkwell::values::BasicMetadataValueEnum> = vec![init_ret_p.into(), out_p.into()];
+                    for arg in args {
+                        let arg_val = self.evaluate_expression(arg.clone())?;
+                        let arg_p = self.create_entry_block_alloca(self.value_type, "arg_p");
+                        self.builder.build_store(arg_p, arg_val).unwrap();
+                        call_args.push(arg_p.into());
+                    }
+                    self.builder.build_call(*init_func, &call_args, "call_init").unwrap();
+                }
+                
+                let ret_val = self.builder.build_load(self.value_type, out_p, "alloc_ret").unwrap().into_struct_value();
+                Ok(ret_val)
+            }
+            _ => Err(format!("Expr not supported: {:?}", expr.kind)),
+        }
+    }
+
+    pub fn emit_to_file(&self, path: &str) -> Result<(), String> {
+        self.module.print_to_file(std::path::Path::new(path)).map_err(|e| e.to_string())
+    }
+}
