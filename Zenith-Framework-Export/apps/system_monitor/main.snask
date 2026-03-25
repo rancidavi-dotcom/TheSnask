@@ -1,0 +1,42 @@
+import "../../core/package.snask";
+import "../../core/Service.snask";
+import "../../core/EventDispatcher.snask";
+import "os";
+
+class MonitorService extends Service
+    mut name = "MonitorService";
+
+    fun boot()
+        print("[MONITOR] Initializing system surveillance...");
+        print("\n");
+        self.start();
+
+    fun report()
+        let p = os::platform();
+        let a = os::arch();
+        let c = os::cwd();
+        print("[MONITOR] Platform: " + p);
+        print("\n");
+        print("[MONITOR] Arch: " + a);
+        print("\n");
+        print("[MONITOR] WorkDir: " + c);
+        print("\n");
+
+class main
+    fun start()
+        let app = Application();
+        app.start();
+
+        print("--- Zenith System Service Demo ---");
+        print("\n");
+
+        let evs = EventDispatcher();
+        evs.dispatch("system.boot", "Zenith started");
+
+        let mon = MonitorService();
+        app.register_service(mon);
+
+        mon.report();
+
+        print("--- Demo Finished ---");
+        print("\n");

@@ -1,0 +1,26 @@
+import "../core/Controller.snask";
+import "User.snask";
+
+class HomeController extends Controller
+    fun index(method, path, query, body, cookie)
+        return self.success({ "message": "Welcome to Zenith Framework!", "laravel_inspired": true, "inheritance_working": true });
+
+    fun hello(method, path, query, body, cookie)
+        return self.success({ "hello": "world" });
+
+    fun users(method, path, query, body, cookie)
+        let u = User();
+        return self.success(u.all());
+
+// Route Entry Points
+fun route_index(method, path, query, body, cookie)
+    let c = HomeController();
+    return c.index(method, path, query, body, cookie);
+
+fun route_hello(method, path, query, body, cookie)
+    let c = HomeController();
+    return c.hello(method, path, query, body, cookie);
+
+fun route_users(method, path, query, body, cookie)
+    let c = HomeController();
+    return c.users(method, path, query, body, cookie);

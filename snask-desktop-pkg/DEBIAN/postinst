@@ -1,0 +1,5 @@
+#!/bin/bash
+update-mime-database /usr/share/mime
+update-desktop-database /usr/share/applications
+gtk-update-icon-cache /usr/share/icons/hicolor
+exit 0

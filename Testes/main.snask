@@ -1,0 +1,283 @@
+import "gui";
+import "gui_layout";
+import "gui_widgets";
+import "gui_shaders";
+import "os";
+import "sfs";
+import "string";
+
+// Estado: metricas
+
+mut _prev_cpu_total  = 0;
+mut _prev_cpu_idle   = 0;
+
+mut _cpu_pct         = 0;
+mut _mem_used_mb     = 0;
+mut _mem_total_mb    = 1;
+mut _swap_used_mb    = 0;
+mut _swap_total_mb   = 0;
+
+// Estado: widgets
+
+mut _win          = nil;
+mut _lbl_header   = nil;
+
+mut _bar_cpu      = nil;
+mut _lbl_cpu_val  = nil;
+
+mut _bar_mem      = nil;
+mut _lbl_mem_val  = nil;
+
+mut _bar_swap     = nil;
+mut _lbl_swap_val = nil;
+
+mut _lst_procs    = nil;
+
+// Parsing /proc/meminfo
+
+fun meminfo_value(line)
+    let parts = string::split(line, ":");
+    if len(parts) < 2
+        return 0;
+    let after = string::trim(parts[1]);
+    let tokens = string::split_ws(after);
+    if len(tokens) == 0
+        return 0;
+    return str_to_num(tokens[0]);
+
+fun meminfo_find(content, prefix)
+    let lines = string::split(content, "\n");
+    mut i = 0;
+    let n = len(lines);
+    while i < n
+        let l = string::trim(lines[i]);
+        if string::starts_with(l, prefix)
+            return meminfo_value(l);
+        i = i + 1;
+    return 0;
+
+// Coleta CPU
+
+fun update_cpu()
+    let raw = sfs::read("/proc/stat");
+    if is_nil(raw)
+        return false;
+    let lines = string::split(raw, "\n");
+    if len(lines) == 0
+        return false;
+    let t = string::split_ws(lines[0]);
+    if len(t) < 8
+        return false;
+    let user    = str_to_num(t[1]);
+    let nice    = str_to_num(t[2]);
+    let sys_t   = str_to_num(t[3]);
+    let idle    = str_to_num(t[4]);
+    let iowait  = str_to_num(t[5]);
+    let irq     = str_to_num(t[6]);
+    let softirq = str_to_num(t[7]);
+    let total   = user + nice + sys_t + idle + iowait + irq + softirq;
+    let dtotal  = total - _prev_cpu_total;
+    let didle   = idle  - _prev_cpu_idle;
+    _prev_cpu_total = total;
+    _prev_cpu_idle  = idle;
+    if dtotal == 0
+        _cpu_pct = 0;
+        return true;
+    _cpu_pct = ((dtotal - didle) * 100) / dtotal;
+    return true;
+
+// Coleta Mem
+
+fun update_mem()
+    let raw = sfs::read("/proc/meminfo");
+    if is_nil(raw)
+        return false;
+    let total      = meminfo_find(raw, "MemTotal");
+    let free_kb    = meminfo_find(raw, "MemFree");
+    let buffers    = meminfo_find(raw, "Buffers");
+    let cached     = meminfo_find(raw, "Cached");
+    let swap_total = meminfo_find(raw, "SwapTotal");
+    let swap_free  = meminfo_find(raw, "SwapFree");
+    let used       = total - free_kb - buffers - cached;
+    _mem_total_mb  = total / 1024;
+    _mem_used_mb   = used  / 1024;
+    if _mem_total_mb < 1
+        _mem_total_mb = 1;
+    _swap_total_mb = swap_total / 1024;
+    _swap_used_mb  = (swap_total - swap_free) / 1024;
+    return true;
+
+fun collect_all()
+    update_cpu();
+    update_mem();
+    return true;
+
+// Uptime
+
+fun uptime_str()
+    let raw = sfs::read("/proc/uptime");
+    if is_nil(raw)
+        return "?";
+    let tokens = string::split_ws(string::trim(raw));
+    if len(tokens) == 0
+        return "?";
+    let secs = str_to_num(tokens[0]);
+    let h    = secs / 3600;
+    let m    = (secs - h * 3600) / 60;
+    let s    = secs - h * 3600 - m * 60;
+    return num_to_str(h) + "h " + num_to_str(m) + "m " + num_to_str(s) + "s";
+
+// Processos
+
+fun format_proc_line(line)
+    let t = string::split_ws(line);
+    if len(t) < 11
+        return line;
+    let user = string::pad_right(t[0], 10, " ");
+    let pid  = string::pad_left(t[1],   7, " ");
+    let cpu  = string::pad_left(t[2],   6, " ");
+    let mem  = string::pad_left(t[3],   6, " ");
+    let cmd  = t[10];
+    return user + "  " + pid + "  " + cpu + "%  " + mem + "%   " + cmd;
+
+fun rebuild_proc_list()
+    gui::list_clear(_lst_procs);
+    let hdr = "USUARIO       PID    %CPU   %MEM   PROCESSO";
+    let hdr_row = gui::list_add_text(_lst_procs, hdr);
+    gui_shaders::row(hdr_row);
+    let raw = os::exec("ps aux --sort=-%cpu --no-header 2>/dev/null | head -30");
+    if is_nil(raw)
+        return false;
+    let lines = string::split(string::trim(raw), "\n");
+    mut i = 0;
+    let n = len(lines);
+    while i < n
+        let l = string::trim(lines[i]);
+        if l != ""
+            let row_text = format_proc_line(l);
+            let r = gui::list_add_text(_lst_procs, row_text);
+            gui_shaders::row(r);
+        i = i + 1;
+    return true;
+
+// Clamp
+
+fun clamp100(v)
+    if v > 100
+        return 100;
+    if v < 0
+        return 0;
+    return v;
+
+// Refresh da UI
+
+fun refresh_ui()
+    let host = string::trim(os::exec("hostname 2>/dev/null"));
+    let up   = uptime_str();
+    gui::set_label(_lbl_header, "SnaskTop  -  " + host + "  -  uptime: " + up);
+
+    let cpu_f = clamp100(_cpu_pct);
+    gui::set_progress(_bar_cpu, cpu_f);
+    gui::set_label(_lbl_cpu_val, "  " + num_to_str(_cpu_pct) + "%");
+
+    let mem_pct = (_mem_used_mb * 100) / _mem_total_mb;
+    gui::set_progress(_bar_mem, clamp100(mem_pct));
+    let mem_str = "  " + num_to_str(_mem_used_mb) + " MiB / " + num_to_str(_mem_total_mb) + " MiB";
+    gui::set_label(_lbl_mem_val, mem_str);
+
+    mut swap_pct = 0;
+    if _swap_total_mb > 0
+        swap_pct = (_swap_used_mb * 100) / _swap_total_mb;
+    gui::set_progress(_bar_swap, clamp100(swap_pct));
+    let swap_str = "  " + num_to_str(_swap_used_mb) + " MiB / " + num_to_str(_swap_total_mb) + " MiB";
+    gui::set_label(_lbl_swap_val, swap_str);
+
+    rebuild_proc_list();
+    gui::show_all(_win);
+    return true;
+
+// Timer callback
+
+fun on_tick()
+    collect_all();
+    refresh_ui();
+    return true;
+
+// Construcao da UI
+
+fun build_ui()
+    _win = gui::window("SnaskTop - Monitor de Sistema", 960, 700);
+    gui::set_resizable(_win, true);
+
+    let root = gui::vbox();
+    gui::set_child(_win, root);
+    gui_shaders::root(root);
+
+    _lbl_header = gui::label("SnaskTop  -  inicializando...");
+    gui::add(root, _lbl_header);
+
+    gui_layout::spacer_h(root);
+
+    gui_layout::section(root, "CPU");
+    let cpu_row = gui::hbox();
+    gui::add(root, cpu_row);
+    let lbl_cpu = gui::label("CPU  ");
+    gui::add(cpu_row, lbl_cpu);
+    _bar_cpu = gui::progressbar();
+    gui::add_expand(cpu_row, _bar_cpu);
+    _lbl_cpu_val = gui::label("  0%");
+    gui::add(cpu_row, _lbl_cpu_val);
+
+    gui_layout::section(root, "Memoria");
+    let mem_row = gui::hbox();
+    gui::add(root, mem_row);
+    let lbl_mem = gui::label("Mem  ");
+    gui::add(mem_row, lbl_mem);
+    _bar_mem = gui::progressbar();
+    gui::add_expand(mem_row, _bar_mem);
+    _lbl_mem_val = gui::label("  0 MiB / 0 MiB");
+    gui::add(mem_row, _lbl_mem_val);
+
+    let swap_row = gui::hbox();
+    gui::add(root, swap_row);
+    let lbl_swap = gui::label("Swap ");
+    gui::add(swap_row, lbl_swap);
+    _bar_swap = gui::progressbar();
+    gui::add_expand(swap_row, _bar_swap);
+    _lbl_swap_val = gui::label("  0 MiB / 0 MiB");
+    gui::add(swap_row, _lbl_swap_val);
+
+    gui_layout::spacer_h(root);
+
+    gui_layout::section(root, "Processos  (top 30 por CPU)");
+    let scroll = gui::scrolled();
+    gui::add_expand(root, scroll);
+    _lst_procs = gui::listbox();
+    gui_shaders::listbox(_lst_procs);
+    gui::set_child(scroll, _lst_procs);
+
+    gui_layout::spacer_h(root);
+
+    let footer = gui::label("Atualiza a cada 2 s  -  SnaskTop v1.0  -  feito em Snask");
+    gui::add(root, footer);
+
+    gui::show_all(_win);
+    return true;
+
+// Entrypoint
+
+class main
+    fun start()
+        gui_shaders::install();
+
+        if gui::init() == false
+            print("Erro: falha ao inicializar GUI (GTK)");
+            return nil;
+
+        build_ui();
+        collect_all();
+        refresh_ui();
+
+        gui::timer(2000, "on_tick");
+
+        gui::run();

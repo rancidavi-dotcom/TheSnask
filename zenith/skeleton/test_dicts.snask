@@ -1,0 +1,5 @@
+class main
+    fun start()
+        mut config = {};
+        config["key"] = "test_value";
+        print(config["key"]);

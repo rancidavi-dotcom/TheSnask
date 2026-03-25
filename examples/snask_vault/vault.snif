@@ -1,0 +1,14 @@
+{
+  "version": "1",
+  "salt": "83074e720583662e",
+  "entries": {
+    "0": {
+      "name": "Discord",
+      "user": "rancidavi@gmail.com",
+      "pass": "davi2012ranci!",
+      "note": "",
+      "created_at": 1.77145e+09
+    }
+  },
+  "master_hash": "v1$499757dbe5269f5bdbb3794f71275e66$632f89475bac264a"
+}

@@ -1,36 +1,42 @@
-use std::env;
 use std::thread;
 use std::time::Duration;
 use std::io::{self, Write};
+use std::env;
 
 pub fn run_fetch() {
+    let snask_version = env!("CARGO_PKG_VERSION");
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
-    let snask_version = env!("CARGO_PKG_VERSION");
 
-    let s_art = r#"
-        ██████████
-      ███        ███
-     ███          ██
-     █████          
-       ███████      
-              ███   
-     ██        ███  
-      ███      ███  
-        █████████   
-    "#;
+    // Representação artística da logo Snask
+    let s_art = [
+        "       .d88888b.  ",
+        "     d88P'  `88b  ",
+        "     888      `Y  ",
+        "     `8888b.      ",
+        "        `\"Y88b.   ",
+        "      db    `888  ",
+        "     888.  .d88P  ",
+        "      Y888888P'   ",
+        "         `        "
+    ];
 
-    // Efeito de pulsação e brilho simples
-    for i in 0..8 {
-        print!("\x1B[2J\x1B[1;1H");
-        let intensity = if i % 2 == 0 { "\x1b[36m" } else { "\x1b[34m" };
-        println!("{}{}", intensity, s_art);
-        println!("\n  \x1b[1;37mSnask O futuro é nosso! 🚀\x1b[0m");
-        println!("  --------------------------");
-        println!("  Version: v{}", snask_version);
+    print!("\x1B[2J");
+    
+    // Animação de cores (Ciano para Verde Água)
+    for i in 0..15 {
+        let color = 36 + (i % 2); 
+        print!("\x1B[1;1H"); 
+        for line in &s_art {
+            println!("\x1b[1;{}m{}\x1b[0m", color, line);
+        }
+        println!("\n  \x1b[1;37mSnask v{} | O futuro é nosso! 🚀\x1b[0m", snask_version);
+        println!("  ---------------------------------------");
         println!("  OS:      {}", os);
         println!("  Arch:    {}", arch);
+        println!("  Runtime: Native (LLVM/C)");
+        
         io::stdout().flush().unwrap();
-        thread::sleep(Duration::from_millis(300));
+        thread::sleep(Duration::from_millis(200));
     }
 }

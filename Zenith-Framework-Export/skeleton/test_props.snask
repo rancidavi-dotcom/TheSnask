@@ -1,0 +1,8 @@
+class Container
+    mut prop1 = 1;
+
+class main
+    fun start()
+        mut c = Container();
+        c.prop1 = 2;
+        print(c.prop1);

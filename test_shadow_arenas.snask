@@ -1,0 +1,19 @@
+import "os";
+
+class User
+    let name = "";
+    fun init(n)
+        self.name = n;
+
+class main
+    fun worker(id)
+        zone "thread_local"
+            mut i = 0;
+            while i < 1000
+                let obj = new arena User("thread_work");
+                i = i + 1;
+        print("Thread " + id + " done");
+
+    fun start()
+        os::thread_spawn("worker", "1");
+        os::thread_spawn("worker", "2");

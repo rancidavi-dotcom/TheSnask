@@ -1,0 +1,8 @@
+import "zenith";
+
+class main
+    fun start()
+        let app = Application();
+        print("created app");
+        app.start();
+        print("started app");

@@ -1,0 +1,31 @@
+// Base Controller do Zenith Framework
+// 🛡️ Proporciona metodos auxiliares de resposta e validacao
+
+
+class Controller
+    mut middleware = [];
+
+    fun json_response(data, status)
+        return { 
+            "status": status, 
+            "body": __json_stringify(data), 
+            "headers": { "Content-Type": "application/json" } 
+        };
+
+    fun success(data)
+        return self.json_response(data, 200);
+
+    fun error(message, status)
+        return self.json_response({ "error": message }, status);
+
+    fun created(data)
+        return self.json_response(data, 201);
+
+    fun not_found(message)
+        return self.error(message, 404);
+
+    fun unauthorized(message)
+        return self.error(message, 401);
+
+    fun forbidden(message)
+        return self.error(message, 403);

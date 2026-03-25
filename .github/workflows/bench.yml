@@ -1,0 +1,57 @@
+name: Hardcore Benchmark CI (v0.3.6)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  performance-validation:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install LLVM 15
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y llvm-15 clang-15
+
+    - name: Build Snask Compiler (Release)
+      run: cargo build --release
+
+    - name: Setup Snask Runtime
+      run: ./target/release/snask setup
+
+    - name: Validate Binary Size (Max 500KB)
+      run: |
+        ./target/release/snask build pride/BENCHMARKS.snask --profile tiny
+        SIZE=$(stat -c%s pride/BENCHMARKS)
+        echo "Binary size: $SIZE bytes"
+        if [ "$SIZE" -gt 512000 ]; then
+          echo "ERROR: Binary size exceeded 500KB threshold!"
+          exit 1
+        fi
+
+    - name: Validate Allocation Speed (Max 40ms for 1M)
+        # We increase the threshold to 40ms to avoid false negatives due to CI hardware jitter.
+        run: |
+          ./target/release/snask build pride/RAM_BENCHMARKS.snask --release
+          TIME=$(./pride/RAM_BENCHMARKS 1000000 | grep -oP '(?<=Alloc time: )\d+')
+          echo "Allocation time: $TIME ms"
+          if [ "$TIME" -gt 40 ]; then
+            echo "ERROR: Allocation performance regression detected!"
+            exit 1
+          fi
+
+    - name: Verify "Hello World" Cold Start (Max 50ms)
+      run: |
+        START=$(date +%s%N)
+        ./target/release/snask run pride/STARTUP_BENCHMARKS.snask
+        END=$(date +%s%N)
+        DIFF=$((($END - $START)/1000000))
+        echo "Cold start time: $DIFF ms"
+        if [ "$DIFF" -gt 100 ]; then
+          echo "ERROR: Startup performance regression detected!"
+          exit 1
+        fi

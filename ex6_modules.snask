@@ -1,0 +1,10 @@
+import "os";
+import "json";
+
+class main
+    fun start()
+        print("Platform: " + platform() + "\n");
+        
+        let j = JSON();
+        let data = { "id": 1, "status": "ok" };
+        print("JSON: " + j.stringify(data) + "\n");

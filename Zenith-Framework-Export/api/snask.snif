@@ -1,0 +1,13 @@
+{
+  package: {
+    name: "zenith_api",
+    version: "0.1.0",
+    entry: "main.snask",
+  },
+  dependencies: {
+  },
+  build: {
+    opt_level: 2,
+    profile: "dev",
+  },
+}

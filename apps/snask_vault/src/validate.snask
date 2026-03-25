@@ -1,0 +1,5 @@
+fun is_blank(s)
+    if is_nil(s)
+        return true;
+    return len(s) == 0;
+

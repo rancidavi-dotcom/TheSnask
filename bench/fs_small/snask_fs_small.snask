@@ -1,0 +1,22 @@
+import "sfs";
+import "os";
+
+class main
+    fun start()
+        let dir = os::getenv("BENCH_DIR");
+        let n_env = os::getenv("BENCH_N");
+        if n_env == nil
+            // Bench harness bug-proofing: if the env var isn't visible, fail loudly.
+            print("ERROR: BENCH_N missing\n");
+            return nil;
+        let n = str_to_num(n_env);
+
+        sfs::mkdir(dir);
+
+        // create + list + delete using native bench helpers (avoids huge temporary string churn).
+        sfs::bench_create_small_files(dir, n, 1024);
+        let count = sfs::bench_count_entries(dir);
+        sfs::bench_delete_small_files(dir, n);
+
+        // Ensure the number is emitted without extra spaces/newlines to make parsing robust.
+        print(num_to_str(count));

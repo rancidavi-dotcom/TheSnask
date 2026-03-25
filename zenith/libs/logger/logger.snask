@@ -1,0 +1,45 @@
+// logger.snask - Zenith Library v0.1.0
+// Logging com niveis e timestamp para Snask
+// Uso: import "logger"; logger::info("mensagem");
+
+fun info(msg)
+    let ts = time();
+    print("[INFO]  ");
+    print(ts);
+    print(" | ");
+    print(msg);
+    print("\n");
+
+fun warn(msg)
+    let ts = time();
+    print("[WARN]  ");
+    print(ts);
+    print(" | ");
+    print(msg);
+    print("\n");
+
+fun error(msg)
+    let ts = time();
+    print("[ERROR] ");
+    print(ts);
+    print(" | ");
+    print(msg);
+    print("\n");
+
+fun debug(msg)
+    let ts = time();
+    print("[DEBUG] ");
+    print(ts);
+    print(" | ");
+    print(msg);
+    print("\n");
+
+fun raw(level, msg)
+    let ts = time();
+    print("[");
+    print(level);
+    print("] ");
+    print(ts);
+    print(" | ");
+    print(msg);
+    print("\n");

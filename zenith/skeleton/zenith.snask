@@ -1,0 +1,48 @@
+// Zenith Core - v0.1.0
+// Inspirado no Laravel para o ecossistema Snask
+
+
+class Container
+    mut bindings = {};
+    mut instances = {};
+
+    fun bind(name, resolver)
+        self.bindings[name] = resolver;
+
+    fun singleton(name, resolver)
+        self.bindings[name] = resolver;
+        // Marcar como singleton (logica simples para este MVP)
+
+    fun make(name)
+        // Por agora, uma implementação simplificada
+        return self.bindings[name];
+
+class Application
+    mut container = nil;
+    mut version = "0.1.0";
+
+    fun start()
+        self.container = Container();
+        print("Zenith Framework " + self.version + " started.");
+
+    fun get_container()
+        return self.container;
+
+
+class Console
+    mut commands = {};
+
+    fun add(command)
+        self.commands[command.name] = command;
+
+    fun run(args)
+        if snif_arr_len(args) < 1
+            print("Usage: zenith <command>");
+            return nil;
+        
+        let cmd_name = snif_arr_get(args, 0);
+        if json_has(self.commands, cmd_name)
+            let cmd = self.commands[cmd_name];
+            cmd.handle();
+        else
+            print("Unknown command: " + cmd_name);

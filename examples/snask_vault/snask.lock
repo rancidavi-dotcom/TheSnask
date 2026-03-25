@@ -1,0 +1,56 @@
+[package]
+name = "snask_vault"
+version = "0.1.0"
+
+[registry]
+git_url = "https://github.com/rancidavi-dotcom/SnaskPackages"
+rev = "e6ce5cad4c61cd884e0ce680dba53088d48131dc"
+
+[dependencies.gui]
+version = "0.2.1"
+sha256 = "a15a1bfd119edd0bcd16918c305b08fd2489807151c18dfce2b332f771b0c325"
+url = "gui.snask"
+
+[dependencies.gui_app]
+version = "0.1.3"
+sha256 = "5f2b0680e36ca49dca6b0a2c882448305c7be4690100603e46a8dd00ca17fc8e"
+url = "gui_app.snask"
+
+[dependencies.gui_layout]
+version = "0.1.1"
+sha256 = "9097690acc71a385e6700a2a1510a4c1869359a77bc3b1c4a2b74afefb8c6d3f"
+url = "gui_layout.snask"
+
+[dependencies.gui_widgets]
+version = "0.1.1"
+sha256 = "65f646d2fb365b0972f2e37e39949ddce15a2f6986459dc2b249af5ec096d415"
+url = "gui_widgets.snask"
+
+[dependencies.json]
+version = "1.0.0"
+sha256 = "d940d6dacf030214526893ba28f639ee3699b769569dc799de6cce85850ae3ab"
+url = "json.snask"
+
+[dependencies.os]
+version = "1.0.0"
+sha256 = "54b3e626429fd570166870e46fd73457ad07570a60b121bda5e8b172960383c0"
+url = "os.snask"
+
+[dependencies.prelude]
+version = "0.1.0"
+sha256 = "e5ca6d04056986a1b504a9445f1701e931461c0c1680ce590665f085ef3c48e7"
+url = "prelude.snask"
+
+[dependencies.sfs]
+version = "1.2.0"
+sha256 = "9a596704d076d0300d2110018daad8088947bd903740a1c708881d8bfdb79ad1"
+url = "sfs.snask"
+
+[dependencies.snif]
+version = "unknown"
+sha256 = "0c7c8e909ada36d0e83f3da601e49a5a9a7ad1309b0867a069a74fe736249f7d"
+
+[dependencies.string]
+version = "1.0.0"
+sha256 = "e3d0ecc98f4414a129e0eca3ea153ff996b88568858718fca1ffc6c71afe1c1a"
+url = "string.snask"

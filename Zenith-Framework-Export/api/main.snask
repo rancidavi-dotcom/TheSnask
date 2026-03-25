@@ -1,0 +1,23 @@
+import "../core/HttpServer.snask";
+import "ApiController.snask";
+
+class main
+    fun start()
+        print("Zenith Pure API v0.1.0 starting...");
+        
+        // I'll skip Database.snask for now to avoid SQLite dependency issues
+        // if the runtime doesn't have it.
+        
+        let app = HttpServer();
+        app.port = 8081;
+        
+        // Register API routes
+        // The namespace for ApiController.snask is ApiController_NS_
+        app.route("GET /api/v1/status", "ApiController_NS_route_status");
+        app.route("GET /api/v1/info", "ApiController_NS_route_info");
+        
+        // Default route
+        app.route("GET /", "ApiController_NS_route_info");
+        
+        print("Listening on http://localhost:8081");
+        app.listen();

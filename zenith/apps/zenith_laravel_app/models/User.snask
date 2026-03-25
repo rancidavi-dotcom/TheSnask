@@ -1,0 +1,10 @@
+import "../../../core/Model.snask";
+
+class User extends Model
+    mut table = "users";
+
+    fun active()
+        return self.where("active", "=", "1");
+
+fun user()
+    return User();

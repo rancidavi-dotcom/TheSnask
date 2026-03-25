@@ -1,0 +1,9 @@
+from src import storage;
+
+class main
+    fun start()
+        let dir = ".snask_vault";
+        let path = dir + "/vault.snif";
+        let v = storage::load(dir, path);
+        storage::save(dir, path, v);
+        print("ok");

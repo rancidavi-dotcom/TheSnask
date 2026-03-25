@@ -1,0 +1,37 @@
+import "logger";
+import "str";
+import "date";
+
+class main
+    fun start()
+        logger::info("Iniciando teste das bibliotecas Zenith");
+
+        let ts_inicio = date::now();
+        logger::debug("Timestamp de inicio: " + num_to_str(floor(ts_inicio)));
+
+        let padded = str::pad_left("42", 6, "0");
+        logger::info("pad_left result: " + padded);
+
+        let line = str::repeat("-", 30);
+        logger::info(line);
+
+        let short = str::truncate("Uma frase longa demais para o cabecalho", 15);
+        logger::info("truncate: " + short);
+
+        let slug = str::slugify("Zenith System Services");
+        logger::info("slugify: " + slug);
+
+        let empty_check = str::is_empty("   ");
+        if empty_check
+            logger::warn("String esta vazia");
+
+        sleep(1);
+
+        let decorrido = date::since(ts_inicio);
+        logger::info("Tempo decorrido: " + decorrido);
+
+        let stamp = date::stamp();
+        logger::info("Timestamp atual: " + stamp);
+
+        logger::info(str::repeat("=", 30));
+        logger::info("Teste finalizado com sucesso!");

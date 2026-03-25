@@ -1,0 +1,16 @@
+import "zenith";
+
+class AppCommand
+    mut name = "app:info";
+    mut description = "Mostra informações da aplicação Zenith";
+
+    fun handle()
+        print("Zenith Framework Application - Version 0.1.0 (Development Build)");
+
+class main
+    fun start()
+        let console = Console();
+        console.add(AppCommand());
+        
+        let args = ["app:info"];
+        console.run(args);

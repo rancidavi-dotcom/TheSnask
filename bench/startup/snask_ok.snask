@@ -1,0 +1,3 @@
+class main
+    fun start()
+        print("ok");

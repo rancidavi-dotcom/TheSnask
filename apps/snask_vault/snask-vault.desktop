@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Snask Vault
+Comment=Simple password vault demo built with Snask
+Exec=snask-vault
+Icon=snask-vault
+Terminal=false
+Categories=Utility;Security;

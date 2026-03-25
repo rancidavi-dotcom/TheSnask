@@ -1,0 +1,34 @@
+// date.snask - Zenith Library v0.1.0
+// Helpers de data e hora baseados em timestamp Unix
+// Uso: import "date"; date::now(); date::stamp(); date::since(ts);
+
+fun now()
+    return time();
+
+fun diff(ts1, ts2)
+    let d = ts2 - ts1;
+    if d < 0
+        return ts1 - ts2;
+    return d;
+
+fun since(ts)
+    let current = time();
+    let delta = current - ts;
+    if delta < 60
+        return num_to_str(floor(delta)) + "s atras";
+    if delta < 3600
+        let mins = floor(delta / 60);
+        return num_to_str(mins) + "min atras";
+    if delta < 86400
+        let hrs = floor(delta / 3600);
+        return num_to_str(hrs) + "h atras";
+    let days = floor(delta / 86400);
+    return num_to_str(days) + " dias atras";
+
+fun stamp()
+    let ts = time();
+    return "[ts:" + num_to_str(floor(ts)) + "]";
+
+fun label()
+    let ts = time();
+    return "unix:" + num_to_str(floor(ts));

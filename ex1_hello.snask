@@ -1,0 +1,4 @@
+class main
+    fun start()
+        # Hello, Snask!
+        print("Hello, Snask!\n");

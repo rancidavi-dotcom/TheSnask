@@ -1,0 +1,14 @@
+import "../../core/Route.snask";
+import "controllers/UserController.snask";
+
+fun register_routes()
+    let r = route();
+    let c = user_controller();
+
+    // Rotas estilo Laravel (por nome de classe/metodo)
+    r.define_get("/", "UserController::index");
+    r.define_get("/users", "UserController::index");
+    r.define_get("/user/show", "UserController::show");
+    
+    print("[APP] Routes registered successfully.\n");
+    return r;

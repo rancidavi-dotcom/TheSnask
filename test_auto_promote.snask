@@ -1,0 +1,14 @@
+class User
+    let name = "";
+    fun init(n)
+        self.name = n;
+
+class main
+    fun get_data()
+        zone "internal"
+            let d = new User("auto");
+            return d;
+
+    fun start()
+        let d = self.get_data();
+        print(d.name);

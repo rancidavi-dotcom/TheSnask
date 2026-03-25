@@ -1,0 +1,9 @@
+[package]
+name = "zenith_api"
+version = "0.1.0"
+
+[registry]
+git_url = "https://github.com/rancidavi-dotcom/SnaskPackages"
+rev = "f5b705358be47569494b81c409e4cad41020c8ab"
+
+[dependencies]

@@ -1,0 +1,7 @@
+import "../core/Model.snask";
+
+class User extends Model
+    mut table = "users";
+
+    fun hello()
+        return "Hello from User Model!";

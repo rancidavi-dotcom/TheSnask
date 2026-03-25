@@ -1,0 +1,8 @@
+class main
+    fun start()
+        let name = "Davi";
+        mut age = 25;
+        age = 26;
+
+        print("Name: " + name + "\n");
+        print("Age: " + num_to_str(age) + "\n");

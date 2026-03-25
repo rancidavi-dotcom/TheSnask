@@ -1,0 +1,15 @@
+import "sfs";
+import "os";
+
+class main
+    fun start()
+        // Snask core does not expose argv as a stable builtin yet.
+        // For benchmarks we read settings from env vars.
+        let path = os::getenv("BENCH_PATH");
+        let size_mb = str_to_num(os::getenv("BENCH_SIZE_MB"));
+
+        // write streaming: no reopen per chunk, no full-file RAM read.
+        sfs::delete(path);
+        sfs::write_mb(path, size_mb);
+        let n = sfs::size(path);
+        print(num_to_str(n));

@@ -1,0 +1,8 @@
+#!/bin/bash
+# Script para rodar Snask e manter o terminal aberto após a execução
+snask run "$1"
+echo ""
+echo "--------------------------------------------------"
+echo " Execução finalizada."
+echo " Pressione [ENTER] para fechar este terminal..."
+read

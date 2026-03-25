@@ -1,0 +1,30 @@
+import "gui";
+
+// gui_shaders: small styling helpers on top of gui.snask (GTK3 CSS).
+
+fun install()
+    // Base theme (dark-ish, rounded cards, subtle gradient).
+    // Note: GTK3 CSS supports linear-gradient.
+    let css = ".vault-root { background-image: linear-gradient(to bottom, #0b1220, #0a0f1a); padding: 18px; }" + ".vault-title { color: #e5e7eb; font-weight: 700; font-size: 18px; margin-bottom: 10px; }" + ".vault-list { background: transparent; }" + ".vault-row { background: rgba(255,255,255,0.06); border-radius: 14px; margin: 8px 0; padding: 14px; }" + ".vault-row:selected { background: rgba(59,130,246,0.35); }" + ".vault-btn { background: rgba(255,255,255,0.08); border-radius: 12px; padding: 10px; color: #e5e7eb; }" + ".vault-btn:hover { background: rgba(255,255,255,0.12); }" + ".vault-btn-danger { background: rgba(239,68,68,0.22); }" + ".vault-btn-danger:hover { background: rgba(239,68,68,0.30); }" + ".vault-entry { background: rgba(255,255,255,0.08); border-radius: 10px; padding: 10px; color: #e5e7eb; }";
+    return gui::css(css);
+
+fun root(widget)
+    return gui::add_class(widget, "vault-root");
+
+fun title(widget)
+    return gui::add_class(widget, "vault-title");
+
+fun listbox(widget)
+    return gui::add_class(widget, "vault-list");
+
+fun row(widget)
+    return gui::add_class(widget, "vault-row");
+
+fun button(widget)
+    return gui::add_class(widget, "vault-btn");
+
+fun danger(widget)
+    return gui::add_class(widget, "vault-btn-danger");
+
+fun entry(widget)
+    return gui::add_class(widget, "vault-entry");

@@ -1,0 +1,47 @@
+// Zenith Application Core - v0.2.0
+// 🛡️ Inspirado no Laravel e otimizado para Snask OM (Orchestrated Memory)
+
+
+class Container
+    mut bindings = {};
+    mut instances = {};
+
+    fun bind(name, resolver)
+        self.bindings[name] = resolver;
+        return nil;
+
+    fun singleton(name, instance)
+        self.instances[name] = instance;
+        return nil;
+
+    fun make(name)
+        let inst = self.instances[name];
+        if not is_nil(inst)
+            return inst;
+        
+        return self.bindings[name];
+
+class Application
+    mut container = nil;
+    mut version = "0.2.0";
+    mut boot_time = 0.0;
+
+    fun boot()
+        self.boot_time = time();
+        self.container = Container();
+        print("🚀 Zenith Framework " + self.version + " inicializado em OM mode.");
+        print("\n");
+        return self;
+
+    fun version()
+        return self.version;
+
+    fun get_container()
+        return self.container;
+
+// Singleton Global do App (Facade)
+mut App = Application();
+fun zenith_app()
+    if is_nil(App.container)
+        App.boot();
+    return App;

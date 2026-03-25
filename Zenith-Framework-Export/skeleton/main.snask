@@ -1,0 +1,21 @@
+import "../core/HttpServer.snask";
+import "../core/Database.snask";
+import "HomeController.snask";
+
+// Database Setup (Using Zenith Core Singleton)
+
+class main
+    fun start()
+        print("Zenith Framework 0.1.0 (Laravel Style) started.");
+        
+        // Connect to SQLite
+        db.connect("database.sqlite");
+        
+        let app = HttpServer();
+        app.port = 8081;
+        
+        app.route("GET /", "HomeController_NS_route_index");
+        app.route("GET /hello", "HomeController_NS_route_hello");
+        app.route("GET /users", "HomeController_NS_route_users");
+        
+        app.listen();

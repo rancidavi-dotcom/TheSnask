@@ -1,0 +1,31 @@
+class Particle
+    let x = 0.0;
+    let y = 0.0;
+    let z = 0.0;
+
+    fun init(vx, vy, vz)
+        self.x = vx;
+        self.y = vy;
+        self.z = vz;
+        return nil;
+
+class main
+    fun start()
+        print("Iniciando benchmark Snask (OM Arena Allocation)...");
+        let start = time();
+        mut total = 0.0;
+        
+        // Zone gerencia a Arena automaticamente
+        zone "particles"
+            mut i = 0;
+            while i < 1000000
+                // 'new arena' aloca no pool da zone atual
+                let p = new arena Particle(1.0, 2.0, 3.0);
+                total = total + p.x + p.y + p.z;
+                i = i + 1;
+        
+        // Ao sair da zone, a arena é resetada em O(1)
+
+        let end = time();
+        print("Resultado Snask: ", total);
+        print("Tempo Snask (Arena): ", end - start, " s");

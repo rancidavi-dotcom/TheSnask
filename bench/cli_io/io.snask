@@ -1,0 +1,18 @@
+import "sfs";
+
+class main
+    fun start()
+        let path = "/tmp/snask_bench_io.txt";
+        let payload = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let ok = sfs::write(path, payload);
+        if ok == false
+            print("write failed");
+            exit(1);
+
+        let got = sfs::read(path);
+        if got != payload
+            print("mismatch");
+            exit(2);
+
+        print("ok");
+

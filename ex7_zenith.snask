@@ -1,0 +1,5 @@
+import "logger";
+
+class main
+    fun start()
+        logger::info("Running app...\n");

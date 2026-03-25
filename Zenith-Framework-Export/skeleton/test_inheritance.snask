@@ -1,0 +1,17 @@
+class Animal
+    mut name = "Desconhecido";
+    fun say_hello()
+        print("Hello, I am " + self.name);
+
+class Dog extends Animal
+    mut breed = "Vira-lata";
+    fun bark()
+        print("Woof!");
+
+class main
+    fun start()
+        let d = Dog();
+        d.name = "Rex";
+        d.say_hello();
+        d.bark();
+        print("Breed: " + d.breed);

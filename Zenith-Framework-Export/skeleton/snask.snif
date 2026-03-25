@@ -1,0 +1,15 @@
+{
+  package: {
+    name: "zenith_app",
+    version: "0.1.0",
+    entry: "main.snask",
+  },
+  dependencies: {
+    // Zenith sera importado localmente para o desenvolvimento
+    // No futuro sera via registro
+  },
+  build: {
+    opt_level: 2,
+    profile: "dev",
+  },
+}

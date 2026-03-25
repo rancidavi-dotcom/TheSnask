@@ -1,0 +1,25 @@
+import "snask_skia";
+
+class main
+    fun start()
+        print("skia backend: " + snask_skia::version());
+
+        let s = snask_skia::surface(512, 256);
+        snask_skia::clear(s, 0.06, 0.07, 0.10, 1.0);
+
+        snask_skia::color(s, 0.24, 0.55, 0.96, 1.0);
+        snask_skia::rect(s, 24, 24, 464, 80, true);
+
+        snask_skia::color(s, 1.0, 1.0, 1.0, 1.0);
+        snask_skia::text(s, 40, 75, "Hello from Snask_Skia", 28);
+
+        snask_skia::color(s, 0.93, 0.27, 0.27, 0.9);
+        snask_skia::circle(s, 440, 190, 36, true);
+
+        snask_skia::color(s, 1.0, 1.0, 1.0, 0.65);
+        snask_skia::line(s, 24, 190, 420, 190, 3);
+
+        let ok = snask_skia::save_png(s, "/tmp/snask_skia_demo.png");
+        print("saved=/tmp/snask_skia_demo.png");
+        print(ok);
+

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Snask Runner
+Comment=Executar scripts .snask e manter terminal aberto
+Exec=snask-run-wait %f
+Icon=snask
+Terminal=true
+Type=Application
+MimeType=text/x-snask;
+Categories=Development;

@@ -1,0 +1,29 @@
+import "../../core/Application.snask";
+import "routes.snask";
+
+class ZenithApp
+    fun run()
+        // 🚀 Inicia Zenith Framework
+        let app = zenith_app();
+        app.boot();
+
+        // 🧱 Registra Rotas
+        let router = register_routes();
+
+        // ⚡ Simula 1.000 requests para testar as OM Zones
+        // Cada request terá sua própria Zone autolimpante!
+        print("[ZENITH] Simulando 1.000 requests com Orchestrated Memory...\n");
+        let start = time();
+        
+        mut i = 0;
+        while i < 1000
+            // Dispatch Laravel-style: Route::dispatch(method, path, params)
+            router.dispatch("GET", "/users", { "id": "1" });
+            i = i + 1;
+
+        let end = time();
+        print("[ZENITH] Performance do Framework (1.000 requests): ", end - start, " s\n");
+
+class main
+    fun start()
+        ZenithApp().run();

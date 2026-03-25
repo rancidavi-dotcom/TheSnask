@@ -1,0 +1,10 @@
+// Master password helpers (native-backed).
+// These call runtime natives reserved for the "blaze_auth" family, but we wrap them
+// locally so the app can depend on them without a global package install.
+
+fun hash_password(password)
+    return auth_hash_password(password);
+
+fun verify_password(password, hash)
+    return auth_verify_password(password, hash);
+

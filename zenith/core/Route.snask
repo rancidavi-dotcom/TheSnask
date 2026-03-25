@@ -1,0 +1,55 @@
+// Route Facade - Inspirado em Route::get() do Laravel
+// 🧱 Gerencia endpoints e ciclos de vida de memoria (OM Zones)
+
+
+class Request
+    mut method = "GET";
+    mut path = "/";
+    mut params = {};
+    mut headers = {};
+
+    fun get_param(key)
+        return self.params[key];
+
+class Route
+    mut map = nil;
+    mut current_group = "";
+
+    fun init()
+        self.map = {};
+
+    fun define_get(path, handler)
+        let key = "GET:" + path;
+        self.map[key] = { "handler": handler, "path": path, "method": "GET" };
+        return self;
+
+    fun define_post(path, handler)
+        let key = "POST:" + path;
+        self.map[key] = { "handler": handler, "path": path, "method": "POST" };
+        return self;
+
+    fun dispatch(method, path, request_params)
+        // Cada Request roda numa Zone de Memoria Orchestrated (OM)
+        zone "zenith_request"
+            let key = method + ":" + path;
+            let route = self.map[key];
+            if is_nil(route)
+                return { "status": 404, "body": "Not Found" };
+            
+            let handler_name = route["handler"];
+            
+            let req = Request();
+            req.method = method;
+            req.path = path;
+            req.params = request_params;
+            
+            // Invoca o handler dinamicamente pelo nome
+            return __s_call_by_name(handler_name, req, nil, nil);
+
+// Instancia global do Router
+mut Router = nil;
+fun route()
+    if is_nil(Router)
+        Router = Route();
+        Router.init();
+    return Router;

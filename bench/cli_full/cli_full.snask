@@ -1,0 +1,43 @@
+import "snif";
+import "json";
+
+// A “real-ish” CLI skeleton:
+// - command table (subcommands)
+// - parse a manifest-like SNIF config
+// - utility helper (hash) to keep “tooling code” present
+//
+// Note: bench harness runs executables with no args, so we default to printing help and exiting.
+
+let CONFIG_SNIF = "{\n  package: { name: \"snask-cli-full\", version: \"0.1.0\", entry: \"main.snask\", },\n  scripts: { build: \"snask build\", fmt: \"snask snif fmt --write\", },\n}\n";
+
+fun pseudo_hash(s)
+    // Keep a “hash-like” helper without requiring bitwise ops.
+    // Just mixes length + a constant.
+    return (len(s) * 16777619) + 2166136261;
+
+fun print_help(cmds)
+    print("snask-cli-full (demo CLI)\n\n");
+    print("Commands:\n");
+    mut i = 0;
+    while i < json::len(cmds)
+        let name = json::get(cmds, num_to_str(i));
+        print("  " + name + "\n");
+        i = i + 1;
+
+class main
+    fun start()
+        // Parse config (SNIF -> Any)
+        let cfg = snif::decode(CONFIG_SNIF);
+
+        // Command table as an array-like object
+        let cmds = snif::arr();
+        json::set(cmds, "0", "help");
+        json::set(cmds, "1", "config");
+        json::set(cmds, "2", "hash");
+        json::set(cmds, "3", "sum");
+
+        // Keep “real app” helpers referenced so they stay in the binary.
+        let pkg = snif::path_or(cfg, "package.name", "snask");
+        let _h = pseudo_hash(pkg);
+
+        print_help(cmds);

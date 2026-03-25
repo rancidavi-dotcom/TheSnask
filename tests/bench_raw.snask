@@ -1,0 +1,14 @@
+class main
+    fun start()
+        print("Iniciando benchmark Snask (Raw Loop)...");
+        let start = time();
+        mut total = 0.0;
+        
+        mut i = 0;
+        while i < 5000000
+            total = total + 1.0 + 2.0 + 3.0;
+            i = i + 1;
+
+        let end = time();
+        print("Resultado Snask: ", total);
+        print("Tempo Snask: ", end - start, " s");

@@ -1,0 +1,58 @@
+// Zenith ORM - v0.2.0 (OM Enhanced)
+// 🧱 Inspirado no Eloquent do Laravel
+
+
+class Model
+    mut table = "";
+    mut primary_key = "id";
+    mut attributes = {};
+    mut exists = false;
+    mut db = "database.sqlite";
+
+    fun set(key, value)
+        self.attributes[key] = value;
+        return self;
+
+    fun get(key)
+        return self.attributes[key];
+
+    fun query(sql)
+        return __sqlite_query(self.db, sql);
+
+    fun all()
+        let sql = "SELECT * FROM " + self.table;
+        let res = self.query(sql);
+        return res;
+
+    fun find(id)
+        let sql = "SELECT * FROM " + self.table + " WHERE " + self.primary_key + " = " + id;
+        let results = self.query(sql);
+        if len(results) > 0
+            self.attributes = results[0];
+            self.exists = true;
+            return self;
+        return nil;
+
+    fun where(field, op, value)
+        let sql = "SELECT * FROM " + self.table + " WHERE " + field + " " + op + " '" + value + "'";
+        return self.query(sql);
+
+    fun save()
+        if self.exists
+            // 🔨 UPDATE Logic - TO BE IMPLEMENTED
+            print("[APP] Update existing model: " + self.table + "\n");
+        else
+            // 💎 INSERT Logic - TO BE IMPLEMENTED
+            print("[APP] Insert new model: " + self.table + "\n");
+        
+        return self;
+
+    fun to_json()
+        return __json_stringify(self.attributes);
+
+    fun create(data)
+        let m = Model();
+        m.table = self.table;
+        m.attributes = data;
+        m.save();
+        return m;

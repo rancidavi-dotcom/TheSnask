@@ -1,0 +1,46 @@
+// str.snask - Zenith Library v0.1.0
+// Helpers de string para Snask
+// Uso: import "str"; str::pad_left("5", 3, "0");
+
+fun repeat(s, n)
+    mut result = "";
+    mut i = 0;
+    while i < n
+        result = result + s;
+        i = i + 1;
+    return result;
+
+fun pad_left(s, n, char)
+    let current = len(s);
+    if current >= n
+        return s;
+    mut padding = "";
+    mut j = 0;
+    while j < n - current
+        padding = padding + char;
+        j = j + 1;
+    return padding + s;
+
+fun pad_right(s, n, char)
+    let current = len(s);
+    if current >= n
+        return s;
+    mut padding = "";
+    mut j = 0;
+    while j < n - current
+        padding = padding + char;
+        j = j + 1;
+    return s + padding;
+
+fun is_empty(s)
+    let t = trim(s);
+    return len(t) == 0;
+
+fun truncate(s, n)
+    if len(s) <= n
+        return s;
+    return substring(s, 0, n) + "...";
+
+fun slugify(s)
+    let low = lower(s);
+    return replace(low, " ", "_");

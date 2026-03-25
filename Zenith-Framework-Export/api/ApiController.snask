@@ -1,0 +1,17 @@
+import "../core/Controller.snask";
+
+class ApiController extends Controller
+    fun status(method, path, query, body, cookie)
+        return self.success({ "status": "online", "framework": "Zenith", "version": "0.1.0" });
+
+    fun info(method, path, query, body, cookie)
+        return self.success({ "app": "Zenith Pure API", "description": "A Laravel-inspired API built with Snask", "endpoints": ["/api/v1/status", "/api/v1/info"] });
+
+// Route Entry Points (Handlers for HttpServer)
+fun route_status(method, path, query, body, cookie)
+    let c = ApiController();
+    return c.status(method, path, query, body, cookie);
+
+fun route_info(method, path, query, body, cookie)
+    let c = ApiController();
+    return c.info(method, path, query, body, cookie);

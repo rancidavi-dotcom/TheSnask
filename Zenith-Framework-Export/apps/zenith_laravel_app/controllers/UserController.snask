@@ -1,0 +1,20 @@
+import "../../../core/Controller.snask";
+import "../models/User.snask";
+
+class UserController extends Controller
+    fun index(request)
+        // OM Zone 'zenith_request' já está ativa no Router::dispatch
+        let users = User().all();
+        return self.success(users);
+
+    fun show(request)
+        let id = request.get_param("id");
+        let u = User().find(id);
+        
+        if is_nil(u)
+            return self.not_found("Usuario nao encontrado.");
+        
+        return self.success(u.attributes);
+
+fun user_controller()
+    return UserController();

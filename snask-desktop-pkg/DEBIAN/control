@@ -1,0 +1,8 @@
+Package: snask-desktop
+Version: 1.0.0
+Section: devel
+Priority: optional
+Architecture: all
+Maintainer: Davi <davidev@localhost>
+Description: Desktop integration for Snask programming language
+ Provides MIME type association, icon and terminal runner for .snask files.
