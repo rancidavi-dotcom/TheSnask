@@ -19,6 +19,7 @@ void s_arena_reset(void);
 void s_free_obj(SnaskValue* obj_val);
 void s_get_member(SnaskValue* out, SnaskValue* obj_val, SnaskValue* idx_val);
 void s_set_member(SnaskValue* obj_val, SnaskValue* idx_val, SnaskValue* val);
+void snask_iter_get(SnaskValue* out, SnaskValue* obj_val, SnaskValue* idx_val);
 
 // Internal creators
 SnaskValue make_nil(void);

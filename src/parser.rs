@@ -1549,13 +1549,7 @@ impl<'a> Parser<'a> {
         if matches!(self.current_token, Token::Colon(_)) {
             self.consume_token(&Token::Colon(Location{line:0, column:0}))?;
             let (type_name, _) = self.consume_identifier()?;
-            let var_type = Type::from_str(&type_name).map_err(|_| {
-                ParseError::new(
-                    "SNASK-PARSE-TYPE",
-                    format!("Unknown type: {}", type_name),
-                    Self::span_len(&self.current_token.get_location().clone(), type_name.len().max(1)),
-                )
-            })?;
+            let var_type = Type::from_str(&type_name).unwrap_or(Type::User(type_name));
             Ok(Some(var_type))
         } else {
             Ok(None)
@@ -2150,20 +2144,18 @@ mod parse_error_tests {
     use super::*;
 
     #[test]
-    fn parse_error_has_span_for_missing_semicolon() {
+    fn newline_acts_as_statement_terminator() {
         let src = "class main\n    fun start()\n        let x = 1\n";
         let mut p = Parser::new(src).unwrap();
-        let e = p.parse_program().unwrap_err();
-        assert_eq!(e.code, "SNASK-PARSE-SEMICOLON");
-        assert!(e.span.start.line >= 1);
-        assert!(e.span.start.column >= 1);
+        let program = p.parse_program().expect("parser should accept newline as a statement terminator");
+        assert_eq!(program.len(), 1);
     }
 
     #[test]
     fn parse_program_recovering_caps_at_10_errors() {
         let mut src = String::new();
-        for i in 0..25 {
-            src.push_str(&format!("let a{i} = {i}\n"));
+        for _ in 0..25 {
+            src.push_str("let =\n");
         }
         let mut p = Parser::new(&src).expect("parser");
         let (_prog, errs) = p.parse_program_recovering(10);

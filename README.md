@@ -82,6 +82,7 @@ Don't trust our claims; run the evidence.
 ## 📖 Essential Documentation
 
 *   [📖 **Learn Snask**](./docs/LEARN_SNASK.md) - Language syntax and survival tips.
+*   [🧭 **Feature Status**](./docs/FEATURE_STATUS.md) - What is currently stable, partial, experimental, or planned.
 *   [🧠 **Orchestrated Memory (OM)**](./docs/OM_GUIDE.md) - Deep dive into the core research.
 *   [🏗️ **Compiler Architecture**](./docs/ARCHITECTURE.md) - How we generate LLVM IR.
 *   [⚖️ **Stability Policy**](./docs/STABILITY.md) - Current pre-alpha status.

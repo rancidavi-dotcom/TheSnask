@@ -1,5 +1,6 @@
 use std::process::Command;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::fs;
 use indicatif::HumanBytes;
 
 pub fn doctor() -> Result<(), String> {
@@ -66,16 +67,135 @@ pub fn cmd_size(path: &str) -> Result<(), String> {
 
 pub fn run_setup(target: Option<String>) -> Result<(), String> {
     println!("🔧 Setup Snask Toolchain");
-    if let Some(t) = target {
-        println!("Target: {}", t);
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let snask_home = format!("{}/.snask", home);
+    
+    let lib_dir = if let Some(ref t) = target {
+        format!("{}/lib/{}", snask_home, t)
     } else {
-        println!("Target: Host ({})", std::env::consts::ARCH);
+        format!("{}/lib", snask_home)
+    };
+
+    fs::create_dir_all(&lib_dir).map_err(|e| e.to_string())?;
+
+    let target_triple = target.clone().unwrap_or_else(|| "native".to_string());
+    println!("Target: {}", target_triple);
+
+    // 1. Locate Runtime Source
+    let mut runtime_src = PathBuf::from("src/runtime.c");
+    if !runtime_src.exists() {
+        runtime_src = PathBuf::from(format!("{}/src/TheSnask/src/runtime.c", snask_home));
     }
     
-    // TODO: Implement actual download logic (fetch from GitHub releases or build from source)
-    println!("⚠️  Setup logic is being migrated. Please install dependencies manually for now:");
-    println!("   - clang-18, llvm-18, lld-18");
+    if !runtime_src.exists() {
+        return Err("Runtime source (src/runtime.c) not found. Are you in the Snask source tree or is it installed in ~/.snask/src/TheSnask?".to_string());
+    }
+    println!("📍 Source found at: {}", runtime_src.display());
+
+    // 2. Check for Skia
+    let mut extra_flags = Vec::new();
+    if has_skia() {
+        println!("🎨 Skia detected! Enabling SNASK_SKIA in runtime.");
+        extra_flags.push("-DSNASK_SKIA");
+        // We could also add pkg-config --cflags skia here
+        if let Ok(cflags) = get_skia_cflags() {
+            for flag in cflags {
+                extra_flags.push(flag);
+            }
+        }
+    }
+
+    // 3. Compile Standard Runtime
+    println!("📦 Compiling standard runtime (runtime.o, runtime.bc)...");
+    compile_runtime(runtime_src.to_str().unwrap(), &format!("{}/runtime", lib_dir), &target, extra_flags.clone())?;
+
+    // 4. Compile Tiny Runtime
+    println!("📦 Compiling tiny runtime (runtime_tiny.o, runtime_tiny.bc)...");
+    let mut tiny_flags = extra_flags.clone();
+    tiny_flags.push("-DSNASK_TINY");
+    tiny_flags.push("-Os");
+    compile_runtime(runtime_src.to_str().unwrap(), &format!("{}/runtime_tiny", lib_dir), &target, tiny_flags)?;
+
+    // 5. Compile Nano Runtime
+    let nano_src = runtime_src.parent().unwrap().join("runtime/runtime_nano.c");
+    if nano_src.exists() {
+        println!("📦 Compiling nano runtime (runtime_nano.o, runtime_nano.bc)...");
+        compile_runtime(nano_src.to_str().unwrap(), &format!("{}/runtime_nano", lib_dir), &target, vec!["-Oz"])?;
+    }
+
+    // 6. Compile rt_extreme.o (Linux x86_64 only for now)
+    if target.is_none() && cfg!(target_os = "linux") && cfg!(target_arch = "x86_64") {
+        let extreme_src = runtime_src.parent().unwrap().join("runtime/ultra_start_x86_64_linux.S");
+        if extreme_src.exists() {
+            println!("📦 Compiling extreme entrypoint (rt_extreme.o)...");
+            let status = Command::new("clang-18")
+                .arg("-c")
+                .arg(extreme_src)
+                .arg("-o")
+                .arg(format!("{}/rt_extreme.o", lib_dir))
+                .status()
+                .map_err(|e| e.to_string())?;
+            if !status.success() {
+                println!("⚠️  Failed to compile rt_extreme.o");
+            }
+        }
+    }
+
+    println!("✅ Setup completed successfully.");
+    Ok(())
+}
+
+fn has_skia() -> bool {
+    Command::new("pkg-config")
+        .arg("--exists")
+        .arg("skia")
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+fn get_skia_cflags() -> Result<Vec<&'static str>, String> {
+    // This is simplified. In a real scenario we'd parse output of pkg-config --cflags
+    // For now we just return an empty vec or a fixed one if we know it.
+    Ok(vec![])
+}
+
+fn compile_runtime(src: &str, dest_base: &str, target: &Option<String>, extra_args: Vec<&str>) -> Result<(), String> {
+    let mut base_args = vec!["-c", src];
+    if let Some(t) = target {
+        base_args.push("--target=");
+        base_args.push(t);
+    }
     
+    // .o
+    let mut cmd_o = Command::new("clang-18");
+    cmd_o.args(&base_args);
+    cmd_o.arg("-o").arg(format!("{}.o", dest_base));
+    for arg in &extra_args { cmd_o.arg(arg); }
+    if !extra_args.iter().any(|a| a.starts_with("-O")) {
+        cmd_o.arg("-O3");
+    }
+    
+    let status = cmd_o.status().map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err(format!("Failed to compile {}.o", dest_base));
+    }
+
+    // .bc
+    let mut cmd_bc = Command::new("clang-18");
+    cmd_bc.arg("-emit-llvm");
+    cmd_bc.args(&base_args);
+    cmd_bc.arg("-o").arg(format!("{}.bc", dest_base));
+    for arg in &extra_args { cmd_bc.arg(arg); }
+    if !extra_args.iter().any(|a| a.starts_with("-O")) {
+        cmd_bc.arg("-O3");
+    }
+    
+    let status = cmd_bc.status().map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err(format!("Failed to compile {}.bc", dest_base));
+    }
+
     Ok(())
 }
 

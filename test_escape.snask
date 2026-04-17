@@ -1,7 +1,0 @@
-class main
-    fun start()
-        let persistent_ref = nil;
-        zone "request_scope"
-            let ephemeral_obj = new User("davidev");
-            persistent_ref = ephemeral_obj;
-        print(persistent_ref.name);

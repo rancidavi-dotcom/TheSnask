@@ -1,8 +1,0 @@
-class User
-    mut name = "Davi";
-
-class main
-    fun start()
-        zone "request"
-            let user = User();
-            print(user.name + "\n");

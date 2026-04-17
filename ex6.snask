@@ -1,8 +1,0 @@
-import "os";
-import "json";
-
-class main
-    fun start()
-        print("Platform: " + os::platform() + "\n");
-        let data = { "id": 1, "status": "ok" };
-        print("JSON: " + json::stringify(data) + "\n");

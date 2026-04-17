@@ -143,18 +143,22 @@ fn inject_features(program: &mut Program, features: BTreeMap<String, SnifFeature
 }
 
 fn validate_entrypoint(program: &Program) -> Result<(), String> {
-    let has_main = program.iter().any(|stmt| {
+    for stmt in program {
         if let StmtKind::ClassDeclaration(class) = &stmt.kind {
-            class.name == "main"
-        } else {
-            false
+            if class.name == "main" {
+                if class.methods.is_empty() {
+                    return Err(
+                        "Error: `class main` must declare at least one method. `start()` is preferred, but Snask will also accept the first method as the entrypoint.".to_string(),
+                    );
+                }
+                return Ok(());
+            }
         }
-    });
-
-    if !has_main {
-        return Err("Error: every Snask program must contain a `class main` with a `fun start()` entrypoint.".to_string());
     }
-    Ok(())
+
+    Err(
+        "Error: every Snask program must contain a `class main` with at least one method. `start()` is preferred, but Snask will also accept the first method as the entrypoint.".to_string(),
+    )
 }
 
 fn expand_inheritance(program: &mut Program) -> Result<(), String> {
@@ -230,6 +234,46 @@ fn uses_full_runtime(program: &[Stmt]) -> bool {
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_entrypoint;
+    use crate::ast::{ClassDecl, Location, Stmt, StmtKind};
+    use crate::span::Span;
+
+    fn loc() -> Location {
+        Location { line: 1, column: 1 }
+    }
+
+    fn span() -> Span {
+        loc().to_span()
+    }
+
+    #[test]
+    fn validate_entrypoint_rejects_missing_main_class() {
+        let program = Vec::new();
+        let err = validate_entrypoint(&program).expect_err("missing main must fail");
+        assert!(err.contains("class main"));
+        assert!(err.contains("at least one method"));
+    }
+
+    #[test]
+    fn validate_entrypoint_rejects_empty_main_class() {
+        let program = vec![Stmt::with_span(
+            StmtKind::ClassDeclaration(ClassDecl {
+                name: "main".to_string(),
+                parent: None,
+                properties: Vec::new(),
+                methods: Vec::new(),
+            }),
+            loc(),
+            span(),
+        )];
+
+        let err = validate_entrypoint(&program).expect_err("empty main must fail");
+        assert!(err.contains("at least one method"));
+    }
 }
 
 fn link_binary(
@@ -318,7 +362,9 @@ fn link_binary(
             .map_err(|e| e.to_string())?;
 
         if !status.success() { return Err("Final link step failed (LTO path).".to_string()); }
-        fs::remove_file(ir_file).ok();
+        if std::env::var("SNASK_KEEP_TEMPS").ok().as_deref() != Some("1") {
+            fs::remove_file(ir_file).ok();
+        }
     } else {
         let obj_file = "temp_snask.o";
         pb.set_message(format!("Compiling (llc-18 -O{})", options.opt_level));
@@ -372,7 +418,10 @@ fn link_binary(
             .map_err(|e| e.to_string())?;
 
         if !status.success() { return Err("Final link step failed.".to_string()); }
-        fs::remove_file(ir_file).ok(); fs::remove_file(obj_file).ok();
+        if std::env::var("SNASK_KEEP_TEMPS").ok().as_deref() != Some("1") {
+            fs::remove_file(ir_file).ok();
+            fs::remove_file(obj_file).ok();
+        }
     }
 
     if options.strip && options.target.is_none() {

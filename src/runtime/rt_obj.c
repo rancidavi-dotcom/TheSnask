@@ -158,6 +158,13 @@ SnaskValue make_bool(bool b) { return MAKE_BOOL(b); }
 SnaskValue make_str(char* s) { return MAKE_STR(s); }
 SnaskValue make_obj(SnaskObject* o) { return MAKE_OBJ(o); }
 
+static int snask_name_is_index(const char* name, int idx) {
+    if (!name || *name == '\0') return 0;
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d", idx);
+    return strcmp(name, buf) == 0;
+}
+
 void is_nil(SnaskValue* out, SnaskValue* val) {
     *out = MAKE_BOOL(val->tag == SNASK_NIL);
 }
@@ -176,6 +183,15 @@ void sqlite_query(SnaskValue* out, SnaskValue* h, SnaskValue* sql) {
 }
 
 void json_get(SnaskValue* out, SnaskValue* obj_val, SnaskValue* idx_val) {
+    if (obj_val->tag == SNASK_STR && obj_val->ptr && idx_val->tag == SNASK_NUM) {
+        const char* s = (const char*)obj_val->ptr;
+        int idx = (int)idx_val->num;
+        int len = (int)strlen(s);
+        if (idx < 0 || idx >= len) { *out = MAKE_NIL(); return; }
+        char buf[2] = { s[idx], '\0' };
+        *out = MAKE_STR(snask_gc_strdup(buf));
+        return;
+    }
     if (obj_val->tag != SNASK_OBJ || !obj_val->ptr) { *out = MAKE_NIL(); return; }
     SnaskObject* obj = (SnaskObject*)obj_val->ptr;
     
@@ -192,6 +208,29 @@ void json_get(SnaskValue* out, SnaskValue* obj_val, SnaskValue* idx_val) {
         }
         *out = MAKE_NIL();
     } else *out = MAKE_NIL();
+}
+
+void snask_iter_get(SnaskValue* out, SnaskValue* obj_val, SnaskValue* idx_val) {
+    if (!obj_val || !idx_val) { *out = MAKE_NIL(); return; }
+    if (obj_val->tag == SNASK_STR) {
+        json_get(out, obj_val, idx_val);
+        return;
+    }
+    if (obj_val->tag != SNASK_OBJ || !obj_val->ptr || idx_val->tag != SNASK_NUM) {
+        *out = MAKE_NIL();
+        return;
+    }
+
+    SnaskObject* obj = (SnaskObject*)obj_val->ptr;
+    int idx = (int)idx_val->num;
+    if (idx < 0 || idx >= obj->count) { *out = MAKE_NIL(); return; }
+
+    if (obj->names && obj->names[idx] && !snask_name_is_index(obj->names[idx], idx)) {
+        *out = MAKE_STR(snask_gc_strdup(obj->names[idx]));
+        return;
+    }
+
+    *out = obj->values[idx];
 }
 
 void json_set(SnaskValue* out, SnaskValue* obj_val, SnaskValue* idx_val, SnaskValue* val) {

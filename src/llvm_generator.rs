@@ -3,7 +3,7 @@ use inkwell::module::Module;
 use inkwell::builder::Builder;
 use inkwell::values::{FunctionValue, PointerValue, StructValue};
 use inkwell::types::StructType;
-use crate::ast::{Program, Stmt, StmtKind, Expr, ExprKind, LiteralValue, BinaryOp, FuncDecl};
+use crate::ast::{Program, Stmt, StmtKind, Expr, ExprKind, LiteralValue, BinaryOp, FuncDecl, VarDecl};
 use std::collections::HashMap;
 
 const TYPE_NIL: u32 = 0;
@@ -466,6 +466,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert("json_stringify_pretty".to_string(), self.module.add_function("json_stringify_pretty", fn_1, None));
         self.functions.insert("json_parse".to_string(), self.module.add_function("json_parse", fn_1, None));
         self.functions.insert("json_get".to_string(), self.module.add_function("json_get", fn_2, None));
+        self.functions.insert("snask_iter_get".to_string(), self.module.add_function("snask_iter_get", fn_2, None));
         self.functions.insert("json_has".to_string(), self.module.add_function("json_has", fn_2, None));
         self.functions.insert("json_len".to_string(), self.module.add_function("json_len", fn_1, None));
         self.functions.insert("json_index".to_string(), self.module.add_function("json_index", fn_2, None));
@@ -524,6 +525,64 @@ impl<'ctx> LLVMGenerator<'ctx> {
 
     fn sanitize_name(&self, name: &str) -> String {
         name.replace("::", "_NS_")
+    }
+
+    fn build_string_value(&self, value: &str, global_name: &str) -> StructValue<'ctx> {
+        let g = self.builder.build_global_string_ptr(value, global_name).unwrap();
+        let mut s = self.value_type.get_undef();
+        s = self.builder.build_insert_value(s, self.context.f64_type().const_float(TYPE_STR as f64), 0, "str_t").unwrap().into_struct_value();
+        s = self.builder.build_insert_value(s, self.context.f64_type().const_float(0.0), 1, "str_v").unwrap().into_struct_value();
+        self.builder.build_insert_value(s, g.as_pointer_value(), 2, "str_p").unwrap().into_struct_value()
+    }
+
+    fn collect_class_properties(&self, class_name: &str) -> Result<Vec<VarDecl>, String> {
+        let class = self.classes.get(class_name).cloned().ok_or_else(|| format!("Classe '{}' não encontrada.", class_name))?;
+        let mut properties = if let Some(parent) = class.parent.clone() {
+            self.collect_class_properties(&parent)?
+        } else {
+            Vec::new()
+        };
+        for prop in class.properties {
+            if let Some(existing) = properties.iter_mut().find(|p| p.name == prop.name) {
+                *existing = prop;
+            } else {
+                properties.push(prop);
+            }
+        }
+        Ok(properties)
+    }
+
+    fn build_class_names_arg(&self, class_name: &str, properties: &[VarDecl]) -> Result<PointerValue<'ctx>, String> {
+        if properties.is_empty() {
+            return Ok(self.ptr_type.const_null());
+        }
+
+        let global_name = format!("__snask_class_names_{}", self.sanitize_name(class_name));
+        let names_global = if let Some(g) = self.module.get_global(&global_name) {
+            g
+        } else {
+            let i8_ptr = self.context.ptr_type(inkwell::AddressSpace::from(0));
+            let arr_ty = i8_ptr.array_type(properties.len() as u32);
+            let g = self.module.add_global(arr_ty, None, &global_name);
+            let mut elems = Vec::new();
+            for prop in properties {
+                let sp = self.builder.build_global_string_ptr(&prop.name, "prop_name").unwrap();
+                elems.push(sp.as_pointer_value());
+            }
+            let init = i8_ptr.const_array(&elems);
+            g.set_initializer(&init);
+            g.set_constant(true);
+            g
+        };
+
+        let arr_ty = names_global.get_value_type().into_array_type();
+        let zero = self.context.i32_type().const_int(0, false);
+        let names_ptr = unsafe {
+            self.builder
+                .build_in_bounds_gep(arr_ty, names_global.as_pointer_value(), &[zero, zero], "names_ptr")
+                .unwrap()
+        };
+        Ok(self.builder.build_pointer_cast(names_ptr, self.ptr_type, "names_voidp").unwrap())
     }
 
     fn declare_function(&mut self, func: &FuncDecl) -> Result<(), String> {
@@ -631,33 +690,19 @@ impl<'ctx> LLVMGenerator<'ctx> {
             }
             StmtKind::PropertyAssignment(p) => {
                 let obj = self.evaluate_expression(p.target)?;
-                let mut index = -1;
-                for class in self.classes.values() {
-                    if let Some(i) = class.properties.iter().position(|prop| prop.name == p.property) {
-                        index = i as i32;
-                        break;
-                    }
-                }
-                if index == -1 {
-                    return Err(format!("Propriedade '{}' não encontrada em nenhuma classe.", p.property));
-                }
-                
                 let val = self.evaluate_expression(p.value)?;
-                
-                let set_f = self.functions.get("s_set_member").unwrap();
-                let idx_val = self.context.f64_type().const_float(index as f64);
-                let mut idx_struct = self.value_type.get_undef();
-                idx_struct = self.builder.build_insert_value(idx_struct, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
-                idx_struct = self.builder.build_insert_value(idx_struct, idx_val, 1, "v").unwrap().into_struct_value();
+                let key_struct = self.build_string_value(&p.property, "prop_key");
+                let set_f = self.functions.get("json_set").unwrap();
                 
                 let obj_p = self.create_entry_block_alloca(self.value_type, "objp");
                 self.builder.build_store(obj_p, obj).unwrap();
-                let idx_p = self.create_entry_block_alloca(self.value_type, "idxp");
-                self.builder.build_store(idx_p, idx_struct).unwrap();
+                let idx_p = self.create_entry_block_alloca(self.value_type, "prop_key_ptr");
+                self.builder.build_store(idx_p, key_struct).unwrap();
                 let val_p = self.create_entry_block_alloca(self.value_type, "valp");
                 self.builder.build_store(val_p, val).unwrap();
+                let out_p = self.create_entry_block_alloca(self.value_type, "prop_set_out");
                 
-                self.builder.build_call(*set_f, &[obj_p.into(), idx_p.into(), val_p.into()], "set").unwrap();
+                self.builder.build_call(*set_f, &[out_p.into(), obj_p.into(), idx_p.into(), val_p.into()], "set").unwrap();
             }
             StmtKind::IndexAssignment(i) => {
                 let obj = self.evaluate_expression(i.target)?;
@@ -757,8 +802,75 @@ impl<'ctx> LLVMGenerator<'ctx> {
 
                         self.builder.position_at_end(end_bb);
                     }
-                    crate::ast::LoopStmt::For { .. } => {
-                        return Err("Loop for ainda não suportado no backend LLVM.".to_string());
+                    crate::ast::LoopStmt::For { iterator, iterable, body } => {
+                        let parent = self.current_func.unwrap();
+                        let cond_bb = self.context.append_basic_block(parent, "for_cond");
+                        let body_bb = self.context.append_basic_block(parent, "for_body");
+                        let step_bb = self.context.append_basic_block(parent, "for_step");
+                        let end_bb = self.context.append_basic_block(parent, "for_end");
+
+                        let iterable_val = self.evaluate_expression(iterable)?;
+                        let iterable_ptr = self.create_entry_block_alloca(self.value_type, "for_iterable");
+                        self.builder.build_store(iterable_ptr, iterable_val).unwrap();
+
+                        let index_ptr = self.create_entry_block_alloca(self.value_type, "for_index");
+                        let mut zero = self.value_type.get_undef();
+                        zero = self.builder.build_insert_value(zero, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "for_idx_t").unwrap().into_struct_value();
+                        zero = self.builder.build_insert_value(zero, self.context.f64_type().const_float(0.0), 1, "for_idx_v").unwrap().into_struct_value();
+                        zero = self.builder.build_insert_value(zero, self.ptr_type.const_null(), 2, "for_idx_p").unwrap().into_struct_value();
+                        self.builder.build_store(index_ptr, zero).unwrap();
+
+                        let iter_ptr = self.create_entry_block_alloca(self.value_type, iterator.as_str());
+                        let previous_iter = self.local_vars.insert(iterator.clone(), iter_ptr);
+
+                        self.builder.build_unconditional_branch(cond_bb).unwrap();
+
+                        self.builder.position_at_end(cond_bb);
+                        let len_f = *self.functions.get("s_len").unwrap();
+                        let len_out_ptr = self.create_entry_block_alloca(self.value_type, "for_len");
+                        self.builder.build_call(len_f, &[len_out_ptr.into(), iterable_ptr.into()], "for_len_call").unwrap();
+                        let len_val = self.builder.build_load(self.value_type, len_out_ptr, "for_len_value").unwrap().into_struct_value();
+                        let len_num = self.builder.build_extract_value(len_val, 1, "for_len_num").unwrap().into_float_value();
+
+                        let index_val = self.builder.build_load(self.value_type, index_ptr, "for_index_value").unwrap().into_struct_value();
+                        let index_num = self.builder.build_extract_value(index_val, 1, "for_index_num").unwrap().into_float_value();
+                        let has_more = self.builder.build_float_compare(inkwell::FloatPredicate::OLT, index_num, len_num, "for_has_more").unwrap();
+                        self.builder.build_conditional_branch(has_more, body_bb, end_bb).unwrap();
+
+                        self.builder.position_at_end(body_bb);
+                        let get_f = *self.functions.get("snask_iter_get").unwrap();
+                        let item_out_ptr = self.create_entry_block_alloca(self.value_type, "for_item");
+                        self.builder.build_call(get_f, &[item_out_ptr.into(), iterable_ptr.into(), index_ptr.into()], "for_get_item").unwrap();
+                        let item_val = self.builder.build_load(self.value_type, item_out_ptr, "for_item_value").unwrap().into_struct_value();
+                        self.builder.build_store(iter_ptr, item_val).unwrap();
+
+                        for s in body {
+                            self.generate_statement(s)?;
+                            if self.builder.get_insert_block().unwrap().get_terminator().is_some() {
+                                break;
+                            }
+                        }
+                        if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
+                            self.builder.build_unconditional_branch(step_bb).unwrap();
+                        }
+
+                        self.builder.position_at_end(step_bb);
+                        let curr_index = self.builder.build_load(self.value_type, index_ptr, "for_index_step").unwrap().into_struct_value();
+                        let curr_num = self.builder.build_extract_value(curr_index, 1, "for_index_step_num").unwrap().into_float_value();
+                        let next_num = self.builder.build_float_add(curr_num, self.context.f64_type().const_float(1.0), "for_index_next").unwrap();
+                        let mut next_index = self.value_type.get_undef();
+                        next_index = self.builder.build_insert_value(next_index, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "for_next_t").unwrap().into_struct_value();
+                        next_index = self.builder.build_insert_value(next_index, next_num, 1, "for_next_v").unwrap().into_struct_value();
+                        next_index = self.builder.build_insert_value(next_index, self.ptr_type.const_null(), 2, "for_next_p").unwrap().into_struct_value();
+                        self.builder.build_store(index_ptr, next_index).unwrap();
+                        self.builder.build_unconditional_branch(cond_bb).unwrap();
+
+                        self.builder.position_at_end(end_bb);
+                        if let Some(prev) = previous_iter {
+                            self.local_vars.insert(iterator, prev);
+                        } else {
+                            self.local_vars.remove(&iterator);
+                        }
                     }
                 }
             }
@@ -1016,31 +1128,13 @@ impl<'ctx> LLVMGenerator<'ctx> {
             }
             ExprKind::PropertyAccess { target, property } => {
                 let obj = self.evaluate_expression(*target)?;
-                // Por simplicidade, assumimos que o alvo é um objeto e procuramos o índice da propriedade.
-                // Em um compilador completo, precisaríamos saber o tipo real do objeto.
-                // Como não temos um sistema de tipos forte no backend ainda, vamos inferir ou fixar.
-                
-                // Vamos tentar achar a propriedade em qualquer classe (hack temporário)
-                let mut index = -1;
-                for class in self.classes.values() {
-                    if let Some(i) = class.properties.iter().position(|p| p.name == property) {
-                        index = i as i32;
-                        break;
-                    }
-                }
-
-                if index == -1 { return Err(format!("Propriedade '{}' não encontrada em nenhuma classe.", property)); }
-
-                let get_f = self.functions.get("s_get_member").unwrap();
-                let idx_val = self.context.f64_type().const_float(index as f64);
-                let mut idx_struct = self.value_type.get_undef();
-                idx_struct = self.builder.build_insert_value(idx_struct, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
-                idx_struct = self.builder.build_insert_value(idx_struct, idx_val, 1, "v").unwrap().into_struct_value();
+                let get_f = self.functions.get("json_get").unwrap();
+                let key_struct = self.build_string_value(&property, "prop_lookup");
                 
                 let obj_p = self.create_entry_block_alloca(self.value_type, "objp");
                 self.builder.build_store(obj_p, obj).unwrap();
                 let idx_p = self.create_entry_block_alloca(self.value_type, "idxp");
-                self.builder.build_store(idx_p, idx_struct).unwrap();
+                self.builder.build_store(idx_p, key_struct).unwrap();
                 
                 let res_p = self.create_entry_block_alloca(self.value_type, "rp");
                 self.builder.build_call(*get_f, &[res_p.into(), obj_p.into(), idx_p.into()], "get").unwrap();
@@ -1109,9 +1203,10 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     }
 
                     if let Some(class) = self.classes.get(name).cloned() {
+                        let properties = self.collect_class_properties(&class.name)?;
                         // Class instantiation via FunctionCall (old style)
                         let alloc_f = self.functions.get("s_alloc_obj").unwrap();
-                        let size_val = self.context.f64_type().const_float(class.properties.len() as f64);
+                        let size_val = self.context.f64_type().const_float(properties.len() as f64);
                         let mut size_struct = self.value_type.get_undef();
                         size_struct = self.builder.build_insert_value(size_struct, self.context.f64_type().const_float(TYPE_NUM as f64), 0, "t").unwrap().into_struct_value();
                         size_struct = self.builder.build_insert_value(size_struct, size_val, 1, "v").unwrap().into_struct_value();
@@ -1120,38 +1215,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         self.builder.build_store(size_ptr, size_struct).unwrap();
 
                         let res_p = self.create_entry_block_alloca(self.value_type, "objp");
-                        // Passa também a tabela de nomes das propriedades (char**), usada por JSON/stringify e introspecção.
-                        let names_arg = if class.properties.is_empty() {
-                            self.ptr_type.const_null()
-                        } else {
-                            let global_name = format!("__snask_class_names_{}", self.sanitize_name(&class.name));
-                            let names_global = if let Some(g) = self.module.get_global(&global_name) {
-                                g
-                            } else {
-                                let i8_ptr = self.context.i8_type().ptr_type(inkwell::AddressSpace::from(0));
-                                let arr_ty = i8_ptr.array_type(class.properties.len() as u32);
-                                let g = self.module.add_global(arr_ty, None, &global_name);
-                                let mut elems = Vec::new();
-                                for prop in &class.properties {
-                                    let sp = self.builder.build_global_string_ptr(&prop.name, "prop_name").unwrap();
-                                    elems.push(sp.as_pointer_value());
-                                }
-                                let init = i8_ptr.const_array(&elems);
-                                g.set_initializer(&init);
-                                g.set_constant(true);
-                                g
-                            };
-                            let arr_ty = names_global.get_value_type().into_array_type();
-                            let zero = self.context.i32_type().const_int(0, false);
-                            let names_ptr = unsafe {
-                                self.builder
-                                    .build_in_bounds_gep(arr_ty, names_global.as_pointer_value(), &[zero, zero], "names_ptr")
-                                    .unwrap()
-                            };
-                            self.builder
-                                .build_pointer_cast(names_ptr, self.ptr_type, "names_voidp")
-                                .unwrap()
-                        };
+                        let names_arg = self.build_class_names_arg(&class.name, &properties)?;
 
                         self.builder
                             .build_call(*alloc_f, &[res_p.into(), size_ptr.into(), names_arg.into()], "alloc")
@@ -1160,7 +1224,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         let obj = self.builder.build_load(self.value_type, res_p, "obj").unwrap().into_struct_value();
                         
                         // Inicializa propriedades com valores padrão
-                        for (i, prop) in class.properties.iter().enumerate() {
+                        for (i, prop) in properties.iter().enumerate() {
                             let val = self.evaluate_expression(prop.value.clone())?;
                             let set_f = self.functions.get("s_set_member").unwrap();
                             let idx_val = self.context.f64_type().const_float(i as f64);
@@ -1230,10 +1294,8 @@ impl<'ctx> LLVMGenerator<'ctx> {
             }
             ExprKind::New { class, args, strategy } => {
                 let out_p = self.create_entry_block_alloca(self.value_type, "alloc_out");
-                let mut count = 0;
-                if let Some(c) = self.classes.get(&class) {
-                    count = (c.properties.len() + c.methods.len()) as u32;
-                }
+                let properties = self.collect_class_properties(&class)?;
+                let count = properties.len() as u32;
 
                 if matches!(strategy, crate::ast::MemoryStrategy::Stack) {
                     // TRUE OM STACK ALLOCATION (Zero Malloc)
@@ -1300,8 +1362,9 @@ impl<'ctx> LLVMGenerator<'ctx> {
 
                     let size_p = self.create_entry_block_alloca(self.value_type, "sz_p");
                     self.builder.build_store(size_p, size_struct).unwrap();
+                    let names_arg = self.build_class_names_arg(&class, &properties)?;
                     
-                    self.builder.build_call(*fn_alloc, &[out_p.into(), size_p.into(), self.ptr_type.const_null().into()], "all").unwrap();
+                    self.builder.build_call(*fn_alloc, &[out_p.into(), size_p.into(), names_arg.into()], "all").unwrap();
                 }
                 
                 let c_name = format!("{}::init", class);

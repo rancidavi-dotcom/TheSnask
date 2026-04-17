@@ -3,6 +3,11 @@
 
 Snask is a high-performance language that bridges the gap between the productivity of Python/JS and the efficiency of C/Rust. Version 0.4.0 introduces significant Developer Experience (DX) improvements, making the language more flexible and modern.
 
+Status note:
+- This reference describes the intended language surface of Snask v0.4.0.
+- Some items in this document are still `parcial` or `experimental` in the current compiler.
+- Before treating a feature as stable, check `docs/FEATURE_STATUS.md`.
+
 ---
 
 ## 📖 Table of Contents
