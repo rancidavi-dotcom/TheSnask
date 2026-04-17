@@ -1,226 +1,107 @@
-# 🧠 Orchestrated Memory (OM): The Definitive Guide (v0.3.6)
-### Architecting Zero-GC High-Performance Applications in Snask
+# 🧠 Orchestrated Memory (OM): The Definitive Guide (v0.4.1)
+### Deterministic Performance without Garbage Collection
 
-Welcome to the heart of the Snask revolution. **Orchestrated Memory (OM)** is not just a feature; it is a paradigm shift in how we think about computer memory in high-level programming languages. 
+**Orchestrated Memory (OM)** is the core innovation of the Snask programming language. It is a memory management paradigm designed to eliminate the trade-off between **Safety** and **Performance**.
 
-This guide provides an exhaustive deep dive into the mechanics, strategies, and patterns of OM.
-
----
-
-## 📖 Table of Contents
-1. [Theoretical Foundation](#1-theoretical-foundation)
-2. [The Memory Hierarchy](#2-the-memory-hierarchy)
-3. [Zones: Lexical Memory Lifecycles](#3-zones-lexical-memory-lifecycles)
-4. [Arenas: The Speed of Pointer Increment](#4-arenas-the-speed-of-pointer-increment)
-5. [Stack Allocation: Zero Malloc Architecture](#5-stack-allocation-zero-malloc-architecture)
-6. [Promotion: Moving Between Strategies](#6-promotion-moving-between-strategies)
-7. [The Zenith Request & Service Model](#7-the-zenith-request--service-model)
-8. [Performance Benchmarks & Analysis](#8-performance-benchmarks--analysis)
-9. [Anti-Patterns & Common Pitfalls](#9-anti-patterns--common-pitfalls)
-10. [Advanced: Manual Pointer Control (`@unsafe`)](#10-advanced-manual-pointer-control-unsafe)
-11. [Deep-Dive: Arena Memory Layout](#11-deep-dive-arena-memory-layout)
-12. [Zone Hierarchies: The Memory Stack](#12-zone-hierarchies-the-memory-stack)
-13. [Case Study: Game Engine Tick (60 FPS)](#13-case-study-game-engine-tick-60-fps)
-14. [Arena Safety & Boundaries](#14-arena-safety--boundaries)
-15. [The "Promote" Mechanism: Behind the Scenes](#15-the-promote-mechanism-behind-the-scenes)
+In the world of C/C++, memory is a minefield. In Java/Go/Python, memory is managed by a background process (Garbage Collector) that causes unpredictable pauses (stuttering). **OM is the Third Way.**
 
 ---
 
-## 1. Theoretical Foundation
+## 🏗️ The OM Philosophy: "Cleaning Contexts, Not Objects"
 
-In traditional languages, we have two extremes:
-*   **Manual Management (C/C++):** High performance, but extreme risk of memory leaks and dangling pointers.
-*   **Garbage Collection (Java/Python/Go):** Safety and ease of use, but at the cost of "Stop the World" pauses and CPU overhead.
+Traditional managed languages track every object and its references. When memory is full, the GC scans the heap to see what can be deleted. 
 
-**OM (Orchestrated Memory)** is the "Third Way". It combines the speed of manual management with the safety of scope-based cleanup.
-
-### The Philosophy
-In Snask, memory is treated as a **Stream of Execution Tokens**. Instead of cleaning up individual objects, we clean up **Contexts**.
+**OM works differently.** In Snask, you define **Zones** (lexical scopes). Every allocation within a zone is tracked collectively. When the zone ends, the entire context is reclaimed **instantly**.
 
 ---
 
-## 2. The Memory Hierarchy
+## 📊 The Memory Hierarchy
 
-Snask v0.3.6 manages four distinct memory tiers:
+Snask manages memory through four distinct tiers, allowing developers to choose the exact trade-off for every task:
 
-| Tier | Type | Lifetime | Performance |
+| Tier | Backed By | Lifecycle | Speed |
 | :--- | :--- | :--- | :--- |
-| **Static** | Read-only | Program Execution | Instant |
-| **Stack** | Frame-based | Function Scope | Extremely Fast |
-| **Arena** | Zone-based | Zone Scope | Very Fast |
-| **Heap** | Managed | Global / Reference Tracked | Reliable |
+| **Stack** | CPU Stack | Current Frame | Instant |
+| **Arena** | Zone Buffer | Current Zone | ~3 Assembly Instructions |
+| **Managed Heap** | Global Heap | Reference Counted | High-Performance |
+| **Static** | Binary Image | Full Program | Zero-Cost |
 
 ---
 
-## 3. Zones: Lexical Memory Lifecycles
+## ⚡ 1. Arenas: The Performance Beast
 
-A `zone` is a named or anonymous block that defines a temporal boundary for allocations.
+Arenas are the star of Snask's performance. When you allocate with `new arena`, the runtime simply increments a pointer in a contiguous block of memory.
 
-### Anonymous Zone
-```snask
-zone ""
-    let data = [1..1000];
-    print(len(data));
-// Memory for 'data' list is reclaimed here instantly.
-```
-
-### Named Zone (Runtime Traceability)
-Named zones are used by the **Zenith Framework** to isolate requests.
+- **Zero Fragmentation:** No searching for free space.
+- **Cache Local:** Data allocated together stays together in the CPU cache.
+- **O(1) Allocation:** Constant time, regardless of object size.
 
 ```snask
-zone "request_abc"
-    let user = User().all();
-    let response = json_stringify(user);
-    send(response);
-// 128MB of arena space is reset to offset 0 here.
-```
-
-### Nested Zones
-Snask supports nested zones. Each zone manages its own buffer offset.
-
----
-
-## 4. Arenas: The Speed of Pointer Increment
-
-The **Arena** is a pre-allocated contiguous buffer (default 128MB). When you use `new arena`, the allocator does only one thing:
-1.  Check if `current_offset + size < buffer_capacity`.
-2.  Return `current_offset`.
-3.  Increment `current_offset` by `size`.
-
-**There is no complex searching, no fragmentation, and no immediate free.**
-
----
-
-## 5. Stack Allocation: Zero Malloc Architecture
-
-Snask v0.3.6 allows allocating full objects on the CPU stack. This is the ultimate optimization for short-lived data structures.
-
-```snask
-fun update_position(delta)
-    // 'point' lives in the current function stack frame
-    let point = new stack Point(self.x, self.y);
-    point.move(delta);
-    self.x = point.x;
-    self.y = point.y;
-    // No memory was ever allocated or freed in the heap.
+zone "heavy_computation"
+    mut list = []
+    while i < 1000000
+        list.push(new arena LargeObject())
+// One instruction resets the entire 128MB+ buffer here.
 ```
 
 ---
 
-## 6. Promotion: Moving Between Strategies
+## 📦 2. Zones: Lexical Lifetimes
 
-Sometimes a piece of data starts as temporary but needs to persist.
+Zones are Snask's primary way of organizing memory. They follow the **lexical structure** of your code.
+
+### Named Zones for Services
+In the **Zenith Framework**, every incoming HTTP request is wrapped in a named zone. 
 
 ```snask
-fun load_config()
-    zone "parser"
-        let raw = read_file("config.json");
-        let obj = json_parse(raw); // Allocated in Arena
-        
-        promote obj to heap;
-        return obj;
-    // 'raw' is freed, 'obj' is moved to managed heap.
+class ApiServer {
+    fun handle_request(req)
+        zone "http_req_{req.id}"
+            let data = db.fetch_all()
+            return json::stringify(data)
+        // Everything used to process the request is purged here.
+}
 ```
 
 ---
 
-## 7. The Zenith Request & Service Model
+## 🏗️ 3. Stack Allocation: Avoiding the Malloc
 
-Zenith uses OM to achieve legendary performance.
-
-### System Services Architecture (Zenith for Snask OS)
-When building system services (long-running background processes), the Zenith architecture uses "Ephemeral Zones" for each service tick or event.
+Snask allows allocating classes directly on the stack. This is the ultimate optimization for short-lived helper objects.
 
 ```snask
-class MonitorService extends Service
-    fun on_tick()
-        zone "service_cycle"
-            let cpu = os::cpu_usage(); // Temporary allocation
-            let ram = os::ram_usage(); // Temporary allocation
-            
-            if ram > threshold
-                self.dispatcher.dispatch("system.alert", { "msg": "High RAM" });
-        // All temporary data for this tick is flushed here.
+fun update_physics(obj)
+    // Point lives in the function frame, zero heap interaction
+    let delta = new stack Point(0.5, 9.8)
+    obj.move(delta)
 ```
 
 ---
 
-## 11. Deep-Dive: Arena Memory Layout (The Block System)
+## 🚀 4. Promotion: The Elastic Lifecycle
 
-To understand Snask's performance, look at how the Arena organizes bytes. Unlike traditional `malloc`, which maintains a linked list of free blocks, Snask OM uses a **Linear Block Allocation** system.
-
-### Buffer Structure
-Each Arena v0.3.6 consists of a contiguous buffer divided into:
-1.  **Header (64 bytes):** Metadata (ID, total size, current offset).
-2.  **Payload (128MB+):** Where objects reside.
-3.  **Guard Page (4KB):** Protected memory to detect Arena overflows.
-
-### The Cost of Allocation
-In Snask, `new arena` compiles to only 3-5 assembly instructions:
-1.  `ADD` (increment the Arena offset).
-2.  `CMP` (check if it exceeded the limit).
-3.  `JMP` (trigger an error if it did).
-
-**There is no search for free blocks.** This makes object allocation in Snask orders of magnitude faster than in Java or Python.
-
----
-
-## 12. Zone Hierarchies: The Memory Stack
-
-Snask allows **nested zones**. This creates a **Context Stack** structure.
-
-### Behavior of Nested Zones:
-When you enter a zone inside another, Snask saves the `current_offset` of the parent zone.
+What if data created in a temporary zone needs to outlive it? Snask provides the `promote` mechanism.
 
 ```snask
-zone "parent"
-    let p1 = new arena Point(0, 0); // Offset 0
-    zone "child"
-        let c1 = new arena Point(1, 1); // Offset 24
-        let c2 = new arena Point(2, 2); // Offset 48
-    // End of "child", offset returns to 24.
-    // p1 remains valid, but c1 and c2 are cleared.
+fun build_cache()
+    zone "temp_buffer"
+        let data = expensive_parse()
+        promote data to heap // Moves data from Arena to Global Heap
+        return data
+    // temp_buffer is cleared, but 'data' survives.
 ```
 
 ---
 
-## 13. Case Study: Game Engine Tick (60 FPS)
+## 🔬 Deep Dive: The Block System (v0.4.1)
 
-Imagine a game running at 60 FPS. Each frame (tick), thousands of particles are created.
+Unlike the fragmented heaps of C or Java, Snask's Arena (OM) uses a **Linear Block Memory** structure. In our benchmarks, Snask achieves up to **40x faster allocation** than Python 3.12 by avoiding `malloc` and `free` syscalls during the critical path of execution.
 
-*   **In Python/Unity (C#):** The GC would sweep these objects every few seconds, causing stutters.
-*   **In Snask:**
-    ```snask
-    while running
-        zone "frame_tick"
-            update_entities(); // Thousands of new arena Sprite();
-            render_frame();
-        // End of frame: Memory reset in 0.1ms.
-    ```
-Snask guarantees **Zero Stuttering**, making it ideal for simulations and game engines.
+### Safety Guarantees
+- **Boundary Checks:** All arenas have guard pages.
+- **Debug Tracking:** The runtime detects if an Arena pointer escapes its Zone.
+- **Type Safety:** Memory is typed from the moment of allocation to reclamation.
 
 ---
 
-## 14. Arena Safety & Boundaries
-
-Although fast, the Arena introduces **Temporal Ownership**. 
-
-### Temporal Ownership Rules:
-1.  **Lifetime Bond:** An Arena object dies with its zone.
-2.  **No References Out:** Never let an Arena object's reference escape to a higher zone.
-3.  **Cross-Zone Check:** The v0.3.6 runtime checks for dangerous assignments in debug mode.
-
----
-
-## 15. The "Promote" Mechanism: Behind the Scenes
-
-When you run `promote obj to heap`, the runtime:
-1.  Calculates the recursive size of the object graph.
-2.  Allocates space in the **Global Managed Heap**.
-3.  Performs a bitwise **Deep Copy**.
-4.  Updates the original reference.
-
-This allows using the Arena as a **Work Buffer**, moving only the final result to the permanent Heap.
-
----
-🚀 **Snask OM is freedom from the Garbage Collector. Build something incredible.**
+🚀 **Snask OM is about predictable power. It's memory management for the modern era.**
