@@ -1274,8 +1274,18 @@ impl<'a> Parser<'a> {
                     }
                     Ok(stmt)
                 } else {
-                    let body = self.parse_block()?;
-                    let span = Self::span1(&loc);
+                    let body = if matches!(
+                        self.current_token,
+                        Token::Colon(_) | Token::LeftBrace(_) | Token::Newline(_) | Token::Indent(_)
+                    ) {
+                        self.parse_block()?
+                    } else {
+                        vec![self.parse_statement()?]
+                    };
+                    let mut span = Self::span1(&loc);
+                    if let Some(last) = body.last() {
+                        span = span.merge(&last.span);
+                    }
                     Ok(Stmt::with_span(StmtKind::UnsafeBlock(body), loc, span))
                 }
             }
@@ -2645,6 +2655,24 @@ class main
         };
         assert_eq!(header, "zlib.h");
         assert_eq!(alias, "zlib");
+    }
+
+    #[test]
+    fn parses_unsafe_zone_as_unsafe_block() {
+        let src = r#"
+@unsafe zone "manual":
+    sqlite_close("raw")
+"#;
+        let mut p = Parser::new(src).unwrap();
+        let program = p.parse_program().expect("parser should accept @unsafe zone");
+
+        match &program[0].kind {
+            StmtKind::UnsafeBlock(body) => {
+                assert_eq!(body.len(), 1);
+                assert!(matches!(body[0].kind, StmtKind::Zone { .. }));
+            }
+            other => panic!("expected unsafe block wrapping a zone, got {:?}", other),
+        }
     }
 
     #[test]

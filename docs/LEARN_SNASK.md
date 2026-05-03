@@ -133,7 +133,7 @@ class main {
 
 ---
 
-## 7) Orchestrated Memory (OM)
+## 7) OM-Snask-System
 
 ```snask
 class User {
@@ -150,6 +150,8 @@ class main {
     }
 }
 ```
+
+`zone`, `new stack`, `new arena`, `promote` and C resources imported through `import_c_om` are all part of the same OM-Snask-System. See `docs/OM_SNASK_SYSTEM.md`.
 
 ---
 

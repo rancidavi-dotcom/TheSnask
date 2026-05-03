@@ -1,5 +1,5 @@
 # 🐍 The Snask Programming Language (v0.4.1-alpha)
-### High-Performance Native Language with Orchestrated Memory (OM)
+### High-Performance Native Language with the OM-Snask-System
 
 > **"Systems programming with the speed of C and the soul of Python."**
 
@@ -7,8 +7,8 @@ Snask is a revolutionary systems programming language designed to solve the age-
 
 ---
 
-## 🧠 Orchestrated Memory (OM)
-Snask introduces **Orchestrated Memory**, a deterministic, GC-free memory management paradigm. Instead of cleaning up individual objects, Snask cleans up **Contexts**.
+## 🧠 OM-Snask-System
+Snask introduces the **OM-Snask-System**, a deterministic, GC-free memory and resource management paradigm. Instead of cleaning up individual objects, Snask cleans up **Contexts** and can register native resources from C libraries in the same lifecycle model.
 
 - **No Stop-the-World pauses:** Zero GC jitter.
 - **Deterministic Performance:** You know exactly when memory is reclaimed.
@@ -18,7 +18,7 @@ Snask introduces **Orchestrated Memory**, a deterministic, GC-free memory manage
 
 ## 🚀 Key Features
 
-*   **OM Zones:** Isolate memory lifecycles to lexical scopes (Request, Frame, Task).
+*   **OM-Snask-System Zones:** Isolate memory and native resource lifecycles to lexical scopes (Request, Frame, Task).
 *   **Multi-Tier Runtime:** Choose between `standard`, `tiny`, `nano`, or `extreme` runtimes for everything from Web Servers to Microcontrollers.
 *   **LLVM Backend:** Direct compilation to high-performance native machine code.
 *   **Modern Syntax:** Python-inspired ergonomics with strict types and native efficiency.
@@ -57,7 +57,7 @@ cargo build --release
 
 Snask is designed to be lean and mean.
 
-| Metric | Snask (OM) | Python 3.12 | Go 1.22 |
+| Metric | Snask (OM-Snask-System) | Python 3.12 | Go 1.22 |
 | :--- | :--- | :--- | :--- |
 | **Allocation (1M objs)** | **12ms** | 480ms | 85ms |
 | **Hello World Binary** | **~60KB** | N/A | ~2MB |
@@ -67,7 +67,7 @@ Snask is designed to be lean and mean.
 
 ## 📖 Deep Dives
 
-*   [🧠 **Orchestrated Memory (OM) Guide**](./docs/OM_GUIDE.md) - How we beat the GC.
+*   [🧠 **OM-Snask-System**](./docs/OM_SNASK_SYSTEM.md) - Memory orchestration, zones, arenas and native C resources.
 *   [📖 **Learn Snask in 5 Minutes**](./docs/LEARN_SNASK.md) - Syntax guide for C/Python devs.
 *   [🏗️ **Architecture**](./docs/ARCHITECTURE.md) - Compiler and Runtime internals.
 *   [⚖️ **Feature Status**](./docs/FEATURE_STATUS.md) - What is ready for your next project.

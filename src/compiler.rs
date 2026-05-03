@@ -231,7 +231,7 @@ fn load_or_generate_auto_om_contract(pkg_name: &str, alias: &str) -> Result<OmCo
         output: None,
         extra_cflags: cflags,
     })
-    .map_err(|e| format!("Auto OM scan failed for package `{pkg_name}`: {e}"))?;
+    .map_err(|e| format!("OM-Snask-System scan failed for package `{pkg_name}`: {e}"))?;
 
     merge_om_override_if_present(generated, alias)
 }

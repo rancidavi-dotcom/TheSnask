@@ -99,7 +99,7 @@ enum Commands {
         #[arg(long)]
         strict: bool,
     },
-    /// Orchestrated Memory tooling
+    /// OM-Snask-System tooling
     Om {
         #[command(subcommand)]
         cmd: OmCommands,

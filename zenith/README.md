@@ -1,5 +1,5 @@
 # 🚀 Zenith Framework v0.2.0: The Complete Official Manual
-### Advanced Web Framework for Snask with Orchestrated Memory (OM)
+### Advanced Web Framework for Snask with the OM-Snask-System
 
 Zenith is the official high-performance web framework for the Snask programming language. Inspired by the elegance of Laravel and the speed of Rust, Zenith brings a structured, batteries-included approach to building APIs and web services.
 

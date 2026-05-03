@@ -260,6 +260,7 @@ pub struct SemanticAnalyzer {
     classes: HashMap<String, ClassDecl>,
     pub errors: Vec<SemanticError>,
     tiny_mode: bool,
+    unsafe_depth: usize,
 }
 
 fn levenshtein(a: &str, b: &str) -> usize {
@@ -365,6 +366,7 @@ impl SemanticAnalyzer {
             classes: HashMap::new(),
             errors: Vec::new(),
             tiny_mode: false,
+            unsafe_depth: 0,
         };
         analyzer.register_stdlib();
         analyzer
@@ -1418,8 +1420,16 @@ impl SemanticAnalyzer {
                     self.symbol_table.define(param_symbol);
                 }
 
+                if func_decl.is_unsafe {
+                    self.unsafe_depth += 1;
+                }
+
                 for stmt in &func_decl.body {
                     self.analyze_statement(stmt);
+                }
+
+                if func_decl.is_unsafe {
+                    self.unsafe_depth = self.unsafe_depth.saturating_sub(1);
                 }
 
                 if let Some(return_type) = &func_decl.return_type {
@@ -1620,9 +1630,11 @@ impl SemanticAnalyzer {
                 self.symbol_table.exit_scope();
             }
             StmtKind::UnsafeBlock(body) => {
+                self.unsafe_depth += 1;
                 for s in body {
                     self.analyze_statement(s);
                 }
+                self.unsafe_depth = self.unsafe_depth.saturating_sub(1);
             }
             StmtKind::Promote { .. } => {}
             StmtKind::Scope { body, .. } => {
@@ -1956,12 +1968,29 @@ impl SemanticAnalyzer {
                 }
             }
             ExprKind::FunctionCall { callee, args } => {
-                /* Desativado temporariamente para permitir que libs funcionem */
-                /* if let ExprKind::Variable(name) = &callee.kind {
+                if let ExprKind::Variable(name) = &callee.kind {
                     if !name.starts_with("__") && is_library_native(name) {
-                        return Err(SemanticError::new(SemanticErrorKind::RestrictedNativeFunction { name: name.clone(), help: library_native_help(name) }, expression.span.clone()));
+                        if self.unsafe_depth == 0 {
+                            return Err(
+                                SemanticError::new(
+                                    SemanticErrorKind::RestrictedNativeFunction {
+                                        name: name.clone(),
+                                        help: library_native_help(name),
+                                    },
+                                    expression.span.clone(),
+                                )
+                                .with_help(format!(
+                                    "`{name}` is an internal native function. Wrap the call in `@unsafe` only if you want to take manual responsibility for memory/resource safety."
+                                )),
+                            );
+                        }
+
+                        for arg in args {
+                            let _ = self.type_check_expression(arg)?;
+                        }
+                        return Ok(Type::Any);
                     }
-                } */
+                }
 
                 let callee_symbol = if let ExprKind::Variable(name) = &callee.kind {
                     self.symbol_table.lookup(name).cloned()
@@ -2168,8 +2197,31 @@ class main
             analyzer
                 .errors
                 .iter()
-                .any(|e| matches!(e.kind, SemanticErrorKind::VariableNotFound(ref name) if name == "sqlite_close")),
-            "expected sqlite_close to be hidden from user code, got: {:?}",
+                .any(|e| matches!(e.kind, SemanticErrorKind::RestrictedNativeFunction { ref name, .. } if name == "sqlite_close")),
+            "expected sqlite_close to be restricted outside @unsafe, got: {:?}",
+            analyzer.errors
+        );
+    }
+
+    #[test]
+    fn unsafe_zone_allows_restricted_native_calls() {
+        let analyzer = analyze_source(
+            r#"
+import "sqlite"
+
+class main
+    fun start()
+        @unsafe zone "manual":
+            sqlite_close("manual-handle")
+"#,
+        );
+
+        assert!(
+            !analyzer.errors.iter().any(|e| matches!(
+                e.kind,
+                SemanticErrorKind::RestrictedNativeFunction { ref name, .. } if name == "sqlite_close"
+            )),
+            "expected sqlite_close to be allowed inside @unsafe zone, got: {:?}",
             analyzer.errors
         );
     }

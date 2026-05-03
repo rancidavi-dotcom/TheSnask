@@ -138,7 +138,7 @@ Criterio de pronto:
 ## Fase 3: Modelo OM Formal e Confiavel
 
 Objetivo:
-- Fazer a Orchestrated Memory ser uma tecnologia séria, não só uma ideia boa.
+- Fazer o OM-Snask-System ser uma tecnologia séria, não só uma ideia boa.
 
 Entregas:
 - Escape analysis real.

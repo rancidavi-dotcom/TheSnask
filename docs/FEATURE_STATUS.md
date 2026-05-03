@@ -50,7 +50,7 @@ Legenda:
 | Traits / interfaces | `planejada` | Ainda não existem. |
 | `Option` / `Result` | `planejada` | Ainda não existem como tipos da linguagem. |
 
-## Orchestrated Memory
+## OM-Snask-System
 
 | Feature | Status | Observações |
 | --- | --- | --- |
@@ -59,7 +59,7 @@ Legenda:
 | `zone` | `experimental` | Existe no parser e no AST, mas ainda não possui formalismo estático completo. |
 | `scope` | `experimental` | Hoje funciona mais como delimitação sintática do que como contrato forte de memória. |
 | `entangle` | `experimental` | Existe sintaticamente, mas ainda não está validado de forma séria. |
-| OM-Snask-System / Auto-OM para C | `experimental` | Já deduz contratos a partir de headers C, emite chamadas nativas LLVM, registra recursos opacos em zonas e aceita `.om.snif` como patch. Validado com stdio.h e SDL2 simples. Ver `docs/OM_SNASK_SYSTEM.md`. |
+| C interop pelo OM-Snask-System | `experimental` | `import_c_om` é uma porta do mesmo sistema: deduz contratos a partir de headers C, emite chamadas nativas LLVM, registra recursos opacos em zonas e aceita `.om.snif` como patch. Validado com stdio.h e SDL2 simples. Ver `docs/OM_SNASK_SYSTEM.md`. |
 | Escape analysis | `planejada` | Ainda não está consolidada no analisador semântico. |
 | Borrow checking | `planejada` | Ainda não existe de forma real no compilador. |
 | Zone depth formal | `planejada` | Ainda não existe como regra completa e testada. |

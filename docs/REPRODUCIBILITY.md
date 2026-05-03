@@ -34,7 +34,7 @@ cargo build --release
 Snask benchmarks are located in the `bench/` and `pride/` directories. Each benchmark includes a runner script.
 
 ### 1. Allocation Performance (Snask vs C vs Python)
-This benchmark measures how fast 1 million simple objects can be allocated using **OM Arenas**, Standard Heap (C), and Managed Heap (Python).
+This benchmark measures how fast 1 million simple objects can be allocated using **OM-Snask-System arenas**, Standard Heap (C), and Managed Heap (Python).
 
 **How to run:**
 ```bash

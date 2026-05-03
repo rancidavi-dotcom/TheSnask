@@ -732,7 +732,7 @@ fn classify_function(
             c_param_types: Vec::new(),
             safety: Safety::Safe,
             reason:
-                "SDL_Event is allocated on the stack by Auto-OM; Snask receives only the event type"
+                "SDL_Event is allocated on the stack by the OM-Snask-System; Snask receives only the event type"
                     .to_string(),
         };
     }

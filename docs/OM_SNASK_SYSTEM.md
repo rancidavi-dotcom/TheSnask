@@ -1,14 +1,33 @@
 # OM-Snask-System
 
-## Snask puro sobre bibliotecas C, com memoria orquestrada
+## O sistema unico de memoria, recursos e interop nativa do Snask
 
-Este documento descreve o **OM-Snask-System**, a camada de interop nativa que permite usar bibliotecas C a partir de codigo Snask puro, sem escrever sintaxe C no programa e sem gerenciar manualmente a vida de ponteiros C.
+Este documento descreve o **OM-Snask-System**, o sistema unico de memoria do Snask.
+
+Ele substitui a ideia de existir um "OM antigo" separado de uma camada automatica nova. A partir daqui, existe apenas um sistema:
+
+```text
+OM-Snask-System
+    = memoria orquestrada da linguagem
+    + zonas, arenas, stack, heap e promocao
+    + registro deterministico de recursos
+    + contratos deduzidos de bibliotecas C
+    + chamadas nativas LLVM sem transpilacao
+    + limpeza automatica de recursos externos
+```
+
+Ou seja:
+
+- `zone`, `new stack`, `new arena`, `promote` e recursos nativos pertencem ao mesmo sistema.
+- `import_c_om` nao e outro OM; e uma porta de entrada para recursos externos dentro do OM-Snask-System.
+- `.om.snif` nao e um binding gigante; e um patch opcional para o contrato deduzido pelo sistema.
+- O runtime de memoria e o scanner de contratos compartilham a mesma ideia central: **o usuario descreve intencao, o Snask orquestra ciclo de vida**.
 
 A frase guia do sistema e:
 
 > Em vez de voce escrever o contrato, o Snask deve deduzir o contrato.
 
-O objetivo nao e transformar Snask em um dialeto de C. O objetivo e o contrario: permitir que Snask use o ecossistema C sem herdar a experiencia manual de C. A biblioteca C continua existindo como ABI externa; o codigo do usuario continua sendo Snask; e o OM fica responsavel por transformar recursos nativos em valores com ciclo de vida orquestrado.
+Essa frase vale para bibliotecas C, mas tambem vale para memoria comum: em vez de o programador espalhar `malloc`, `free`, `destroy`, ownership manual e regras mentais pelo codigo, o Snask deve deduzir e executar o ciclo de vida mais seguro a partir do contexto.
 
 Status atual:
 
@@ -16,6 +35,375 @@ Status atual:
 - Ainda nao e uma promessa de suporte universal para toda API C existente.
 - As regras de seguranca sao conservadoras: o scanner expoe apenas o que consegue mapear com seguranca razoavel.
 - APIs com callbacks, structs complexas por valor, ownership ambiguo e varargs avancado ainda precisam de regras novas ou patches `.om.snif`.
+- O modelo de memoria da linguagem ainda precisa de formalizacao estatica mais forte para escape analysis e borrow checking completo.
+
+## O problema que o OM-Snask-System resolve
+
+Sistemas tradicionais forcam uma escolha ruim:
+
+- C/C++ dao controle e performance, mas jogam ownership manual no programador.
+- Java/Go/Python reduzem erro manual, mas introduzem GC, pausas e custo de runtime.
+- FFI tradicional permite chamar C, mas devolve o problema de memoria para o usuario.
+
+O OM-Snask-System tenta ser a terceira via:
+
+```text
+controle nativo
+sem GC obrigatorio
+sem free/destroy manual na superficie Snask
+sem ponteiro C cru como API publica segura
+com limpeza deterministica por contexto
+```
+
+O Snask nao pergunta apenas "onde alocar?". Ele pergunta:
+
+```text
+qual e o papel temporal deste valor?
+```
+
+Um valor pode ser:
+
+- temporario de funcao;
+- temporario de zona;
+- persistente de heap;
+- estatico do binario;
+- recurso externo vindo de C;
+- handle gerenciado pelo runtime.
+
+Todos esses casos pertencem ao mesmo sistema.
+
+## Hierarquia de memoria
+
+O OM-Snask-System organiza memoria em camadas:
+
+| Camada | Uso | Vida | Observacao |
+| --- | --- | --- | --- |
+| `static` | dados do binario | programa inteiro | custo praticamente zero |
+| `stack` | objetos curtos | frame atual | ideal para helpers temporarios |
+| `arena` | muitos objetos temporarios | zona atual | alocacao por incremento de ponteiro |
+| `heap` | dados persistentes | ate nao serem mais usados | usado quando precisa sobreviver a zona |
+| `resource` | recurso externo | zona/handle OM | ponteiro C ou recurso nativo registrado |
+
+Exemplo:
+
+```snask
+class Point
+    mut x = 0
+    mut y = 0
+
+class main
+    fun start()
+        zone "frame":
+            let delta = new stack Point()
+            let temp = new arena Point()
+```
+
+`delta` e local ao frame. `temp` pertence a zona. Quando a zona termina, o contexto e limpo.
+
+## Zonas
+
+`zone` e a unidade central de contexto.
+
+```snask
+zone "request":
+    let user = load_user()
+    let payload = build_response(user)
+```
+
+Uma zona tem tres responsabilidades:
+
+- agrupar alocacoes temporarias;
+- delimitar vida de dados;
+- limpar recursos registrados ao sair.
+
+O mesmo conceito vale para recursos C:
+
+```snask
+zone "window":
+    let window = sdl2.create_window(...)
+    let renderer = sdl2.create_renderer(window, -1, 0)
+```
+
+Ao sair da zona, o runtime chama os destrutores associados aos recursos.
+
+## Arenas
+
+A arena e a parte de performance do sistema.
+
+Em vez de cada objeto temporario passar por um heap fragmentado, a arena usa um bloco linear. Alocar e basicamente mover um ponteiro.
+
+Beneficios:
+
+- alocacao O(1);
+- boa localidade de cache;
+- limpeza em massa;
+- menos fragmentacao;
+- menos chamadas a `malloc/free`.
+
+Exemplo conceitual:
+
+```snask
+zone "parse":
+    mut nodes = []
+    while has_more()
+        nodes.push(new arena AstNode())
+```
+
+Quando a zona termina, a arena daquele contexto pode ser resetada.
+
+## Stack
+
+`new stack` e para objetos pequenos e locais.
+
+```snask
+fun update()
+    let point = new stack Point()
+```
+
+O objeto vive no frame atual. O programador nao chama `free`.
+
+## Heap e promocao
+
+Alguns dados precisam sobreviver ao contexto temporario.
+
+```snask
+fun build_cache()
+    zone "temp":
+        let data = parse_big_file()
+        promote data to heap
+        return data
+```
+
+`promote` e a forma explicita de dizer:
+
+```text
+este valor nasceu em um contexto temporario, mas agora precisa viver mais.
+```
+
+O objetivo futuro do compilador e detectar mais casos automaticamente, mas a sintaxe explicita continua importante para deixar a intencao clara.
+
+## Recursos externos
+
+Um recurso externo e qualquer coisa que nao nasceu como objeto Snask comum, mas precisa de ciclo de vida:
+
+- `SDL_Window*`
+- `SDL_Renderer*`
+- `sqlite3*`
+- `sqlite3_stmt*`
+- buffers de zlib;
+- arquivos;
+- handles do sistema operacional.
+
+No OM-Snask-System, eles viram `resource`.
+
+```snask
+zone "db":
+    let db = sqlite.open("app.db")
+```
+
+O ponteiro real nao vira API publica segura. Ele e registrado no runtime com:
+
+```text
+ponteiro nativo
+destrutor
+nome do tipo
+zona atual
+```
+
+Quando a zona termina, o runtime limpa.
+
+## Modelo de seguranca
+
+O OM-Snask-System e conservador.
+
+Fora de blocos explicitamente inseguros, a direcao e:
+
+- nao entregar ponteiros C crus com ownership manual;
+- esconder destrutores manuais;
+- registrar recursos externos em zonas;
+- bloquear funcoes cujo ownership nao foi provado;
+- preferir copia segura quando retornar `const char*`;
+- tratar `.om.snif` como patch auditavel.
+
+Isso nao e o mesmo que prometer soundness total estilo Rust hoje. O Snask ainda precisa amadurecer escape analysis, verificacao de `zone_depth` e regras formais completas. Mas a superficie publica deve caminhar sempre para:
+
+```text
+se o Snask nao consegue provar uma chamada como segura, ele nao deve fingir que e.
+```
+
+## `@unsafe`
+
+`@unsafe` e a saida explicita do OM-Snask-System.
+
+Ele existe para casos em que o programador quer assumir responsabilidade manual por memoria, recursos nativos ou chamadas internas que o Snask normalmente protege.
+
+Fora de `@unsafe`, funcoes nativas internas como destrutores e wrappers de runtime nao devem ser chamadas como API publica:
+
+```snask
+sqlite_close("raw-handle") // erro: funcao nativa restrita
+```
+
+Dentro de `@unsafe`, o programador esta dizendo:
+
+```text
+eu sei que esta chamada pode quebrar as garantias do OM-Snask-System,
+e aceito assumir essa responsabilidade manualmente.
+```
+
+Exemplo com zona insegura:
+
+```snask
+import "sqlite"
+
+class main
+    fun start()
+        @unsafe zone "manual":
+            sqlite_close("manual-handle")
+```
+
+Tambem e possivel marcar um bloco:
+
+```snask
+@unsafe:
+    sqlite_close("manual-handle")
+```
+
+ou uma funcao inteira:
+
+```snask
+@unsafe fun close_raw(handle: str)
+    sqlite_close(handle)
+```
+
+Regras importantes:
+
+- `@unsafe` nao remove o OM-Snask-System.
+- `@unsafe` nao transforma Snask em C.
+- `@unsafe` apenas abre uma regiao onde chamadas restritas podem ser feitas.
+- O restante do codigo continua usando zonas, recursos, contratos e cleanup do sistema.
+- O ideal e manter regioes `@unsafe` pequenas, auditaveis e bem isoladas.
+
+O objetivo do Snask como linguagem de baixo nivel nao e abandonar seguranca. O objetivo e permitir acesso baixo nivel quando pedido explicitamente, mantendo o caminho normal ergonomico e orquestrado.
+
+## Plano: Snask baixo nivel com OM
+
+O Snask deve virar uma linguagem de baixo nivel por capacidade, nao por remocao.
+
+Isso significa:
+
+```text
+codigo normal  -> OM-Snask-System, zonas, recursos e diagnosticos humanos
+codigo unsafe  -> ponteiros, layout, ABI, intrinsecos e memoria manual
+```
+
+Nada do OM-Snask-System precisa sair. O que muda e que a linguagem ganha uma camada de maquina explicita para quem precisa escrever runtime, driver, engine, binding nativo, kernel experimental ou codigo de performance extrema.
+
+### Fase 1: regioes unsafe
+
+Status: implementado como base.
+
+Formas aceitas:
+
+```snask
+@unsafe zone "manual":
+    sqlite_close("raw-handle")
+
+@unsafe:
+    sqlite_close("raw-handle")
+
+@unsafe fun close_raw(handle: str)
+    sqlite_close(handle)
+```
+
+Dentro dessas regioes, chamadas nativas restritas podem ser usadas. Fora delas, o analisador semantico bloqueia a chamada.
+
+### Fase 2: tipos de maquina
+
+Adicionar tipos com largura exata:
+
+```text
+i8 i16 i32 i64
+u8 u16 u32 u64
+f32 f64
+usize isize
+bool
+ptr<T>
+```
+
+Esses tipos devem baixar direto para LLVM, sem boxing e sem conversao dinamica quando o tipo e conhecido.
+
+### Fase 3: ponteiros e memoria manual
+
+Adicionar APIs cruas permitidas somente dentro de `@unsafe`:
+
+```snask
+@unsafe zone "buffer":
+    let p = raw.alloc(64)
+    ptr.write<u8>(p, 255)
+    let x = ptr.read<u8>(p)
+    raw.free(p)
+```
+
+Fora de `@unsafe`, essas operacoes devem gerar diagnosticos claros.
+
+### Fase 4: layout e ABI
+
+Adicionar declaracoes de layout compatíveis com C:
+
+```snask
+extern struct SDL_Rect repr(C)
+    x: i32
+    y: i32
+    w: i32
+    h: i32
+```
+
+O compilador deve conhecer tamanho, alinhamento, offsets de campo e passagem por valor/referencia na ABI.
+
+### Fase 5: extern nativo
+
+Adicionar uma forma Snask pura de declarar simbolos externos:
+
+```snask
+extern "C" fun write(fd: i32, buf: ptr<u8>, len: usize) -> isize
+```
+
+Isso continua sendo Snask compilado via LLVM. Nao ha transpilacao para C.
+
+### Fase 6: intrinsecos de sistemas
+
+Adicionar primitivas para:
+
+- `volatile`;
+- atomicos;
+- `memcpy`, `memset`, `memcmp`;
+- barreiras de memoria;
+- SIMD;
+- syscall em perfis especificos;
+- modo freestanding sem runtime completo.
+
+### Fase 7: diagnosticos unsafe
+
+O Snask deve avisar quando `@unsafe` cresce demais ou vaza para a API segura:
+
+```text
+S7xxx: ponteiro cru saiu de uma regiao unsafe
+S7xxx: recurso manual nao foi liberado
+S7xxx: chamada restrita usada fora de @unsafe
+S7xxx: struct extern sem repr definido
+```
+
+Assim o Snask pode ser baixo nivel sem virar opaco.
+
+### Regra final
+
+O caminho seguro continua sendo o padrao. O caminho baixo nivel existe, mas fica dentro de regioes explicitamente marcadas.
+
+```text
+Snask seguro por padrao.
+Snask baixo nivel quando voce pede.
+OM-Snask-System sempre como chao da linguagem.
+```
 
 ## O que o sistema resolve
 
@@ -32,7 +420,9 @@ Em C, usar uma biblioteca normalmente exige lidar com:
 - conversoes de strings e numeros
 - disciplina manual de ownership
 
-O OM-Snask-System centraliza essas preocupacoes no compilador, no scanner e no runtime OM.
+Para memoria Snask comum, o OM-Snask-System centraliza essas preocupacoes em zonas, arenas, stack, heap e promocao.
+
+Para bibliotecas C, ele centraliza essas preocupacoes no compilador, no scanner e no runtime de recursos.
 
 O usuario escreve:
 
@@ -422,7 +812,7 @@ import_c_om "stdio.h" as stdio
 
 class main
     fun start()
-        stdio.puts("stdio.h via Snask Auto-OM")
+        stdio.puts("stdio.h via OM-Snask-System")
 ```
 
 Aqui nao ha recurso para registrar, mas o exemplo prova a parte de chamada nativa simples:
@@ -445,7 +835,7 @@ class main
         zone "sdl-window":
             let ok = sdl2.init(sdl2.INIT_VIDEO)
             let window = sdl2.create_window(
-                "Snask SDL2 Auto-OM",
+                "Snask SDL2 OM-Snask-System",
                 0, 0,
                 320, 240,
                 sdl2.WINDOW_HIDDEN
