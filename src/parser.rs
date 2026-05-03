@@ -1276,7 +1276,10 @@ impl<'a> Parser<'a> {
                 } else {
                     let body = if matches!(
                         self.current_token,
-                        Token::Colon(_) | Token::LeftBrace(_) | Token::Newline(_) | Token::Indent(_)
+                        Token::Colon(_)
+                            | Token::LeftBrace(_)
+                            | Token::Newline(_)
+                            | Token::Indent(_)
                     ) {
                         self.parse_block()?
                     } else {
@@ -2664,7 +2667,9 @@ class main
     sqlite_close("raw")
 "#;
         let mut p = Parser::new(src).unwrap();
-        let program = p.parse_program().expect("parser should accept @unsafe zone");
+        let program = p
+            .parse_program()
+            .expect("parser should accept @unsafe zone");
 
         match &program[0].kind {
             StmtKind::UnsafeBlock(body) => {

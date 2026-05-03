@@ -177,7 +177,11 @@ impl SemanticError {
                         display_type(t2)
                     )
                 } else {
-                    format!("operator `{}` cannot be used on `{}`", op, display_type(type1))
+                    format!(
+                        "operator `{}` cannot be used on `{}`",
+                        op,
+                        display_type(type1)
+                    )
                 }
             }
             ImmutableAssignment(name) => format!("cannot assign to immutable variable `{}`", name),

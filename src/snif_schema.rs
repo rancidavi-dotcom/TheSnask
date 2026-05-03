@@ -1,4 +1,5 @@
 use crate::snif_parser::SnifValue;
+use crate::sps::is_known_build_profile;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
@@ -162,11 +163,11 @@ pub fn validate_snask_manifest(v: &SnifValue) -> Vec<SnifSchemaError> {
     if let Some(build_v) = root.get("build") {
         if let Some(build) = as_obj(build_v) {
             if let Some(SnifValue::String(p)) = build.get("profile") {
-                let ok = p == "dev" || p == "release" || p == "release-size" || p == "tiny";
+                let ok = is_known_build_profile(p);
                 if !ok {
                     errs.push(SnifSchemaError::new(
                         "$.build.profile",
-                        "build.profile must be one of: dev, release, release-size, tiny.",
+                        "build.profile must be one of: humane, systems, baremetal, dev, release, release-size, tiny, extreme.",
                     ));
                 }
             } else if build.contains_key("profile") {
@@ -279,7 +280,7 @@ Map: `name -> version|string | null`
 
 ## build
 - `opt_level` *(number, optional)*: 0..3
-- `profile` *(string, optional)*: `dev` | `release` | `release-size` | `tiny`
+- `profile` *(string, optional)*: `humane` | `systems` | `baremetal` | `dev` | `release` | `release-size` | `tiny` | `extreme`
 - `strip` *(bool, optional)*: strip binary in size profiles
 - `lto` *(string, optional)*: `off` | `thin`
 - `opt` *(string, optional)*: `O2` | `O3` | `Os` | `Oz`
@@ -316,9 +317,19 @@ mod tests {
 
     #[test]
     fn schema_build_profile_validation() {
-        let v = parse_snif("{package:{name:\"x\",version:\"0.1.0\",entry:\"main.snask\"},build:{profile:\"tiny\",strip:true,lto:\"thin\",opt:\"Oz\"}}").unwrap();
-        let errs = validate_snask_manifest(&v);
-        assert!(errs.is_empty(), "expected no errors, got: {:?}", errs);
+        for profile in ["humane", "systems", "baremetal", "tiny"] {
+            let v = parse_snif(&format!(
+                "{{package:{{name:\"x\",version:\"0.1.0\",entry:\"main.snask\"}},build:{{profile:\"{}\",strip:true,lto:\"thin\",opt:\"Oz\"}}}}",
+                profile
+            ))
+            .unwrap();
+            let errs = validate_snask_manifest(&v);
+            assert!(
+                errs.is_empty(),
+                "expected no errors for {profile}, got: {:?}",
+                errs
+            );
+        }
 
         let v = parse_snif("{package:{name:\"x\",version:\"0.1.0\",entry:\"main.snask\"},build:{profile:\"weird\"}}").unwrap();
         let errs = validate_snask_manifest(&v);

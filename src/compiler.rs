@@ -21,6 +21,7 @@ use crate::tools::{get_pkg_cflags, get_pkg_libs, has_pkg};
 pub struct BuildOptions {
     pub output_name: Option<String>,
     pub target: Option<String>,
+    pub profile: BuildProfile,
     pub opt_level: u8,
     pub lto: bool,
     pub release_size: bool,
@@ -30,6 +31,40 @@ pub struct BuildOptions {
     pub strip: bool,
     pub opt_override: Option<String>,
     pub features: BTreeMap<String, SnifFeatureValue>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildProfile {
+    Humane,
+    Systems,
+    Baremetal,
+}
+
+impl Default for BuildProfile {
+    fn default() -> Self {
+        Self::Humane
+    }
+}
+
+impl BuildProfile {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "humane" | "default" | "dev" | "release" | "release-size" | "tiny" | "extreme" => {
+                Some(Self::Humane)
+            }
+            "systems" => Some(Self::Systems),
+            "baremetal" => Some(Self::Baremetal),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            BuildProfile::Humane => "humane",
+            BuildProfile::Systems => "systems",
+            BuildProfile::Baremetal => "baremetal",
+        }
+    }
 }
 
 pub fn resolve_entry_file(cli_file: Option<String>) -> Result<String, String> {
@@ -46,6 +81,10 @@ pub fn resolve_entry_file(cli_file: Option<String>) -> Result<String, String> {
 }
 
 pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> {
+    if options.profile == BuildProfile::Baremetal {
+        return Err("error[S8002]: `baremetal` profile is recognized, but the freestanding backend is not implemented yet\n\nhelp: use `--profile systems` while no_std/no_runtime, custom entrypoints and linker scripts are being implemented.".to_string());
+    }
+
     let pb = ProgressBar::new(7);
     pb.set_style(
         ProgressStyle::with_template("{bar:40.cyan/blue} {pos}/{len} {msg}")
@@ -498,7 +537,8 @@ mod tests {
 
     #[test]
     fn humane_semantic_diagnostic_uses_snippet_and_suggestion() {
-        let source = "class main\n    fun start()\n        let message = \"Hello\"\n        print(mesage)\n";
+        let source =
+            "class main\n    fun start()\n        let message = \"Hello\"\n        print(mesage)\n";
         let span = Span::new(Position::new(4, 15, 0), Position::new(4, 21, 0));
         let error = SemanticError::new(
             SemanticErrorKind::VariableNotFound("mesage".to_string()),
@@ -1081,5 +1121,35 @@ fn semantic_annotation(error: &SemanticError) -> &'static str {
         NotCallable(_) => "this value is not callable",
         RestrictedNativeFunction { .. } => "reserved native function",
         TinyDisallowedLib { .. } => "not available in tiny mode",
+    }
+}
+
+#[cfg(test)]
+mod build_profile_tests {
+    use super::BuildProfile;
+
+    #[test]
+    fn parses_language_profiles() {
+        assert_eq!(BuildProfile::parse("humane"), Some(BuildProfile::Humane));
+        assert_eq!(BuildProfile::parse("systems"), Some(BuildProfile::Systems));
+        assert_eq!(
+            BuildProfile::parse("baremetal"),
+            Some(BuildProfile::Baremetal)
+        );
+    }
+
+    #[test]
+    fn keeps_legacy_build_profiles_as_humane_surface() {
+        for profile in [
+            "default",
+            "dev",
+            "release",
+            "release-size",
+            "tiny",
+            "extreme",
+        ] {
+            assert_eq!(BuildProfile::parse(profile), Some(BuildProfile::Humane));
+        }
+        assert_eq!(BuildProfile::parse("unknown"), None);
     }
 }

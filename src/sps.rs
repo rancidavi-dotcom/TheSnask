@@ -43,7 +43,7 @@ pub struct BuildSection {
     pub opt_level: u8,
     #[serde(default)]
     pub features: BTreeMap<String, SnifFeatureValue>,
-    /// Optional build profile: dev|release|release-size|tiny
+    /// Optional build profile: humane|systems|baremetal|dev|release|release-size|tiny|extreme
     #[serde(default)]
     pub profile: Option<String>,
     /// Optional strip toggle (primarily for release-size/tiny).
@@ -115,10 +115,10 @@ impl SpsManifest {
             return Err("SPS: profile.*.opt_level must be between 0 and 3".to_string());
         }
         if let Some(p) = &self.build.profile {
-            let ok = p == "dev" || p == "release" || p == "release-size" || p == "tiny";
+            let ok = is_known_build_profile(p);
             if !ok {
                 return Err(
-                    "SPS: build.profile must be one of: dev, release, release-size, tiny"
+                    "SPS: build.profile must be one of: humane, systems, baremetal, dev, release, release-size, tiny, extreme"
                         .to_string(),
                 );
             }
@@ -146,6 +146,20 @@ impl SpsManifest {
         }
         self.build.opt_level
     }
+}
+
+pub fn is_known_build_profile(profile: &str) -> bool {
+    matches!(
+        profile,
+        "humane"
+            | "systems"
+            | "baremetal"
+            | "dev"
+            | "release"
+            | "release-size"
+            | "tiny"
+            | "extreme"
+    )
 }
 
 pub fn find_manifest(start_dir: &Path) -> Option<PathBuf> {

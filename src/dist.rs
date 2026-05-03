@@ -1,4 +1,4 @@
-use crate::compiler::{self, BuildOptions};
+use crate::compiler::{self, BuildOptions, BuildProfile};
 use crate::sps;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -122,6 +122,7 @@ pub fn run_dist(
         let build_opts = BuildOptions {
             output_name: Some(out_path.to_string_lossy().to_string()),
             target: t.clone(),
+            profile: BuildProfile::Humane,
             opt_level,
             lto: true, // Always LTO for dist
             release_size,

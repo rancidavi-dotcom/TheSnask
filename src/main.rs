@@ -1,7 +1,7 @@
 use clap::{Parser as ClapParser, Subcommand};
 use std::process::Command;
 
-use snask::compiler::{build_file, resolve_entry_file, BuildOptions};
+use snask::compiler::{build_file, resolve_entry_file, BuildOptions, BuildProfile};
 use snask::dist;
 use snask::om_scan::{run_scan, ScanOptions};
 use snask::packages;
@@ -31,6 +31,8 @@ enum Commands {
         output: Option<String>,
         #[arg(long)]
         target: Option<String>,
+        #[arg(long)]
+        profile: Option<String>,
         #[arg(long)]
         lto: bool,
         #[arg(long)]
@@ -184,6 +186,7 @@ fn main() {
             file,
             output,
             target,
+            profile,
             lto,
             release_size,
             min_runtime,
@@ -193,6 +196,7 @@ fn main() {
             file,
             output,
             target,
+            profile,
             *lto,
             *release_size,
             *min_runtime,
@@ -274,6 +278,7 @@ fn run_build(
     file: &Option<String>,
     output: &Option<String>,
     target: &Option<String>,
+    cli_profile: &Option<String>,
     lto: bool,
     release_size: bool,
     min_runtime: bool,
@@ -285,7 +290,11 @@ fn run_build(
         sps::pin_from_lock(&cwd, &m)?;
         sps::resolve_deps_and_lock(&cwd, &m)?;
         let entry = file.clone().unwrap_or_else(|| m.package.entry.clone());
-        let profile_name = m.build.profile.as_deref().unwrap_or("default");
+        let profile_name = cli_profile
+            .as_deref()
+            .or(m.build.profile.as_deref())
+            .unwrap_or("default");
+        let profile = parse_build_profile(profile_name)?;
 
         let is_extreme = extreme || profile_name == "extreme";
         let is_tiny = tiny || profile_name == "tiny" || is_extreme;
@@ -294,6 +303,7 @@ fn run_build(
         let opt = BuildOptions {
             output_name: output.clone().or_else(|| Some(m.package.name.clone())),
             target: target.clone(),
+            profile,
             opt_level: m.build.opt_level,
             lto: lto || m.build.lto.as_deref() == Some("thin") || is_release_size || is_tiny,
             release_size: is_release_size,
@@ -307,9 +317,11 @@ fn run_build(
         (entry, opt)
     } else {
         let entry = resolve_entry_file(file.clone())?;
+        let profile = parse_build_profile(cli_profile.as_deref().unwrap_or("default"))?;
         let opt = BuildOptions {
             output_name: output.clone(),
             target: target.clone(),
+            profile,
             lto,
             release_size,
             min_runtime,
@@ -321,6 +333,15 @@ fn run_build(
     };
 
     build_file(&file_path, options)
+}
+
+fn parse_build_profile(profile: &str) -> Result<BuildProfile, String> {
+    BuildProfile::parse(profile).ok_or_else(|| {
+        format!(
+            "unknown build profile `{}`\n\nvalid profiles: humane, systems, baremetal, dev, release, release-size, tiny, extreme",
+            profile
+        )
+    })
 }
 
 fn run_program(file: &Option<String>) -> Result<(), String> {
