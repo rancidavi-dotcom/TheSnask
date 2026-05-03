@@ -1,0 +1,12 @@
+import "sqlite"
+
+fun nested_statement_return() : int
+    zone "outer"
+        let db = sqlite.Database.open("om_statement_nested.sqlite")
+        zone "inner"
+            let stmt = db.prepare("SELECT 1")
+            return 55
+
+class main
+    fun start()
+        print(nested_statement_return())

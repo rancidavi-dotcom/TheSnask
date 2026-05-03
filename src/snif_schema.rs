@@ -55,14 +55,19 @@ fn valid_semverish(s: &str) -> bool {
     if parts.len() != 3 {
         return false;
     }
-    parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+    parts
+        .iter()
+        .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
 }
 
 pub fn validate_snask_manifest(v: &SnifValue) -> Vec<SnifSchemaError> {
     let mut errs: Vec<SnifSchemaError> = Vec::new();
 
     let Some(root) = as_obj(v) else {
-        errs.push(SnifSchemaError::new("$", "Top-level SNIF must be an object."));
+        errs.push(SnifSchemaError::new(
+            "$",
+            "Top-level SNIF must be an object.",
+        ));
         return errs;
     };
 
@@ -70,12 +75,18 @@ pub fn validate_snask_manifest(v: &SnifValue) -> Vec<SnifSchemaError> {
     let pkg = match root.get("package") {
         Some(v) => v,
         None => {
-            errs.push(SnifSchemaError::new("$.package", "Missing required key 'package'."));
+            errs.push(SnifSchemaError::new(
+                "$.package",
+                "Missing required key 'package'.",
+            ));
             return errs;
         }
     };
     let Some(pkg_o) = as_obj(pkg) else {
-        errs.push(SnifSchemaError::new("$.package", "'package' must be an object."));
+        errs.push(SnifSchemaError::new(
+            "$.package",
+            "'package' must be an object.",
+        ));
         return errs;
     };
 
@@ -159,28 +170,48 @@ pub fn validate_snask_manifest(v: &SnifValue) -> Vec<SnifSchemaError> {
                     ));
                 }
             } else if build.contains_key("profile") {
-                errs.push(SnifSchemaError::new("$.build.profile", "build.profile must be a string."));
+                errs.push(SnifSchemaError::new(
+                    "$.build.profile",
+                    "build.profile must be a string.",
+                ));
             }
 
-            if build.contains_key("strip") && !matches!(build.get("strip"), Some(SnifValue::Bool(_))) {
-                errs.push(SnifSchemaError::new("$.build.strip", "build.strip must be a boolean."));
+            if build.contains_key("strip")
+                && !matches!(build.get("strip"), Some(SnifValue::Bool(_)))
+            {
+                errs.push(SnifSchemaError::new(
+                    "$.build.strip",
+                    "build.strip must be a boolean.",
+                ));
             }
 
             if let Some(SnifValue::String(lto)) = build.get("lto") {
                 if lto != "off" && lto != "thin" {
-                    errs.push(SnifSchemaError::new("$.build.lto", "build.lto must be 'off' or 'thin'."));
+                    errs.push(SnifSchemaError::new(
+                        "$.build.lto",
+                        "build.lto must be 'off' or 'thin'.",
+                    ));
                 }
             } else if build.contains_key("lto") {
-                errs.push(SnifSchemaError::new("$.build.lto", "build.lto must be a string."));
+                errs.push(SnifSchemaError::new(
+                    "$.build.lto",
+                    "build.lto must be a string.",
+                ));
             }
 
             if let Some(SnifValue::String(opt)) = build.get("opt") {
                 let ok = opt == "O2" || opt == "O3" || opt == "Os" || opt == "Oz";
                 if !ok {
-                    errs.push(SnifSchemaError::new("$.build.opt", "build.opt must be one of: O2, O3, Os, Oz."));
+                    errs.push(SnifSchemaError::new(
+                        "$.build.opt",
+                        "build.opt must be one of: O2, O3, Os, Oz.",
+                    ));
                 }
             } else if build.contains_key("opt") {
-                errs.push(SnifSchemaError::new("$.build.opt", "build.opt must be a string."));
+                errs.push(SnifSchemaError::new(
+                    "$.build.opt",
+                    "build.opt must be a string.",
+                ));
             }
 
             if let Some(n) = get_num(build, "opt_level") {
@@ -192,10 +223,16 @@ pub fn validate_snask_manifest(v: &SnifValue) -> Vec<SnifSchemaError> {
                 }
             }
             if build.contains_key("debug") && get_bool(build, "debug").is_none() {
-                errs.push(SnifSchemaError::new("$.build.debug", "debug must be a boolean."));
+                errs.push(SnifSchemaError::new(
+                    "$.build.debug",
+                    "debug must be a boolean.",
+                ));
             }
         } else {
-            errs.push(SnifSchemaError::new("$.build", "'build' must be an object."));
+            errs.push(SnifSchemaError::new(
+                "$.build",
+                "'build' must be an object.",
+            ));
         }
     }
 
@@ -211,7 +248,10 @@ pub fn validate_snask_manifest(v: &SnifValue) -> Vec<SnifSchemaError> {
                 }
             }
         } else {
-            errs.push(SnifSchemaError::new("$.scripts", "'scripts' must be an object."));
+            errs.push(SnifSchemaError::new(
+                "$.scripts",
+                "'scripts' must be an object.",
+            ));
         }
     }
 
@@ -266,7 +306,10 @@ mod tests {
 
     #[test]
     fn schema_opt_level_range() {
-        let v = parse_snif("{package:{name:\"x\",version:\"0.1.0\",entry:\"main.snask\"},build:{opt_level:9}}").unwrap();
+        let v = parse_snif(
+            "{package:{name:\"x\",version:\"0.1.0\",entry:\"main.snask\"},build:{opt_level:9}}",
+        )
+        .unwrap();
         let errs = validate_snask_manifest(&v);
         assert!(errs.iter().any(|e| e.path == "$.build.opt_level"));
     }

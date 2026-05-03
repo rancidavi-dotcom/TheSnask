@@ -6,6 +6,7 @@
 #include "rt_base.h"
 #include "rt_gc.h"
 #include "rt_io.h"
+#include "rt_obj.h"
 
 void s_print(SnaskValue* v) {
     if (!v) {
@@ -40,6 +41,15 @@ void s_print(SnaskValue* v) {
     else if (tag == SNASK_STR) printf("%s", (char*)v->ptr ? (char*)v->ptr : "");
     else if (tag == SNASK_BOOL) printf("%s", v->num ? "true" : "false");
     else if (tag == SNASK_OBJ) printf("<obj at %p>", v->ptr);
+    else if (tag == SNASK_RESOURCE) {
+        SnaskOMResource* r = (SnaskOMResource*)v->ptr;
+        printf("<resource:%s>", r && r->type_name ? r->type_name : "unknown");
+    }
+    else if (tag == SNASK_BYTES) {
+        SnaskOMResource* r = (SnaskOMResource*)v->ptr;
+        SnaskBytes* bytes = r ? (SnaskBytes*)r->c_ptr : NULL;
+        printf("<bytes:%zu>", bytes ? bytes->len : 0);
+    }
     else printf("nil");
 #endif
 }

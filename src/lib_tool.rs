@@ -1,8 +1,8 @@
+use serde::Deserialize;
+use serde_json::Value as JsonValue;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use serde::Deserialize;
-use serde_json::Value as JsonValue;
 
 fn snask_home_dir() -> Result<PathBuf, String> {
     dirs::home_dir()
@@ -40,7 +40,13 @@ fn ensure_registry_repo() -> Result<PathBuf, String> {
         fs::create_dir_all(repo.parent().unwrap_or_else(|| Path::new(".")))
             .map_err(|e| format!("Failed to create registry directory: {}", e))?;
         let out = Command::new("git")
-            .args(["clone", "--depth", "1", git_url, repo.to_string_lossy().as_ref()])
+            .args([
+                "clone",
+                "--depth",
+                "1",
+                git_url,
+                repo.to_string_lossy().as_ref(),
+            ])
             .output()
             .map_err(|e| format!("Failed to run git clone: {}", e))?;
         if !out.status.success() {
@@ -85,14 +91,20 @@ pub fn lib_init(opts: NewLibOpts) -> Result<(), String> {
     if name.is_empty() {
         return Err("Invalid name.".to_string());
     }
-    if !name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' ) {
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    {
         return Err("Invalid name: use only a-z, 0-9 and '_' (lowercase).".to_string());
     }
 
     let snask_file = format!("{}.snask", name);
     let json_file = "package.json";
     let md_file = "README.md";
-    if Path::new(&snask_file).exists() || Path::new(json_file).exists() || Path::new(md_file).exists() {
+    if Path::new(&snask_file).exists()
+        || Path::new(json_file).exists()
+        || Path::new(md_file).exists()
+    {
         return Err(format!(
             "One of these files already exists in the current directory: '{}', '{}' or '{}'.",
             snask_file, json_file, md_file
@@ -105,7 +117,8 @@ pub fn lib_init(opts: NewLibOpts) -> Result<(), String> {
         version = opts.version,
         desc = opts.description.replace('\"', "\\\"")
     );
-    fs::write(&snask_file, content).map_err(|e| format!("Failed to create '{}': {}", snask_file, e))?;
+    fs::write(&snask_file, content)
+        .map_err(|e| format!("Failed to create '{}': {}", snask_file, e))?;
 
     let pkg_json = format!(
         "{{\n  \"name\": \"{name}\",\n  \"version\": \"{version}\",\n  \"description\": \"{desc}\"\n}}\n",
@@ -113,7 +126,8 @@ pub fn lib_init(opts: NewLibOpts) -> Result<(), String> {
         version = opts.version,
         desc = opts.description.replace('\"', "\\\"")
     );
-    fs::write(json_file, pkg_json).map_err(|e| format!("Failed to create '{}': {}", json_file, e))?;
+    fs::write(json_file, pkg_json)
+        .map_err(|e| format!("Failed to create '{}': {}", json_file, e))?;
 
     let readme = format!(
         "# {name}\n\n{desc}\n\n## Instalação\n\n```bash\nsnask install {name}\n```\n\n## Uso\n\n```snask\nimport \"{name}\"\n\nclass main\n    fun start()\n        print({name}::hello(\"dev\"));\n```\n",
@@ -142,14 +156,23 @@ pub struct PublishOpts {
 fn read_required_package_files(lib_name: &str) -> Result<(PackageJson, String, PathBuf), String> {
     let snask_path = PathBuf::from(format!("{}.snask", lib_name));
     if !snask_path.exists() {
-        return Err(format!("Arquivo obrigatório não encontrado: '{}'.", snask_path.display()));
+        return Err(format!(
+            "Arquivo obrigatório não encontrado: '{}'.",
+            snask_path.display()
+        ));
     }
-    let json_bytes = fs::read("package.json").map_err(|e| format!("Arquivo obrigatório não encontrado: package.json ({})", e))?;
-    let pkg: PackageJson = serde_json::from_slice(&json_bytes).map_err(|e| format!("package.json inválido: {}", e))?;
+    let json_bytes = fs::read("package.json")
+        .map_err(|e| format!("Arquivo obrigatório não encontrado: package.json ({})", e))?;
+    let pkg: PackageJson =
+        serde_json::from_slice(&json_bytes).map_err(|e| format!("package.json inválido: {}", e))?;
     if pkg.name.trim() != lib_name {
-        return Err(format!("package.json name='{}' não bate com a lib '{}'.", pkg.name, lib_name));
+        return Err(format!(
+            "package.json name='{}' não bate com a lib '{}'.",
+            pkg.name, lib_name
+        ));
     }
-    let md = fs::read_to_string("README.md").map_err(|e| format!("Arquivo obrigatório não encontrado: README.md ({})", e))?;
+    let md = fs::read_to_string("README.md")
+        .map_err(|e| format!("Arquivo obrigatório não encontrado: README.md ({})", e))?;
     if md.trim().is_empty() {
         return Err("README.md está vazio.".to_string());
     }
@@ -163,7 +186,10 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
     }
     let (pkg, _readme_md, local_file) = read_required_package_files(name)?;
     let version = opts.version.clone().unwrap_or_else(|| pkg.version.clone());
-    let description = opts.description.clone().unwrap_or_else(|| pkg.description.clone());
+    let description = opts
+        .description
+        .clone()
+        .unwrap_or_else(|| pkg.description.clone());
 
     let repo = ensure_registry_repo()?;
 
@@ -184,7 +210,10 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
     }
 
     // Se for PR, cria uma branch e envia para o fork
-    let target_branch = opts.branch.clone().unwrap_or_else(|| format!("pkg/{}-v{}", name, version));
+    let target_branch = opts
+        .branch
+        .clone()
+        .unwrap_or_else(|| format!("pkg/{}-v{}", name, version));
     if opts.pr {
         // Garante que estamos na main antes de criar branch
         run_git(&["checkout", "main"], &repo)?;
@@ -193,14 +222,24 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
 
     let packages_dir = repo.join("packages");
     let packages_src = repo.join("packages_src").join(name).join(&version);
-    let index_dir = repo.join("index").join(name.chars().next().unwrap().to_ascii_lowercase().to_string());
-    fs::create_dir_all(&packages_dir).map_err(|e| format!("Failed to create {}: {}", packages_dir.display(), e))?;
-    fs::create_dir_all(&packages_src).map_err(|e| format!("Failed to create {}: {}", packages_src.display(), e))?;
-    fs::create_dir_all(&index_dir).map_err(|e| format!("Failed to create {}: {}", index_dir.display(), e))?;
+    let index_dir = repo.join("index").join(
+        name.chars()
+            .next()
+            .unwrap()
+            .to_ascii_lowercase()
+            .to_string(),
+    );
+    fs::create_dir_all(&packages_dir)
+        .map_err(|e| format!("Failed to create {}: {}", packages_dir.display(), e))?;
+    fs::create_dir_all(&packages_src)
+        .map_err(|e| format!("Failed to create {}: {}", packages_src.display(), e))?;
+    fs::create_dir_all(&index_dir)
+        .map_err(|e| format!("Failed to create {}: {}", index_dir.display(), e))?;
 
     // Copia o arquivo da lib para o repo do registry
     let dest_pkg = packages_dir.join(format!("{}.snask", name));
-    fs::copy(&local_file, &dest_pkg).map_err(|e| format!("Failed to copy to {}: {}", dest_pkg.display(), e))?;
+    fs::copy(&local_file, &dest_pkg)
+        .map_err(|e| format!("Failed to copy to {}: {}", dest_pkg.display(), e))?;
 
     // Fonte versionada (com package.json e README.md obrigatórios)
     fs::copy(&local_file, packages_src.join(format!("{}.snask", name)))
@@ -220,7 +259,8 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
         url = url,
         desc = desc
     );
-    fs::write(&index_path, index_json).map_err(|e| format!("Failed to write {}: {}", index_path.display(), e))?;
+    fs::write(&index_path, index_json)
+        .map_err(|e| format!("Failed to write {}: {}", index_path.display(), e))?;
 
     // Compatibilidade: também atualiza registry.json legado, para ferramentas antigas que ainda leem um arquivo único.
     let legacy_registry_path = repo.join("registry.json");
@@ -233,7 +273,11 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
         serde_json::json!({ "packages": {} })
     };
 
-    if !legacy_obj.get("packages").map(|v| v.is_object()).unwrap_or(false) {
+    if !legacy_obj
+        .get("packages")
+        .map(|v| v.is_object())
+        .unwrap_or(false)
+    {
         legacy_obj["packages"] = serde_json::json!({});
     }
     legacy_obj["packages"][name] = serde_json::json!({
@@ -241,7 +285,8 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
         "url": format!("{name}.snask"),
         "description": description,
     });
-    let legacy_pretty = serde_json::to_string_pretty(&legacy_obj).map_err(|e| e.to_string())? + "\n";
+    let legacy_pretty =
+        serde_json::to_string_pretty(&legacy_obj).map_err(|e| e.to_string())? + "\n";
     fs::write(&legacy_registry_path, legacy_pretty)
         .map_err(|e| format!("Failed to write {}: {}", legacy_registry_path.display(), e))?;
 
@@ -256,7 +301,9 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
         ],
         &repo,
     )?;
-    let msg = opts.message.unwrap_or_else(|| format!("pkg: publish {} v{}", name, version));
+    let msg = opts
+        .message
+        .unwrap_or_else(|| format!("pkg: publish {} v{}", name, version));
     run_git(&["commit", "-m", &msg], &repo).map_err(|e| {
         // se nada mudou, commit falha; dá uma msg melhor
         if e.contains("nothing to commit") {
@@ -281,8 +328,14 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
         // volta para main para não confundir o usuário
         let _ = run_git(&["checkout", "main"], &repo);
 
-        println!("✅ Branch enviada para seu fork (remote 'fork'): {}", target_branch);
-        println!("📌 Abra um Pull Request no GitHub do seu fork → base: main, compare: {}.", target_branch);
+        println!(
+            "✅ Branch enviada para seu fork (remote 'fork'): {}",
+            target_branch
+        );
+        println!(
+            "📌 Abra um Pull Request no GitHub do seu fork → base: main, compare: {}.",
+            target_branch
+        );
         println!("ℹ️  Fork usado: {}", fork_url);
         return Ok(());
     }
@@ -291,8 +344,14 @@ pub fn lib_publish(opts: PublishOpts) -> Result<(), String> {
         run_git(&["push", "origin", "main"], &repo)?;
         println!("✅ Publicado e enviado para o GitHub via git push.");
     } else {
-        println!("✅ Publicado localmente no registry em '{}'.", repo.display());
-        println!("📌 Para enviar: `cd {} && git push origin main`", repo.display());
+        println!(
+            "✅ Publicado localmente no registry em '{}'.",
+            repo.display()
+        );
+        println!(
+            "📌 Para enviar: `cd {} && git push origin main`",
+            repo.display()
+        );
     }
     Ok(())
 }

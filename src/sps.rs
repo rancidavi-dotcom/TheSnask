@@ -117,7 +117,10 @@ impl SpsManifest {
         if let Some(p) = &self.build.profile {
             let ok = p == "dev" || p == "release" || p == "release-size" || p == "tiny";
             if !ok {
-                return Err("SPS: build.profile must be one of: dev, release, release-size, tiny".to_string());
+                return Err(
+                    "SPS: build.profile must be one of: dev, release, release-size, tiny"
+                        .to_string(),
+                );
             }
         }
         if let Some(lto) = &self.build.lto {
@@ -159,8 +162,10 @@ pub fn find_manifest(start_dir: &Path) -> Option<PathBuf> {
 }
 
 pub fn load_manifest_from(dir: &Path) -> Result<(SpsManifest, PathBuf), String> {
-    let manifest_path = find_manifest(dir).ok_or_else(|| "SPS: snask.snif not found in the current directory".to_string())?;
-    let src = fs::read_to_string(&manifest_path).map_err(|e| format!("SPS: failed to read {}: {}", manifest_path.display(), e))?;
+    let manifest_path = find_manifest(dir)
+        .ok_or_else(|| "SPS: snask.snif not found in the current directory".to_string())?;
+    let src = fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("SPS: failed to read {}: {}", manifest_path.display(), e))?;
     let m: SpsManifest = if manifest_path.extension().and_then(|s| s.to_str()) == Some("snif") {
         manifest_from_snif(&src).map_err(|e| format!("SPS: failed to parse snask.snif:\n{}", e))?
     } else {
@@ -195,7 +200,8 @@ pub fn write_manifest(path: &Path, manifest: &SpsManifest) -> Result<(), String>
     if path.extension().and_then(|s| s.to_str()) == Some("snif") {
         if path.exists() {
             if let Ok(src) = fs::read_to_string(path) {
-                if let Ok(updated) = update_snif_dependencies_in_place(&src, &manifest.dependencies) {
+                if let Ok(updated) = update_snif_dependencies_in_place(&src, &manifest.dependencies)
+                {
                     fs::write(path, updated).map_err(|e| e.to_string())?;
                     return Ok(());
                 }
@@ -211,31 +217,49 @@ pub fn write_manifest(path: &Path, manifest: &SpsManifest) -> Result<(), String>
     Ok(())
 }
 
-fn update_snif_dependencies_in_place(src: &str, deps: &BTreeMap<String, String>) -> Result<String, String> {
+fn update_snif_dependencies_in_place(
+    src: &str,
+    deps: &BTreeMap<String, String>,
+) -> Result<String, String> {
     // Goal: preserve formatting and comments by editing only the `dependencies: { ... }` object.
     // This is a best-effort text transform. If it fails, the caller falls back to rewriting.
 
     // Find the start of a `dependencies` key at top level-ish by scanning tokens while tracking strings/comments/braces.
     #[derive(Clone, Copy, PartialEq, Eq)]
-    enum Mode { Normal, Str(char), Comment }
+    enum Mode {
+        Normal,
+        Str(char),
+        Comment,
+    }
 
     let bytes = src.as_bytes();
     let mut mode = Mode::Normal;
     let mut i: usize = 0;
 
-    fn is_ident_start(c: u8) -> bool { (c >= b'a' && c <= b'z') || (c >= b'A' && c <= b'Z') || c == b'_' || c == b'$' }
-    fn is_ident_char(c: u8) -> bool { is_ident_start(c) || (c >= b'0' && c <= b'9') || c == b'-' }
+    fn is_ident_start(c: u8) -> bool {
+        (c >= b'a' && c <= b'z') || (c >= b'A' && c <= b'Z') || c == b'_' || c == b'$'
+    }
+    fn is_ident_char(c: u8) -> bool {
+        is_ident_start(c) || (c >= b'0' && c <= b'9') || c == b'-'
+    }
 
     while i < bytes.len() {
         match mode {
             Mode::Comment => {
-                if bytes[i] == b'\n' { mode = Mode::Normal; }
+                if bytes[i] == b'\n' {
+                    mode = Mode::Normal;
+                }
                 i += 1;
                 continue;
             }
             Mode::Str(q) => {
-                if bytes[i] == b'\\' { i += 2; continue; }
-                if bytes[i] as char == q { mode = Mode::Normal; }
+                if bytes[i] == b'\\' {
+                    i += 2;
+                    continue;
+                }
+                if bytes[i] as char == q {
+                    mode = Mode::Normal;
+                }
                 i += 1;
                 continue;
             }
@@ -252,41 +276,71 @@ fn update_snif_dependencies_in_place(src: &str, deps: &BTreeMap<String, String>)
             i += 1;
             continue;
         }
-        if bytes[i] == b'{' { i += 1; continue; }
-        if bytes[i] == b'}' { i += 1; continue; }
+        if bytes[i] == b'{' {
+            i += 1;
+            continue;
+        }
+        if bytes[i] == b'}' {
+            i += 1;
+            continue;
+        }
 
         // Only try to match key when not inside strings/comments.
         if is_ident_start(bytes[i]) {
             let start = i;
             i += 1;
-            while i < bytes.len() && is_ident_char(bytes[i]) { i += 1; }
+            while i < bytes.len() && is_ident_char(bytes[i]) {
+                i += 1;
+            }
             let ident = &src[start..i];
             if ident == "dependencies" {
                 // Skip whitespace/comments, then expect ':', then skip, then expect '{'
                 let mut j = i;
                 // skip ws + comments
                 loop {
-                    while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t' || bytes[j] == b'\r' || bytes[j] == b'\n') { j += 1; }
+                    while j < bytes.len()
+                        && (bytes[j] == b' '
+                            || bytes[j] == b'\t'
+                            || bytes[j] == b'\r'
+                            || bytes[j] == b'\n')
+                    {
+                        j += 1;
+                    }
                     if j + 1 < bytes.len() && bytes[j] == b'/' && bytes[j + 1] == b'/' {
                         j += 2;
-                        while j < bytes.len() && bytes[j] != b'\n' { j += 1; }
+                        while j < bytes.len() && bytes[j] != b'\n' {
+                            j += 1;
+                        }
                         continue;
                     }
                     break;
                 }
-                if j >= bytes.len() || bytes[j] != b':' { continue; }
+                if j >= bytes.len() || bytes[j] != b':' {
+                    continue;
+                }
                 j += 1;
                 // skip ws/comments again
                 loop {
-                    while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t' || bytes[j] == b'\r' || bytes[j] == b'\n') { j += 1; }
+                    while j < bytes.len()
+                        && (bytes[j] == b' '
+                            || bytes[j] == b'\t'
+                            || bytes[j] == b'\r'
+                            || bytes[j] == b'\n')
+                    {
+                        j += 1;
+                    }
                     if j + 1 < bytes.len() && bytes[j] == b'/' && bytes[j + 1] == b'/' {
                         j += 2;
-                        while j < bytes.len() && bytes[j] != b'\n' { j += 1; }
+                        while j < bytes.len() && bytes[j] != b'\n' {
+                            j += 1;
+                        }
                         continue;
                     }
                     break;
                 }
-                if j >= bytes.len() || bytes[j] != b'{' { continue; }
+                if j >= bytes.len() || bytes[j] != b'{' {
+                    continue;
+                }
 
                 // Find matching '}' for this dependencies object
                 let obj_open = j;
@@ -296,28 +350,51 @@ fn update_snif_dependencies_in_place(src: &str, deps: &BTreeMap<String, String>)
                 while k < bytes.len() {
                     match local_mode {
                         Mode::Comment => {
-                            if bytes[k] == b'\n' { local_mode = Mode::Normal; }
+                            if bytes[k] == b'\n' {
+                                local_mode = Mode::Normal;
+                            }
                             k += 1;
                             continue;
                         }
                         Mode::Str(q) => {
-                            if bytes[k] == b'\\' { k += 2; continue; }
-                            if bytes[k] as char == q { local_mode = Mode::Normal; }
+                            if bytes[k] == b'\\' {
+                                k += 2;
+                                continue;
+                            }
+                            if bytes[k] as char == q {
+                                local_mode = Mode::Normal;
+                            }
                             k += 1;
                             continue;
                         }
                         Mode::Normal => {}
                     }
-                    if k + 1 < bytes.len() && bytes[k] == b'/' && bytes[k + 1] == b'/' { local_mode = Mode::Comment; k += 2; continue; }
-                    if bytes[k] == b'"' || bytes[k] == b'\'' { local_mode = Mode::Str(bytes[k] as char); k += 1; continue; }
-                    if bytes[k] == b'{' { local_depth += 1; k += 1; continue; }
+                    if k + 1 < bytes.len() && bytes[k] == b'/' && bytes[k + 1] == b'/' {
+                        local_mode = Mode::Comment;
+                        k += 2;
+                        continue;
+                    }
+                    if bytes[k] == b'"' || bytes[k] == b'\'' {
+                        local_mode = Mode::Str(bytes[k] as char);
+                        k += 1;
+                        continue;
+                    }
+                    if bytes[k] == b'{' {
+                        local_depth += 1;
+                        k += 1;
+                        continue;
+                    }
                     if bytes[k] == b'}' {
                         local_depth -= 1;
                         if local_depth == 0 {
                             let obj_close = k;
                             // Determine indentation for entries by looking backward from obj_open to line start.
-                            let line_start = src[..obj_open].rfind('\n').map(|x| x + 1).unwrap_or(0);
-                            let base_indent = &src[line_start..obj_open].chars().take_while(|c| *c == ' ' || *c == '\t').collect::<String>();
+                            let line_start =
+                                src[..obj_open].rfind('\n').map(|x| x + 1).unwrap_or(0);
+                            let base_indent = &src[line_start..obj_open]
+                                .chars()
+                                .take_while(|c| *c == ' ' || *c == '\t')
+                                .collect::<String>();
                             let entry_indent = format!("{}  ", base_indent);
 
                             let mut block = String::new();
@@ -329,12 +406,19 @@ fn update_snif_dependencies_in_place(src: &str, deps: &BTreeMap<String, String>)
                                 block.push_str("{\n");
                                 for (name, ver) in deps {
                                     // SNIF strict: values must be quoted strings.
-                                    let key = if is_ident_start(name.as_bytes()[0]) && name.as_bytes().iter().all(|&c| is_ident_char(c)) {
+                                    let key = if is_ident_start(name.as_bytes()[0])
+                                        && name.as_bytes().iter().all(|&c| is_ident_char(c))
+                                    {
                                         name.clone()
                                     } else {
                                         format!("\"{}\"", name.replace('\"', ""))
                                     };
-                                    block.push_str(&format!("{indent}{key}: \"{ver}\",\n", indent = entry_indent, key = key, ver = ver.replace('\"', "")));
+                                    block.push_str(&format!(
+                                        "{indent}{key}: \"{ver}\",\n",
+                                        indent = entry_indent,
+                                        key = key,
+                                        ver = ver.replace('\"', "")
+                                    ));
                                 }
                                 block.push_str(&format!("{}}}", base_indent));
                             }
@@ -363,7 +447,9 @@ fn update_snif_dependencies_in_place(src: &str, deps: &BTreeMap<String, String>)
 fn manifest_to_snif(m: &SpsManifest) -> String {
     fn is_ident(s: &str) -> bool {
         let mut it = s.chars();
-        let Some(c0) = it.next() else { return false; };
+        let Some(c0) = it.next() else {
+            return false;
+        };
         let start_ok = c0.is_ascii_alphabetic() || c0 == '_' || c0 == '$';
         if !start_ok {
             return false;
@@ -389,17 +475,30 @@ fn manifest_to_snif(m: &SpsManifest) -> String {
     out.push_str("{\n");
     out.push_str("  package: { ");
     out.push_str(&format!("name: \"{}\", ", m.package.name.replace('\"', "")));
-    out.push_str(&format!("version: \"{}\", ", m.package.version.replace('\"', "")));
-    out.push_str(&format!("entry: \"{}\", ", m.package.entry.replace('\"', "")));
+    out.push_str(&format!(
+        "version: \"{}\", ",
+        m.package.version.replace('\"', "")
+    ));
+    out.push_str(&format!(
+        "entry: \"{}\", ",
+        m.package.entry.replace('\"', "")
+    ));
     out.push_str("},\n");
 
     out.push_str("  dependencies: {\n");
     for (k, v) in &m.dependencies {
-        out.push_str(&format!("    {}: \"{}\",\n", fmt_key(k), v.replace('\"', "")));
+        out.push_str(&format!(
+            "    {}: \"{}\",\n",
+            fmt_key(k),
+            v.replace('\"', "")
+        ));
     }
     out.push_str("  },\n");
 
-    out.push_str(&format!("  build: {{ opt_level: {}, }},\n", m.build.opt_level));
+    out.push_str(&format!(
+        "  build: {{ opt_level: {}, }},\n",
+        m.build.opt_level
+    ));
     if let Some(app) = &m.app {
         out.push_str("  app: { ");
         out.push_str(&format!("id: \"{}\", ", app.id.replace('\"', "")));
@@ -410,8 +509,14 @@ fn manifest_to_snif(m: &SpsManifest) -> String {
         if !app.icon.trim().is_empty() {
             out.push_str(&format!("icon: \"{}\", ", app.icon.replace('\"', "")));
         }
-        out.push_str(&format!("terminal: {}, ", if app.terminal { "true" } else { "false" }));
-        out.push_str(&format!("categories: \"{}\", ", app.categories.replace('\"', "")));
+        out.push_str(&format!(
+            "terminal: {}, ",
+            if app.terminal { "true" } else { "false" }
+        ));
+        out.push_str(&format!(
+            "categories: \"{}\", ",
+            app.categories.replace('\"', "")
+        ));
         out.push_str("},\n");
     }
     if !m.scripts.is_empty() {
@@ -425,14 +530,21 @@ fn manifest_to_snif(m: &SpsManifest) -> String {
     out
 }
 
-fn snif_get_obj<'a>(v: &'a SnifValue, path: &str) -> Result<&'a std::collections::BTreeMap<String, SnifValue>, String> {
+fn snif_get_obj<'a>(
+    v: &'a SnifValue,
+    path: &str,
+) -> Result<&'a std::collections::BTreeMap<String, SnifValue>, String> {
     match v {
         SnifValue::Object(o) => Ok(o),
         _ => Err(format!("Expected object at {path}")),
     }
 }
 
-fn snif_get_str(o: &std::collections::BTreeMap<String, SnifValue>, key: &str, default: Option<String>) -> Result<String, String> {
+fn snif_get_str(
+    o: &std::collections::BTreeMap<String, SnifValue>,
+    key: &str,
+    default: Option<String>,
+) -> Result<String, String> {
     match o.get(key) {
         None => default.ok_or_else(|| format!("Missing required field: {key}")),
         Some(SnifValue::String(s)) => Ok(s.clone()),
@@ -440,7 +552,11 @@ fn snif_get_str(o: &std::collections::BTreeMap<String, SnifValue>, key: &str, de
     }
 }
 
-fn snif_get_u8(o: &std::collections::BTreeMap<String, SnifValue>, key: &str, default: u8) -> Result<u8, String> {
+fn snif_get_u8(
+    o: &std::collections::BTreeMap<String, SnifValue>,
+    key: &str,
+    default: u8,
+) -> Result<u8, String> {
     match o.get(key) {
         None => Ok(default),
         Some(SnifValue::Number(n)) => Ok(*n as u8),
@@ -448,14 +564,23 @@ fn snif_get_u8(o: &std::collections::BTreeMap<String, SnifValue>, key: &str, def
     }
 }
 
-fn snif_get_map(o: &std::collections::BTreeMap<String, SnifValue>, key: &str) -> Result<std::collections::BTreeMap<String, String>, String> {
-    let Some(v) = o.get(key) else { return Ok(BTreeMap::new()); };
+fn snif_get_map(
+    o: &std::collections::BTreeMap<String, SnifValue>,
+    key: &str,
+) -> Result<std::collections::BTreeMap<String, String>, String> {
+    let Some(v) = o.get(key) else {
+        return Ok(BTreeMap::new());
+    };
     let m = snif_get_obj(v, key)?;
     let mut out = BTreeMap::new();
     for (k, v) in m {
         match v {
-            SnifValue::String(s) => { out.insert(k.clone(), s.clone()); }
-            SnifValue::Null => { out.insert(k.clone(), "*".to_string()); }
+            SnifValue::String(s) => {
+                out.insert(k.clone(), s.clone());
+            }
+            SnifValue::Null => {
+                out.insert(k.clone(), "*".to_string());
+            }
             _ => return Err(format!("Expected string (version) in {key}.{k}")),
         }
     }
@@ -536,7 +661,9 @@ fn manifest_from_snif(src: &str) -> Result<SpsManifest, String> {
             let mut out = BTreeMap::new();
             for (k, v) in o {
                 match v {
-                    SnifValue::String(s) => { out.insert(k.clone(), s.clone()); }
+                    SnifValue::String(s) => {
+                        out.insert(k.clone(), s.clone());
+                    }
                     _ => return Err(format!("Expected string in scripts.{k}")),
                 }
             }
@@ -560,11 +687,25 @@ fn manifest_from_snif(src: &str) -> Result<SpsManifest, String> {
                 Some(_) => return Err("Expected bool for app.terminal".to_string()),
             };
             let categories = snif_get_str(o, "categories", Some(default_categories()))?;
-            Some(AppSection { id, name, comment, icon, terminal, categories })
+            Some(AppSection {
+                id,
+                name,
+                comment,
+                icon,
+                terminal,
+                categories,
+            })
         }
     };
 
-    Ok(SpsManifest { package, dependencies, build, scripts, profile, app })
+    Ok(SpsManifest {
+        package,
+        dependencies,
+        build,
+        scripts,
+        profile,
+        app,
+    })
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -601,7 +742,8 @@ pub fn lockfile_path(dir: &Path) -> PathBuf {
 
 pub fn read_lockfile(dir: &Path) -> Result<Lockfile, String> {
     let p = lockfile_path(dir);
-    let s = fs::read_to_string(&p).map_err(|e| format!("SPS: failed to read {}: {}", p.display(), e))?;
+    let s = fs::read_to_string(&p)
+        .map_err(|e| format!("SPS: failed to read {}: {}", p.display(), e))?;
     toml::from_str(&s).map_err(|e| {
         format!(
             "SPS: failed to parse snask.lock: {}\n\nTip: delete `snask.lock` and run `snask build` to regenerate it.",
@@ -610,7 +752,11 @@ pub fn read_lockfile(dir: &Path) -> Result<Lockfile, String> {
     })
 }
 
-pub fn write_lockfile(dir: &Path, manifest: &SpsManifest, deps: BTreeMap<String, LockedDep>) -> Result<(), String> {
+pub fn write_lockfile(
+    dir: &Path,
+    manifest: &SpsManifest,
+    deps: BTreeMap<String, LockedDep>,
+) -> Result<(), String> {
     // Best-effort: registra a revisão do registry local (git) para auditoria/debug.
     // Reprodutibilidade real é garantida por sha256 em cada dep.
     let registry = registry_head().ok().map(|rev| LockRegistry {
@@ -619,7 +765,10 @@ pub fn write_lockfile(dir: &Path, manifest: &SpsManifest, deps: BTreeMap<String,
     });
 
     let lf = Lockfile {
-        package: LockPackage { name: manifest.package.name.clone(), version: manifest.package.version.clone() },
+        package: LockPackage {
+            name: manifest.package.name.clone(),
+            version: manifest.package.version.clone(),
+        },
         registry,
         dependencies: deps,
     };
@@ -647,7 +796,12 @@ fn registry_head() -> Result<String, String> {
 
 pub fn init_project(name: Option<String>) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-    let project_name = name.unwrap_or_else(|| cwd.file_name().unwrap_or_default().to_string_lossy().to_string());
+    let project_name = name.unwrap_or_else(|| {
+        cwd.file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string()
+    });
     let manifest_path = cwd.join("snask.snif");
     if manifest_path.exists() {
         return Err("snask.snif already exists in this directory.".to_string());
@@ -656,7 +810,10 @@ pub fn init_project(name: Option<String>) -> Result<(), String> {
     let entry = "main.snask";
     let main_path = cwd.join(entry);
     if main_path.exists() {
-        return Err(format!("File '{}' already exists in this directory.", entry));
+        return Err(format!(
+            "File '{}' already exists in this directory.",
+            entry
+        ));
     }
 
     let manifest = format!(
@@ -676,13 +833,14 @@ pub fn init_project(name: Option<String>) -> Result<(), String> {
 pub fn add_dependency(name: &str, version: Option<String>) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let (mut m, manifest_path) = load_manifest_from(&cwd)?;
-    m.dependencies.insert(name.to_string(), version.unwrap_or_else(|| "*".to_string()));
+    m.dependencies
+        .insert(name.to_string(), version.unwrap_or_else(|| "*".to_string()));
     write_manifest(&manifest_path, &m)?;
 
     // instala imediatamente usando o módulo de pacotes do crate
     let registry = crate::packages::fetch_registry()?;
     let _ = crate::packages::install_package_with_registry(name, &registry)?;
-    
+
     // lock determinístico
     resolve_deps_and_lock(&cwd, &m)?;
 
@@ -707,7 +865,11 @@ pub fn resolve_deps_and_lock(dir: &std::path::Path, manifest: &SpsManifest) -> R
     let mut locked = std::collections::BTreeMap::new();
     for (name, _req) in &manifest.dependencies {
         if let Some(pkg) = registry.packages.get(name) {
-            let req = manifest.dependencies.get(name).map(|s| s.as_str()).unwrap_or("*");
+            let req = manifest
+                .dependencies
+                .get(name)
+                .map(|s| s.as_str())
+                .unwrap_or("*");
             if req != "*" && req != pkg.version() {
                 return Err(format!(
                     "SPS: version constraint not satisfied for '{name}': requested '{req}', registry provides '{got}'.\n\nHow to fix:\n- Change the version in `snask.snif` (dependencies.{name})\n- Or run `snask update {name}` and then `snask build`\n",
@@ -720,16 +882,37 @@ pub fn resolve_deps_and_lock(dir: &std::path::Path, manifest: &SpsManifest) -> R
 
         let url = registry.packages.get(name).and_then(|p| {
             let u = p.url().trim();
-            if u.is_empty() { None } else { Some(u.to_string()) }
+            if u.is_empty() {
+                None
+            } else {
+                Some(u.to_string())
+            }
         });
 
         if !crate::packages::is_package_installed(name) {
-            let (ver, sha, _path) = crate::packages::install_package_with_registry(name, &registry)?;
-            locked.insert(name.clone(), LockedDep { version: ver, sha256: sha, url });
+            let (ver, sha, _path) =
+                crate::packages::install_package_with_registry(name, &registry)?;
+            locked.insert(
+                name.clone(),
+                LockedDep {
+                    version: ver,
+                    sha256: sha,
+                    url,
+                },
+            );
         } else {
             let sha = crate::packages::read_installed_package_sha256(name)?;
-            let ver = crate::packages::read_installed_package_version_from_registry(name, &registry).unwrap_or_else(|| "unknown".to_string());
-            locked.insert(name.clone(), LockedDep { version: ver, sha256: sha, url });
+            let ver =
+                crate::packages::read_installed_package_version_from_registry(name, &registry)
+                    .unwrap_or_else(|| "unknown".to_string());
+            locked.insert(
+                name.clone(),
+                LockedDep {
+                    version: ver,
+                    sha256: sha,
+                    url,
+                },
+            );
         }
     }
     write_lockfile(dir, manifest, locked)?;
@@ -754,7 +937,11 @@ pub fn pin_from_lock(dir: &std::path::Path, manifest: &SpsManifest) -> Result<()
 
         // checa constraint antes (manifest manda)
         if let Some(pkg) = registry.packages.get(name) {
-            let req = manifest.dependencies.get(name).map(|s| s.as_str()).unwrap_or("*");
+            let req = manifest
+                .dependencies
+                .get(name)
+                .map(|s| s.as_str())
+                .unwrap_or("*");
             if req != "*" && req != pkg.version() {
                 return Err(format!(
                     "SPS: version constraint not satisfied for '{name}': requested '{req}', registry provides '{got}'.\n\nHow to fix:\n- Change the version in `snask.snif` (dependencies.{name})\n- Or run `snask update {name}` and then `snask build`\n",
@@ -772,7 +959,8 @@ pub fn pin_from_lock(dir: &std::path::Path, manifest: &SpsManifest) -> Result<()
             sha != dep.sha256
         };
         if need_install {
-            let (ver, sha, _path) = crate::packages::install_package_with_registry(name, &registry)?;
+            let (ver, sha, _path) =
+                crate::packages::install_package_with_registry(name, &registry)?;
             if ver != dep.version || sha != dep.sha256 {
                 return Err(format!(
                     "SPS: lockfile expects {name}@{want_ver} sha256={want_sha}, but the download produced {got_ver} sha256={got_sha}.\n\nCommon causes:\n- The package changed in the registry (new release / file modified)\n- Your lockfile is out of date\n\nHow to fix:\n- If you want the new package: `snask update {name}` and then `snask build` (regenerates snask.lock)\n- If you want to keep the lockfile: make sure the registry still has the same sha256.\n",

@@ -1,0 +1,7 @@
+import "sqlite"
+
+class main
+    fun start()
+        zone "app"
+            let db = sqlite.Database.open("om_phase2.sqlite")
+            print(db)

@@ -1,0 +1,8 @@
+import_c_om "zlib.h" as zlib
+
+class main
+    fun start()
+        zone "app":
+            let compressed = zlib.compress("hello")
+            let result = zlib.decompress(compressed)
+            print(result)

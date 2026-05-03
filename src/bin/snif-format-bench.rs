@@ -1,15 +1,15 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
-use std::time::Instant;
-use std::collections::BTreeMap;
 use std::process::Command;
+use std::time::Instant;
 
 use clap::Parser;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use serde::{Serialize, Deserialize};
 
-use snask::snif_parser::{parse_snif, SnifValue};
 use snask::snif_fmt::format_snif;
+use snask::snif_parser::{parse_snif, SnifValue};
 
 #[derive(Parser)]
 struct Args {
@@ -17,7 +17,11 @@ struct Args {
     dir: String,
     #[arg(long, default_value_t = 7)]
     runs: usize,
-    #[arg(long, default_value = "", help = "Internal: run only one format and print a JSON row to stdout.")]
+    #[arg(
+        long,
+        default_value = "",
+        help = "Internal: run only one format and print a JSON row to stdout."
+    )]
     one: String,
 }
 
@@ -68,7 +72,9 @@ fn sha256_hex(bytes: &[u8]) -> String {
 
 fn median(mut xs: Vec<f64>) -> f64 {
     xs.sort_by(|a, b| a.total_cmp(b));
-    if xs.is_empty() { return 0.0; }
+    if xs.is_empty() {
+        return 0.0;
+    }
     xs[xs.len() / 2]
 }
 
@@ -83,7 +89,9 @@ fn canon_json(v: &serde_json::Value) -> Vec<u8> {
                 }
                 serde_json::Value::Object(m.into_iter().collect())
             }
-            serde_json::Value::Array(a) => serde_json::Value::Array(a.iter().map(to_ordered).collect()),
+            serde_json::Value::Array(a) => {
+                serde_json::Value::Array(a.iter().map(to_ordered).collect())
+            }
             _ => v.clone(),
         }
     }
@@ -204,7 +212,16 @@ fn run_single(dir: &PathBuf, runs: usize, format: &str) -> anyhow::Result<Row> {
                 let canon = now_ms(t1.elapsed());
                 (parse, canon, out)
             });
-            Ok(Row { format: "json".into(), input_bytes, canon_bytes, parse_ms: p50, canon_ms: c50, total_ms: p50 + c50, peak_rss_kb: peak, sha256: sha })
+            Ok(Row {
+                format: "json".into(),
+                input_bytes,
+                canon_bytes,
+                parse_ms: p50,
+                canon_ms: c50,
+                total_ms: p50 + c50,
+                peak_rss_kb: peak,
+                sha256: sha,
+            })
         }
         "toml" => {
             let toml_src = fs::read_to_string(dir.join("config.toml"))?;
@@ -218,7 +235,16 @@ fn run_single(dir: &PathBuf, runs: usize, format: &str) -> anyhow::Result<Row> {
                 let canon = now_ms(t1.elapsed());
                 (parse, canon, out)
             });
-            Ok(Row { format: "toml".into(), input_bytes, canon_bytes, parse_ms: p50, canon_ms: c50, total_ms: p50 + c50, peak_rss_kb: peak, sha256: sha })
+            Ok(Row {
+                format: "toml".into(),
+                input_bytes,
+                canon_bytes,
+                parse_ms: p50,
+                canon_ms: c50,
+                total_ms: p50 + c50,
+                peak_rss_kb: peak,
+                sha256: sha,
+            })
         }
         "yaml" => {
             let yaml_src = fs::read_to_string(dir.join("config.yaml"))?;
@@ -232,7 +258,16 @@ fn run_single(dir: &PathBuf, runs: usize, format: &str) -> anyhow::Result<Row> {
                 let canon = now_ms(t1.elapsed());
                 (parse, canon, out)
             });
-            Ok(Row { format: "yaml".into(), input_bytes, canon_bytes, parse_ms: p50, canon_ms: c50, total_ms: p50 + c50, peak_rss_kb: peak, sha256: sha })
+            Ok(Row {
+                format: "yaml".into(),
+                input_bytes,
+                canon_bytes,
+                parse_ms: p50,
+                canon_ms: c50,
+                total_ms: p50 + c50,
+                peak_rss_kb: peak,
+                sha256: sha,
+            })
         }
         "cbor" => {
             let cbor_src = fs::read(dir.join("config.cbor"))?;
@@ -246,7 +281,16 @@ fn run_single(dir: &PathBuf, runs: usize, format: &str) -> anyhow::Result<Row> {
                 let canon = now_ms(t1.elapsed());
                 (parse, canon, out)
             });
-            Ok(Row { format: "cbor".into(), input_bytes, canon_bytes, parse_ms: p50, canon_ms: c50, total_ms: p50 + c50, peak_rss_kb: peak, sha256: sha })
+            Ok(Row {
+                format: "cbor".into(),
+                input_bytes,
+                canon_bytes,
+                parse_ms: p50,
+                canon_ms: c50,
+                total_ms: p50 + c50,
+                peak_rss_kb: peak,
+                sha256: sha,
+            })
         }
         "msgpack" => {
             let msgpack_src = fs::read(dir.join("config.msgpack"))?;
@@ -260,7 +304,16 @@ fn run_single(dir: &PathBuf, runs: usize, format: &str) -> anyhow::Result<Row> {
                 let canon = now_ms(t1.elapsed());
                 (parse, canon, out)
             });
-            Ok(Row { format: "msgpack".into(), input_bytes, canon_bytes, parse_ms: p50, canon_ms: c50, total_ms: p50 + c50, peak_rss_kb: peak, sha256: sha })
+            Ok(Row {
+                format: "msgpack".into(),
+                input_bytes,
+                canon_bytes,
+                parse_ms: p50,
+                canon_ms: c50,
+                total_ms: p50 + c50,
+                peak_rss_kb: peak,
+                sha256: sha,
+            })
         }
         "snif" => {
             let snif_src = fs::read_to_string(dir.join("config.snif"))?;
@@ -274,7 +327,16 @@ fn run_single(dir: &PathBuf, runs: usize, format: &str) -> anyhow::Result<Row> {
                 let canon = now_ms(t1.elapsed());
                 (parse, canon, out)
             });
-            Ok(Row { format: "snif".into(), input_bytes, canon_bytes, parse_ms: p50, canon_ms: c50, total_ms: p50 + c50, peak_rss_kb: peak, sha256: sha })
+            Ok(Row {
+                format: "snif".into(),
+                input_bytes,
+                canon_bytes,
+                parse_ms: p50,
+                canon_ms: c50,
+                total_ms: p50 + c50,
+                peak_rss_kb: peak,
+                sha256: sha,
+            })
         }
         _ => Err(anyhow::anyhow!("unknown format: {}", format)),
     }

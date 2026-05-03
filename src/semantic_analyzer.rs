@@ -1,4 +1,7 @@
-use crate::ast::{Program, Stmt, StmtKind, Expr, ExprKind, VarDecl, BinaryOp, UnaryOp, LiteralValue, ConditionalStmt, LoopStmt, ClassDecl, FuncDecl};
+use crate::ast::{
+    BinaryOp, ClassDecl, ConditionalStmt, Expr, ExprKind, FuncDecl, LiteralValue, LoopStmt,
+    Program, Stmt, StmtKind, UnaryOp, VarDecl,
+};
 use crate::span::Span;
 use crate::types::Type;
 use std::collections::HashMap;
@@ -45,12 +48,12 @@ impl SemanticSymbolTable {
     pub fn define(&mut self, symbol: SemanticSymbol) -> bool {
         let is_global = self.scopes.len() == 1;
         let current_scope = self.scopes.last_mut().expect("No scope available");
-        
+
         if is_global {
-             current_scope.insert(symbol.name.clone(), symbol);
-             return true;
+            current_scope.insert(symbol.name.clone(), symbol);
+            return true;
         }
-        
+
         if current_scope.contains_key(&symbol.name) {
             return false;
         }
@@ -78,7 +81,6 @@ impl SemanticSymbolTable {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub enum SemanticErrorKind {
     VariableAlreadyDeclared(String),
@@ -86,18 +88,36 @@ pub enum SemanticErrorKind {
     FunctionAlreadyDeclared(String),
     FunctionNotFound(String),
     UnknownType(String),
-    MissingReturn { function: String, expected: Type },
-    TypeMismatch { expected: Type, found: Type },
-    InvalidOperation { op: String, type1: Type, type2: Option<Type> },
+    MissingReturn {
+        function: String,
+        expected: Type,
+    },
+    TypeMismatch {
+        expected: Type,
+        found: Type,
+    },
+    InvalidOperation {
+        op: String,
+        type1: Type,
+        type2: Option<Type>,
+    },
     ImmutableAssignment(String),
     ReturnOutsideFunction,
-    WrongNumberOfArguments { expected: usize, found: usize },
+    WrongNumberOfArguments {
+        expected: usize,
+        found: usize,
+    },
     IndexAccessOnNonIndexable(Type),
     InvalidIndexType(Type),
     PropertyNotFound(String),
     NotCallable(Type),
-    RestrictedNativeFunction { name: String, help: String },
-    TinyDisallowedLib { lib: String },
+    RestrictedNativeFunction {
+        name: String,
+        help: String,
+    },
+    TinyDisallowedLib {
+        lib: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -131,40 +151,51 @@ impl SemanticError {
     pub fn message(&self) -> String {
         use SemanticErrorKind::*;
         match &self.kind {
-            VariableAlreadyDeclared(name) => format!("Variable '{}' is already declared.", name),
-            VariableNotFound(name) => format!("Variable '{}' not found.", name),
-            FunctionAlreadyDeclared(name) => format!("Function '{}' is already declared.", name),
-            FunctionNotFound(name) => format!("Function '{}' not found.", name),
-            UnknownType(name) => format!("Type '{}' is not defined.", name),
+            VariableAlreadyDeclared(name) => format!("variable `{}` is already declared", name),
+            VariableNotFound(name) => format!("variable `{}` was not found", name),
+            FunctionAlreadyDeclared(name) => format!("function `{}` is already declared", name),
+            FunctionNotFound(name) => format!("function `{}` was not found", name),
+            UnknownType(name) => format!("type `{}` is not defined", name),
             MissingReturn { function, expected } => format!(
-                "Function '{}' declares return type {:?} but does not return on every path.",
-                function, expected
+                "function `{}` must return `{}` on every path",
+                function,
+                display_type(expected)
             ),
             TypeMismatch { expected, found } => {
-                format!("Type mismatch: expected {:?}, found {:?}.", expected, found)
+                format!(
+                    "expected `{}`, found `{}`",
+                    display_type(expected),
+                    display_type(found)
+                )
             }
             InvalidOperation { op, type1, type2 } => {
                 if let Some(t2) = type2 {
-                    format!("Invalid operation: '{}' between {:?} and {:?}.", op, type1, t2)
+                    format!(
+                        "operator `{}` cannot be used between `{}` and `{}`",
+                        op,
+                        display_type(type1),
+                        display_type(t2)
+                    )
                 } else {
-                    format!("Invalid operation: '{}' on {:?}.", op, type1)
+                    format!("operator `{}` cannot be used on `{}`", op, display_type(type1))
                 }
             }
-            ImmutableAssignment(name) => format!(
-                "'{}' is immutable. Tip: declare it as 'mut {} = ...;'.",
-                name, name
-            ),
-            ReturnOutsideFunction => "Using 'return' outside a function.".to_string(),
+            ImmutableAssignment(name) => format!("cannot assign to immutable variable `{}`", name),
+            ReturnOutsideFunction => "`return` can only be used inside a function".to_string(),
             WrongNumberOfArguments { expected, found } => format!(
-                "Wrong number of arguments: expected {}, found {}.",
+                "wrong number of arguments: expected {}, found {}",
                 expected, found
             ),
-            IndexAccessOnNonIndexable(t) => format!("Type {:?} is not indexable.", t),
-            InvalidIndexType(t) => format!("Index must be a number, found {:?}.", t),
-            PropertyNotFound(name) => format!("Property '{}' not found.", name),
-            NotCallable(t) => format!("Type {:?} is not callable.", t),
-            RestrictedNativeFunction { name, .. } => format!("Native function '{}' is restricted.", name),
-            TinyDisallowedLib { lib } => format!("Library '{}' is not allowed in --tiny builds.", lib),
+            IndexAccessOnNonIndexable(t) => format!("type `{}` is not indexable", display_type(t)),
+            InvalidIndexType(t) => format!("index must be an integer, found `{}`", display_type(t)),
+            PropertyNotFound(name) => format!("property `{}` was not found", name),
+            NotCallable(t) => format!("type `{}` is not callable", display_type(t)),
+            RestrictedNativeFunction { name, .. } => {
+                format!("native function `{}` is restricted", name)
+            }
+            TinyDisallowedLib { lib } => {
+                format!("library `{}` is not allowed in --tiny builds", lib)
+            }
         }
     }
 
@@ -192,6 +223,36 @@ impl SemanticError {
     }
 }
 
+fn display_type(ty: &Type) -> String {
+    match ty {
+        Type::Int => "int".to_string(),
+        Type::Float => "float".to_string(),
+        Type::String => "str".to_string(),
+        Type::Bool => "bool".to_string(),
+        Type::List => "list".to_string(),
+        Type::ListOf(inner) => format!("list<{}>", display_type(inner)),
+        Type::Dict => "dict".to_string(),
+        Type::DictOf(key, value) => {
+            format!("dict<{}, {}>", display_type(key), display_type(value))
+        }
+        Type::Void => "void".to_string(),
+        Type::Any => "any".to_string(),
+        Type::U8 => "u8".to_string(),
+        Type::I32 => "i32".to_string(),
+        Type::I64 => "i64".to_string(),
+        Type::Ptr => "ptr".to_string(),
+        Type::User(name) => name.clone(),
+        Type::Function(params, ret) => {
+            let params = params
+                .iter()
+                .map(display_type)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("fun({}) -> {}", params, display_type(ret))
+        }
+    }
+}
+
 pub struct SemanticAnalyzer {
     pub symbol_table: SemanticSymbolTable,
     current_function_return_type: Option<Type>,
@@ -208,9 +269,7 @@ fn levenshtein(a: &str, b: &str) -> usize {
         cur[0] = i + 1;
         for (j, cb) in b.chars().enumerate() {
             let cost = if ca == cb { 0 } else { 1 };
-            cur[j + 1] = (prev[j + 1] + 1)
-                .min(cur[j] + 1)
-                .min(prev[j] + cost);
+            cur[j + 1] = (prev[j + 1] + 1).min(cur[j] + 1).min(prev[j] + cost);
         }
         prev.clone_from(&cur);
     }
@@ -238,29 +297,58 @@ fn suggest_name(target: &str, candidates: &[String]) -> Option<(String, u8)> {
 }
 
 fn is_library_native(name: &str) -> bool {
-    if name.contains("::") { return false; }
-    name.starts_with("sqlite_") || name.starts_with("gui_") || name.starts_with("skia_") || 
-    name.starts_with("blaze_") || name.starts_with("auth_") || name.starts_with("sfs_") || 
-    name.starts_with("path_") || name.starts_with("os_") || name.starts_with("s_http_") || 
-    name.starts_with("thread_") || name.starts_with("json_") || name.starts_with("sjson_") || 
-    name.starts_with("snif_") || name.starts_with("string_")
+    if name.contains("::") {
+        return false;
+    }
+    name.starts_with("sqlite_")
+        || name.starts_with("zlib_")
+        || name.starts_with("gui_")
+        || name.starts_with("skia_")
+        || name.starts_with("blaze_")
+        || name.starts_with("auth_")
+        || name.starts_with("sfs_")
+        || name.starts_with("path_")
+        || name.starts_with("os_")
+        || name.starts_with("s_http_")
+        || name.starts_with("thread_")
+        || name.starts_with("json_")
+        || name.starts_with("sjson_")
+        || name.starts_with("snif_")
+        || name.starts_with("string_")
 }
 
 fn library_native_help(name: &str) -> String {
-    let lib = if name.starts_with("sqlite_") { "sqlite" }
-    else if name.starts_with("gui_") { "gui" }
-    else if name.starts_with("skia_") { "snask_skia" }
-    else if name.starts_with("blaze_") { "blaze" }
-    else if name.starts_with("auth_") { "blaze_auth" }
-    else if name.starts_with("sfs_") || name.starts_with("path_") { "sfs" }
-    else if name.starts_with("os_") { "os" }
-    else if name.starts_with("s_http_") { "requests" }
-    else if name.starts_with("thread_") { "os" }
-    else if name.starts_with("json_") { "json" }
-    else if name.starts_with("sjson_") { "sjson" }
-    else if name.starts_with("snif_") { "snif" }
-    else if name.starts_with("string_") { "string" }
-    else { "a library" };
+    let lib = if name.starts_with("sqlite_") {
+        "sqlite"
+    } else if name.starts_with("zlib_") {
+        "zlib"
+    } else if name.starts_with("gui_") {
+        "gui"
+    } else if name.starts_with("skia_") {
+        "snask_skia"
+    } else if name.starts_with("blaze_") {
+        "blaze"
+    } else if name.starts_with("auth_") {
+        "blaze_auth"
+    } else if name.starts_with("sfs_") || name.starts_with("path_") {
+        "sfs"
+    } else if name.starts_with("os_") {
+        "os"
+    } else if name.starts_with("s_http_") {
+        "requests"
+    } else if name.starts_with("thread_") {
+        "os"
+    } else if name.starts_with("json_") {
+        "json"
+    } else if name.starts_with("sjson_") {
+        "sjson"
+    } else if name.starts_with("snif_") {
+        "snif"
+    } else if name.starts_with("string_") {
+        "string"
+    } else {
+        "a library"
+    };
 
     format!(
         "This native function is reserved for libraries.\n\nHow to fix:\n- Use `import \"{lib}\"` and call functions via the module namespace (e.g. `{lib}::...`).\n",
@@ -351,12 +439,37 @@ impl SemanticAnalyzer {
         self.define_builtin("trim", vec![Type::String], Type::String, false);
         self.define_builtin("split", vec![Type::String, Type::String], Type::List, false);
         self.define_builtin("join", vec![Type::List, Type::String], Type::String, false);
-        self.define_builtin("replace", vec![Type::String, Type::String, Type::String], Type::String, false);
-        self.define_builtin("contains", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("starts_with", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin("ends_with", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin(
+            "replace",
+            vec![Type::String, Type::String, Type::String],
+            Type::String,
+            false,
+        );
+        self.define_builtin(
+            "contains",
+            vec![Type::String, Type::String],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin(
+            "starts_with",
+            vec![Type::String, Type::String],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin(
+            "ends_with",
+            vec![Type::String, Type::String],
+            Type::Bool,
+            false,
+        );
         self.define_builtin("chars", vec![Type::String], Type::List, false);
-        self.define_builtin("substring", vec![Type::String, Type::Float, Type::Float], Type::String, false);
+        self.define_builtin(
+            "substring",
+            vec![Type::String, Type::Float, Type::Float],
+            Type::String,
+            false,
+        );
         self.define_builtin("format", vec![Type::String], Type::String, true);
 
         self.define_builtin("range", vec![Type::Float], Type::List, false);
@@ -370,8 +483,18 @@ impl SemanticAnalyzer {
         self.define_builtin("is_obj", vec![Type::Any], Type::Bool, false);
 
         self.define_builtin("read_file", vec![Type::String], Type::String, false);
-        self.define_builtin("write_file", vec![Type::String, Type::String], Type::Void, false);
-        self.define_builtin("append_file", vec![Type::String, Type::String], Type::Void, false);
+        self.define_builtin(
+            "write_file",
+            vec![Type::String, Type::String],
+            Type::Void,
+            false,
+        );
+        self.define_builtin(
+            "append_file",
+            vec![Type::String, Type::String],
+            Type::Void,
+            false,
+        );
         self.define_builtin("exists", vec![Type::String], Type::Bool, false);
         self.define_builtin("delete", vec![Type::String], Type::Void, false);
         self.define_builtin("read_dir", vec![Type::String], Type::List, false);
@@ -380,17 +503,30 @@ impl SemanticAnalyzer {
         self.define_builtin("create_dir", vec![Type::String], Type::Void, false);
 
         self.define_builtin("http_get", vec![Type::String], Type::Dict, false);
-        self.define_builtin("http_post", vec![Type::String, Type::String], Type::Void, false);
+        self.define_builtin(
+            "http_post",
+            vec![Type::String, Type::String],
+            Type::Void,
+            false,
+        );
 
         self.define_builtin("time", vec![], Type::Float, false);
         self.define_builtin("sleep", vec![Type::Float], Type::Void, false);
         self.define_builtin("exit", vec![Type::Float], Type::Void, false);
-        self.define_builtin("free", vec![Type::Any], Type::Void, false);
-        self.define_builtin("arena_reset", vec![], Type::Void, false);
-        self.define_builtin("__s_call_by_name", vec![Type::String, Type::Any, Type::Any, Type::Any], Type::Any, false);
+        self.define_builtin(
+            "__s_call_by_name",
+            vec![Type::String, Type::Any, Type::Any, Type::Any],
+            Type::Any,
+            false,
+        );
         self.define_builtin("args", vec![], Type::List, false);
         self.define_builtin("env", vec![Type::String], Type::String, false);
-        self.define_builtin("set_env", vec![Type::String, Type::String], Type::Void, false);
+        self.define_builtin(
+            "set_env",
+            vec![Type::String, Type::String],
+            Type::Void,
+            false,
+        );
         self.define_builtin("cwd", vec![], Type::String, false);
         self.define_builtin("platform", vec![], Type::String, false);
         self.define_builtin("arch", vec![], Type::String, false);
@@ -406,14 +542,66 @@ impl SemanticAnalyzer {
         // JSON (via `import "json"`; module calls compile to `__json_*`)
         self.define_builtin_with_alias("json_parse", vec![Type::String], Type::Any, false);
         self.define_builtin_with_alias("json_stringify", vec![Type::Any], Type::String, false);
-        self.define_builtin_with_alias("json_stringify_pretty", vec![Type::Any], Type::String, false);
+        self.define_builtin_with_alias(
+            "json_stringify_pretty",
+            vec![Type::Any],
+            Type::String,
+            false,
+        );
         self.define_builtin_with_alias("json_get", vec![Type::Any, Type::String], Type::Any, false);
-        self.define_builtin_with_alias("json_has", vec![Type::Any, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "json_has",
+            vec![Type::Any, Type::String],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("json_len", vec![Type::Any], Type::Float, false);
-        self.define_builtin_with_alias("json_index", vec![Type::Any, Type::Float], Type::Any, false);
-        self.define_builtin_with_alias("json_set", vec![Type::Any, Type::String, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "json_index",
+            vec![Type::Any, Type::Float],
+            Type::Any,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "json_set",
+            vec![Type::Any, Type::String, Type::Any],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("json_keys", vec![Type::Any], Type::Any, false);
         self.define_builtin_with_alias("json_parse_ex", vec![Type::String], Type::Any, false);
+
+        // SJSON (native helpers)
+        self.define_builtin_with_alias("sjson_type", vec![Type::Any], Type::String, false);
+        self.define_builtin_with_alias("sjson_new_object", vec![], Type::Any, false);
+        self.define_builtin_with_alias("sjson_new_array", vec![], Type::Any, false);
+        self.define_builtin_with_alias("sjson_arr_len", vec![Type::Any], Type::Float, false);
+        self.define_builtin_with_alias(
+            "sjson_arr_get",
+            vec![Type::Any, Type::Float],
+            Type::Any,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "sjson_arr_set",
+            vec![Type::Any, Type::Float, Type::Any],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "sjson_arr_push",
+            vec![Type::Any, Type::Any],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "sjson_path_get",
+            vec![Type::Any, Type::String],
+            Type::Any,
+            false,
+        );
+
+        self.define_builtin("is_0", vec![Type::Any], Type::Bool, false);
 
         // SNIF (library surface over SNIF runtime)
         self.define_builtin_with_alias("snif_new_object", vec![], Type::Any, false);
@@ -421,64 +609,173 @@ impl SemanticAnalyzer {
         self.define_builtin_with_alias("snif_parse_ex", vec![Type::String], Type::Any, false);
         self.define_builtin_with_alias("snif_type", vec![Type::Any], Type::String, false);
         self.define_builtin_with_alias("snif_arr_len", vec![Type::Any], Type::Float, false);
-        self.define_builtin_with_alias("snif_arr_get", vec![Type::Any, Type::Float], Type::Any, false);
-        self.define_builtin_with_alias("snif_arr_set", vec![Type::Any, Type::Float, Type::Any], Type::Bool, false);
-        self.define_builtin_with_alias("snif_arr_push", vec![Type::Any, Type::Any], Type::Bool, false);
-        self.define_builtin_with_alias("snif_path_get", vec![Type::Any, Type::String], Type::Any, false);
+        self.define_builtin_with_alias(
+            "snif_arr_get",
+            vec![Type::Any, Type::Float],
+            Type::Any,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "snif_arr_set",
+            vec![Type::Any, Type::Float, Type::Any],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "snif_arr_push",
+            vec![Type::Any, Type::Any],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "snif_path_get",
+            vec![Type::Any, Type::String],
+            Type::Any,
+            false,
+        );
 
         // Auth (used by blaze_auth)
         self.define_builtin_with_alias("auth_random_hex", vec![Type::Float], Type::String, false);
         self.define_builtin_with_alias("auth_now", vec![], Type::Float, false);
-        self.define_builtin_with_alias("auth_const_time_eq", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin_with_alias("auth_hash_password", vec![Type::String], Type::String, false);
-        self.define_builtin_with_alias("auth_verify_password", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "auth_const_time_eq",
+            vec![Type::String, Type::String],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "auth_hash_password",
+            vec![Type::String],
+            Type::String,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "auth_verify_password",
+            vec![Type::String, Type::String],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("auth_session_id", vec![], Type::String, false);
         self.define_builtin_with_alias("auth_csrf_token", vec![], Type::String, false);
-        self.define_builtin_with_alias("auth_cookie_kv", vec![Type::String, Type::String], Type::String, false);
-        self.define_builtin_with_alias("auth_cookie_session", vec![Type::String], Type::String, false);
-        self.define_builtin_with_alias("auth_cookie_delete", vec![Type::String], Type::String, false);
-        self.define_builtin_with_alias("auth_bearer_header", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias(
+            "auth_cookie_kv",
+            vec![Type::String, Type::String],
+            Type::String,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "auth_cookie_session",
+            vec![Type::String],
+            Type::String,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "auth_cookie_delete",
+            vec![Type::String],
+            Type::String,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "auth_bearer_header",
+            vec![Type::String],
+            Type::String,
+            false,
+        );
         self.define_builtin_with_alias("auth_ok", vec![], Type::Bool, false);
         self.define_builtin_with_alias("auth_fail", vec![], Type::Bool, false);
         self.define_builtin_with_alias("auth_version", vec![], Type::String, false);
 
         // SFS (filesystem)
         self.define_builtin_with_alias("sfs_read", vec![Type::String], Type::String, false);
-        self.define_builtin_with_alias("sfs_write", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin_with_alias("sfs_append", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin_with_alias("sfs_write_mb", vec![Type::String, Type::Float], Type::Float, false);
+        self.define_builtin_with_alias(
+            "sfs_write",
+            vec![Type::String, Type::String],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "sfs_append",
+            vec![Type::String, Type::String],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "sfs_write_mb",
+            vec![Type::String, Type::Float],
+            Type::Float,
+            false,
+        );
         self.define_builtin_with_alias("sfs_count_bytes", vec![Type::String], Type::Float, false);
         self.define_builtin_with_alias("sfs_delete", vec![Type::String], Type::Bool, false);
         self.define_builtin_with_alias("sfs_exists", vec![Type::String], Type::Bool, false);
-        self.define_builtin_with_alias("sfs_copy", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin_with_alias("sfs_move", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "sfs_copy",
+            vec![Type::String, Type::String],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "sfs_move",
+            vec![Type::String, Type::String],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("sfs_mkdir", vec![Type::String], Type::Bool, false);
         self.define_builtin_with_alias("sfs_is_file", vec![Type::String], Type::Bool, false);
         self.define_builtin_with_alias("sfs_is_dir", vec![Type::String], Type::Bool, false);
         self.define_builtin_with_alias("sfs_listdir", vec![Type::String], Type::Any, false);
-        self.define_builtin_with_alias("sfs_bench_create_small_files", vec![Type::String, Type::Float, Type::Float], Type::Float, false);
-        self.define_builtin_with_alias("sfs_bench_count_entries", vec![Type::String], Type::Float, false);
-        self.define_builtin_with_alias("sfs_bench_delete_small_files", vec![Type::String, Type::Float], Type::Float, false);
+        self.define_builtin_with_alias(
+            "sfs_bench_create_small_files",
+            vec![Type::String, Type::Float, Type::Float],
+            Type::Float,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "sfs_bench_count_entries",
+            vec![Type::String],
+            Type::Float,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "sfs_bench_delete_small_files",
+            vec![Type::String, Type::Float],
+            Type::Float,
+            false,
+        );
         self.define_builtin_with_alias("sfs_size", vec![Type::String], Type::Float, false);
         self.define_builtin_with_alias("sfs_mtime", vec![Type::String], Type::Float, false);
         self.define_builtin_with_alias("sfs_rmdir", vec![Type::String], Type::Bool, false);
-        
+
         // Blaze (Web Server)
-        self.define_builtin_with_alias("blaze_run", vec![Type::Float, Type::Any], Type::Bool, false);
-        self.define_builtin_with_alias("blaze_qs_get", vec![Type::String, Type::String], Type::String, false);
-        self.define_builtin_with_alias("blaze_cookie_get", vec![Type::String, Type::String], Type::String, false);
-        
-        // SQLite
-        self.define_builtin_with_alias("sqlite_open", vec![Type::String], Type::String, false);
-        self.define_builtin_with_alias("sqlite_close", vec![Type::String], Type::Void, false);
-        self.define_builtin_with_alias("sqlite_exec", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin_with_alias("sqlite_query", vec![Type::String, Type::String], Type::List, false);
+        self.define_builtin_with_alias(
+            "blaze_run",
+            vec![Type::Float, Type::Any],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "blaze_qs_get",
+            vec![Type::String, Type::String],
+            Type::String,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "blaze_cookie_get",
+            vec![Type::String, Type::String],
+            Type::String,
+            false,
+        );
 
         // OS
         self.define_builtin_with_alias("os_platform", vec![], Type::String, false);
         self.define_builtin_with_alias("os_arch", vec![], Type::String, false);
         self.define_builtin_with_alias("os_getenv", vec![Type::String], Type::String, false);
-        self.define_builtin_with_alias("os_setenv", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "os_setenv",
+            vec![Type::String, Type::String],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("os_random_hex", vec![Type::Float], Type::String, false);
 
         // Misc "s_*" core helpers (runtime)
@@ -489,51 +786,161 @@ impl SemanticAnalyzer {
         self.define_builtin_with_alias("path_basename", vec![Type::String], Type::String, false);
         self.define_builtin_with_alias("path_dirname", vec![Type::String], Type::String, false);
         self.define_builtin_with_alias("path_extname", vec![Type::String], Type::String, false);
-        self.define_builtin_with_alias("path_join", vec![Type::String, Type::String], Type::String, false);
+        self.define_builtin_with_alias(
+            "path_join",
+            vec![Type::String, Type::String],
+            Type::String,
+            false,
+        );
 
         // GUI (GTK runtime surface via `import "snask_gtk"`)
         self.define_builtin_with_alias("gui_init", vec![], Type::Bool, false);
         self.define_builtin_with_alias("gui_run", vec![], Type::Void, false);
         self.define_builtin_with_alias("gui_quit", vec![], Type::Void, false);
-        self.define_builtin_with_alias("gui_window", vec![Type::String, Type::Float, Type::Float], Type::Any, false);
-        self.define_builtin_with_alias("gui_set_title", vec![Type::Any, Type::String], Type::Bool, false);
-        self.define_builtin_with_alias("gui_set_resizable", vec![Type::Any, Type::Bool], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "gui_window",
+            vec![Type::String, Type::Float, Type::Float],
+            Type::Any,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "gui_set_title",
+            vec![Type::Any, Type::String],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "gui_set_resizable",
+            vec![Type::Any, Type::Bool],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("gui_autosize", vec![Type::Any], Type::Bool, false);
         self.define_builtin_with_alias("gui_vbox", vec![], Type::Any, false);
         self.define_builtin_with_alias("gui_hbox", vec![], Type::Any, false);
         self.define_builtin_with_alias("gui_scrolled", vec![], Type::Any, false);
         self.define_builtin_with_alias("gui_eventbox", vec![], Type::Any, false);
         self.define_builtin_with_alias("gui_flowbox", vec![], Type::Any, false);
-        self.define_builtin_with_alias("gui_flow_add", vec![Type::Any, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "gui_flow_add",
+            vec![Type::Any, Type::Any],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("gui_frame", vec![], Type::Any, false);
-        self.define_builtin_with_alias("gui_set_margin", vec![Type::Any, Type::Float], Type::Bool, false);
-        self.define_builtin_with_alias("gui_icon", vec![Type::Any, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "gui_set_margin",
+            vec![Type::Any, Type::Float],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "gui_icon",
+            vec![Type::Any, Type::String],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("gui_listbox", vec![], Type::Any, false);
-        self.define_builtin_with_alias("gui_list_add_text", vec![Type::Any, Type::String], Type::Bool, false);
-        self.define_builtin_with_alias("gui_on_select_ctx", vec![Type::Any, Type::Any, Type::Any], Type::Bool, false);
-        self.define_builtin_with_alias("gui_set_child", vec![Type::Any, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "gui_list_add_text",
+            vec![Type::Any, Type::String],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "gui_on_select_ctx",
+            vec![Type::Any, Type::Any, Type::Any],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "gui_set_child",
+            vec![Type::Any, Type::Any],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("gui_add", vec![Type::Any, Type::Any], Type::Bool, false);
-        self.define_builtin_with_alias("gui_add_expand", vec![Type::Any, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "gui_add_expand",
+            vec![Type::Any, Type::Any],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("gui_label", vec![Type::String], Type::Any, false);
         self.define_builtin_with_alias("gui_entry", vec![], Type::Any, false);
         self.define_builtin_with_alias("gui_textview", vec![], Type::Any, false);
-        self.define_builtin_with_alias("gui_set_placeholder", vec![Type::Any, Type::String], Type::Bool, false);
-        self.define_builtin_with_alias("gui_set_editable", vec![Type::Any, Type::Bool], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "gui_set_placeholder",
+            vec![Type::Any, Type::String],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "gui_set_editable",
+            vec![Type::Any, Type::Bool],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("gui_button", vec![Type::String], Type::Any, false);
-        self.define_builtin_with_alias("gui_set_enabled", vec![Type::Any, Type::Bool], Type::Bool, false);
-        self.define_builtin_with_alias("gui_set_visible", vec![Type::Any, Type::Bool], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "gui_set_enabled",
+            vec![Type::Any, Type::Bool],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "gui_set_visible",
+            vec![Type::Any, Type::Bool],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("gui_show_all", vec![Type::Any], Type::Bool, false);
-        self.define_builtin_with_alias("gui_set_text", vec![Type::Any, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "gui_set_text",
+            vec![Type::Any, Type::String],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("gui_get_text", vec![Type::Any], Type::String, false);
-        self.define_builtin_with_alias("gui_on_click", vec![Type::Any, Type::Any], Type::Bool, false);
-        self.define_builtin_with_alias("gui_on_click_ctx", vec![Type::Any, Type::Any, Type::Any], Type::Bool, false);
-        self.define_builtin_with_alias("gui_on_tap_ctx", vec![Type::Any, Type::Any, Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "gui_on_click",
+            vec![Type::Any, Type::Any],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "gui_on_click_ctx",
+            vec![Type::Any, Type::Any, Type::Any],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "gui_on_tap_ctx",
+            vec![Type::Any, Type::Any, Type::Any],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("gui_separator_h", vec![], Type::Any, false);
         self.define_builtin_with_alias("gui_separator_v", vec![], Type::Any, false);
         self.define_builtin_with_alias("gui_css", vec![Type::String], Type::Bool, false);
-        self.define_builtin_with_alias("gui_add_class", vec![Type::Any, Type::String], Type::Bool, false);
-        self.define_builtin_with_alias("gui_msg_info", vec![Type::String, Type::String], Type::Bool, false);
-        self.define_builtin_with_alias("gui_msg_error", vec![Type::String, Type::String], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "gui_add_class",
+            vec![Type::Any, Type::String],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "gui_msg_info",
+            vec![Type::String, Type::String],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "gui_msg_error",
+            vec![Type::String, Type::String],
+            Type::Bool,
+            false,
+        );
     }
 
     fn define_module_as_any(&mut self, name: &str) {
@@ -545,7 +952,13 @@ impl SemanticAnalyzer {
         });
     }
 
-    fn define_builtin(&mut self, name: &str, params: Vec<Type>, return_type: Type, is_variadic: bool) {
+    fn define_builtin(
+        &mut self,
+        name: &str,
+        params: Vec<Type>,
+        return_type: Type,
+        is_variadic: bool,
+    ) {
         let symbol = SemanticSymbol {
             name: name.to_string(),
             symbol_type: Type::Function(params, Box::new(return_type)),
@@ -555,7 +968,13 @@ impl SemanticAnalyzer {
         self.symbol_table.define(symbol);
     }
 
-    fn define_builtin_with_alias(&mut self, name: &str, params: Vec<Type>, return_type: Type, is_variadic: bool) {
+    fn define_builtin_with_alias(
+        &mut self,
+        name: &str,
+        params: Vec<Type>,
+        return_type: Type,
+        is_variadic: bool,
+    ) {
         self.define_builtin(name, params.clone(), return_type.clone(), is_variadic);
         self.define_builtin(&format!("__{}", name), params, return_type, is_variadic);
     }
@@ -620,14 +1039,22 @@ impl SemanticAnalyzer {
 
     fn method_type(method: &FuncDecl) -> Type {
         let params = method.params.iter().map(|(_, ty)| ty.clone()).collect();
-        Type::Function(params, Box::new(method.return_type.clone().unwrap_or(Type::Any)))
+        Type::Function(
+            params,
+            Box::new(method.return_type.clone().unwrap_or(Type::Any)),
+        )
     }
 
     fn class_member_type(&mut self, class_name: &str, member: &str) -> Option<Type> {
         self.class_member_type_inner(class_name, member, &mut Vec::new())
     }
 
-    fn class_member_type_inner(&mut self, class_name: &str, member: &str, visited: &mut Vec<String>) -> Option<Type> {
+    fn class_member_type_inner(
+        &mut self,
+        class_name: &str,
+        member: &str,
+        visited: &mut Vec<String>,
+    ) -> Option<Type> {
         if visited.iter().any(|name| name == class_name) {
             return None;
         }
@@ -654,7 +1081,8 @@ impl SemanticAnalyzer {
         match ty {
             Type::User(name) => {
                 if !self.classes.contains_key(name) {
-                    self.errors.push(self.mk_unknown_type(name.clone(), span.clone()));
+                    self.errors
+                        .push(self.mk_unknown_type(name.clone(), span.clone()));
                 }
             }
             Type::ListOf(inner) => self.validate_type_exists(inner, span),
@@ -677,7 +1105,10 @@ impl SemanticAnalyzer {
             StmtKind::Return(_) => true,
             StmtKind::Conditional(cond) => {
                 let if_returns = cond.if_block.body.iter().any(Self::stmt_guarantees_return);
-                let elif_returns = cond.elif_blocks.iter().all(|b| b.body.iter().any(Self::stmt_guarantees_return));
+                let elif_returns = cond
+                    .elif_blocks
+                    .iter()
+                    .all(|b| b.body.iter().any(Self::stmt_guarantees_return));
                 let else_returns = cond
                     .else_block
                     .as_ref()
@@ -685,9 +1116,9 @@ impl SemanticAnalyzer {
                     .unwrap_or(false);
                 if_returns && elif_returns && else_returns
             }
-            StmtKind::Scope { body, .. } | StmtKind::Zone { body, .. } | StmtKind::UnsafeBlock(body) => {
-                body.iter().any(Self::stmt_guarantees_return)
-            }
+            StmtKind::Scope { body, .. }
+            | StmtKind::Zone { body, .. }
+            | StmtKind::UnsafeBlock(body) => body.iter().any(Self::stmt_guarantees_return),
             _ => false,
         }
     }
@@ -699,8 +1130,18 @@ impl SemanticAnalyzer {
     fn analyze_statement(&mut self, statement: &Stmt) {
         match &statement.kind {
             StmtKind::Import(lib) => {
+                self.symbol_table.define(SemanticSymbol {
+                    name: lib.clone(),
+                    symbol_type: Type::Any,
+                    kind: SemanticSymbolKind::Immutable,
+                    is_variadic: false,
+                });
                 if self.tiny_mode {
-                    let disallowed = lib == "gui" || lib == "sqlite" || lib == "snask_skia" || lib == "skia";
+                    let disallowed = lib == "gui"
+                        || lib == "sqlite"
+                        || lib == "zlib"
+                        || lib == "snask_skia"
+                        || lib == "skia";
                     if disallowed {
                         self.errors.push(
                             SemanticError::new(
@@ -713,12 +1154,44 @@ impl SemanticAnalyzer {
                     }
                 }
             }
+            StmtKind::ImportCOm { alias, .. } => {
+                self.symbol_table.define(SemanticSymbol {
+                    name: alias.clone(),
+                    symbol_type: Type::Any,
+                    kind: SemanticSymbolKind::Immutable,
+                    is_variadic: false,
+                });
+                if self.tiny_mode {
+                    self.errors.push(
+                        SemanticError::new(
+                            SemanticErrorKind::TinyDisallowedLib { lib: alias.clone() },
+                            statement.span.clone(),
+                        )
+                        .with_help(
+                            "Recompile without `--tiny`, or remove this import_c_om.".to_string(),
+                        )
+                        .with_note(
+                            "import_c_om needs the full OM/runtime link pipeline.".to_string(),
+                        ),
+                    );
+                }
+            }
             StmtKind::FromImport { .. } => {
                 // `from ... import module` is file-level; tiny restrictions apply to `import "lib"` libs only.
             }
-            StmtKind::VarDeclaration(decl) => self.analyze_var_decl(decl, SemanticSymbolKind::Immutable, statement.span.clone()),
-            StmtKind::MutDeclaration(decl) => self.analyze_var_decl(&decl.to_var_decl(), SemanticSymbolKind::Mutable, statement.span.clone()),
-            StmtKind::ConstDeclaration(decl) => self.analyze_var_decl(&decl.to_var_decl(), SemanticSymbolKind::Constant, statement.span.clone()),
+            StmtKind::VarDeclaration(decl) => {
+                self.analyze_var_decl(decl, SemanticSymbolKind::Immutable, statement.span.clone())
+            }
+            StmtKind::MutDeclaration(decl) => self.analyze_var_decl(
+                &decl.to_var_decl(),
+                SemanticSymbolKind::Mutable,
+                statement.span.clone(),
+            ),
+            StmtKind::ConstDeclaration(decl) => self.analyze_var_decl(
+                &decl.to_var_decl(),
+                SemanticSymbolKind::Constant,
+                statement.span.clone(),
+            ),
             StmtKind::Input { name, var_type } => {
                 self.validate_type_exists(var_type, &statement.span);
                 let symbol = SemanticSymbol {
@@ -744,13 +1217,17 @@ impl SemanticAnalyzer {
                 };
 
                 if let Some(symbol) = self.symbol_table.lookup(&var_set.name) {
-                    if symbol.kind == SemanticSymbolKind::Constant || symbol.kind == SemanticSymbolKind::Immutable {
+                    if symbol.kind == SemanticSymbolKind::Constant
+                        || symbol.kind == SemanticSymbolKind::Immutable
+                    {
                         self.errors.push(SemanticError::new(
                             SemanticErrorKind::ImmutableAssignment(var_set.name.clone()),
                             statement.span.clone(),
                         ));
                     }
-                    if !self.is_compatible(&symbol.symbol_type, &expr_type) && expr_type != Type::Any {
+                    if !self.is_compatible(&symbol.symbol_type, &expr_type)
+                        && expr_type != Type::Any
+                    {
                         self.errors.push(SemanticError::new(
                             SemanticErrorKind::TypeMismatch {
                                 expected: symbol.symbol_type.clone(),
@@ -760,10 +1237,9 @@ impl SemanticAnalyzer {
                         ));
                     }
                 } else {
-                    self.errors.push(self.mk_variable_not_found(
-                        var_set.name.clone(),
-                        statement.span.clone(),
-                    ));
+                    self.errors.push(
+                        self.mk_variable_not_found(var_set.name.clone(), statement.span.clone()),
+                    );
                 }
             }
             StmtKind::PropertyAssignment(p) => {
@@ -785,8 +1261,12 @@ impl SemanticAnalyzer {
                 match target_type {
                     Type::Any => {}
                     Type::User(class_name) => {
-                        if let Some(expected_type) = self.class_member_type(&class_name, &p.property) {
-                            if !self.is_compatible(&expected_type, &value_type) && value_type != Type::Any {
+                        if let Some(expected_type) =
+                            self.class_member_type(&class_name, &p.property)
+                        {
+                            if !self.is_compatible(&expected_type, &value_type)
+                                && value_type != Type::Any
+                            {
                                 self.errors.push(SemanticError::new(
                                     SemanticErrorKind::TypeMismatch {
                                         expected: expected_type,
@@ -854,7 +1334,9 @@ impl SemanticAnalyzer {
                                 statement.span.clone(),
                             ));
                         }
-                        if !self.is_compatible(&element_type, &value_type) && value_type != Type::Any {
+                        if !self.is_compatible(&element_type, &value_type)
+                            && value_type != Type::Any
+                        {
                             self.errors.push(SemanticError::new(
                                 SemanticErrorKind::TypeMismatch {
                                     expected: (*element_type).clone(),
@@ -875,7 +1357,9 @@ impl SemanticAnalyzer {
                                 i.index.span.clone(),
                             ));
                         }
-                        if !self.is_compatible(&stored_value_type, &value_type) && value_type != Type::Any {
+                        if !self.is_compatible(&stored_value_type, &value_type)
+                            && value_type != Type::Any
+                        {
                             self.errors.push(SemanticError::new(
                                 SemanticErrorKind::TypeMismatch {
                                     expected: (*stored_value_type).clone(),
@@ -901,10 +1385,14 @@ impl SemanticAnalyzer {
                     self.validate_type_exists(return_type, &statement.span);
                 }
 
-                let params_types: Vec<Type> = func_decl.params.iter().map(|p| p.1.clone()).collect();
+                let params_types: Vec<Type> =
+                    func_decl.params.iter().map(|p| p.1.clone()).collect();
                 let func_symbol = SemanticSymbol {
                     name: func_decl.name.clone(),
-                    symbol_type: Type::Function(params_types, Box::new(func_decl.return_type.clone().unwrap_or(Type::Any))),
+                    symbol_type: Type::Function(
+                        params_types,
+                        Box::new(func_decl.return_type.clone().unwrap_or(Type::Any)),
+                    ),
                     kind: SemanticSymbolKind::Function,
                     is_variadic: false,
                 };
@@ -917,7 +1405,8 @@ impl SemanticAnalyzer {
 
                 self.symbol_table.enter_scope();
                 let prev_return_type = self.current_function_return_type.clone();
-                self.current_function_return_type = Some(func_decl.return_type.clone().unwrap_or(Type::Any));
+                self.current_function_return_type =
+                    Some(func_decl.return_type.clone().unwrap_or(Type::Any));
 
                 for (param_name, param_type) in &func_decl.params {
                     let param_symbol = SemanticSymbol {
@@ -989,7 +1478,11 @@ impl SemanticAnalyzer {
                     var_type: decl.var_type.clone(),
                     value: decl.value.clone(),
                 };
-                self.analyze_var_decl(&var_decl, SemanticSymbolKind::Immutable, statement.span.clone());
+                self.analyze_var_decl(
+                    &var_decl,
+                    SemanticSymbolKind::Immutable,
+                    statement.span.clone(),
+                );
             }
             StmtKind::DictDeclaration(decl) => {
                 let var_decl = VarDecl {
@@ -997,7 +1490,11 @@ impl SemanticAnalyzer {
                     var_type: decl.var_type.clone(),
                     value: decl.value.clone(),
                 };
-                self.analyze_var_decl(&var_decl, SemanticSymbolKind::Immutable, statement.span.clone());
+                self.analyze_var_decl(
+                    &var_decl,
+                    SemanticSymbolKind::Immutable,
+                    statement.span.clone(),
+                );
             }
             StmtKind::ListPush(push) => {
                 if let Some(symbol) = self.symbol_table.lookup(&push.name) {
@@ -1031,7 +1528,9 @@ impl SemanticAnalyzer {
                         }
                     }
                 } else {
-                    self.errors.push(self.mk_variable_not_found(push.name.clone(), statement.span.clone()));
+                    self.errors.push(
+                        self.mk_variable_not_found(push.name.clone(), statement.span.clone()),
+                    );
                 }
             }
             StmtKind::DictSet(set) => {
@@ -1071,7 +1570,9 @@ impl SemanticAnalyzer {
                                 set.key.span.clone(),
                             ));
                         }
-                        if !self.is_compatible(expected_value, &value_type) && value_type != Type::Any {
+                        if !self.is_compatible(expected_value, &value_type)
+                            && value_type != Type::Any
+                        {
                             self.errors.push(SemanticError::new(
                                 SemanticErrorKind::TypeMismatch {
                                     expected: (**expected_value).clone(),
@@ -1082,7 +1583,8 @@ impl SemanticAnalyzer {
                         }
                     }
                 } else {
-                    self.errors.push(self.mk_variable_not_found(set.name.clone(), statement.span.clone()));
+                    self.errors
+                        .push(self.mk_variable_not_found(set.name.clone(), statement.span.clone()));
                 }
             }
             StmtKind::Print(expressions) => {
@@ -1108,23 +1610,33 @@ impl SemanticAnalyzer {
                     is_variadic: false,
                 });
                 for method in &class.methods {
-                    self.analyze_statement(&Stmt::with_span(StmtKind::FuncDeclaration(method.clone()), statement.loc.clone(), statement.span.clone()));
+                    self.analyze_statement(&Stmt::with_span(
+                        StmtKind::FuncDeclaration(method.clone()),
+                        statement.loc.clone(),
+                        statement.span.clone(),
+                    ));
                 }
                 self.current_class = prev_class;
                 self.symbol_table.exit_scope();
             }
             StmtKind::UnsafeBlock(body) => {
-                for s in body { self.analyze_statement(s); }
+                for s in body {
+                    self.analyze_statement(s);
+                }
             }
             StmtKind::Promote { .. } => {}
             StmtKind::Scope { body, .. } => {
                 self.symbol_table.enter_scope();
-                for s in body { self.analyze_statement(s); }
+                for s in body {
+                    self.analyze_statement(s);
+                }
                 self.symbol_table.exit_scope();
             }
             StmtKind::Zone { body, .. } => {
                 self.symbol_table.enter_scope();
-                for s in body { self.analyze_statement(s); }
+                for s in body {
+                    self.analyze_statement(s);
+                }
                 self.symbol_table.exit_scope();
             }
             StmtKind::Entangle { .. } => {}
@@ -1175,21 +1687,31 @@ impl SemanticAnalyzer {
     }
 
     fn analyze_conditional(&mut self, cond: &ConditionalStmt) {
-        if let Err(e) = self.check_condition(&cond.if_block.condition) { self.errors.push(e); }
+        if let Err(e) = self.check_condition(&cond.if_block.condition) {
+            self.errors.push(e);
+        }
         self.symbol_table.enter_scope();
-        for stmt in &cond.if_block.body { self.analyze_statement(stmt); }
+        for stmt in &cond.if_block.body {
+            self.analyze_statement(stmt);
+        }
         self.symbol_table.exit_scope();
 
         for elif in &cond.elif_blocks {
-            if let Err(e) = self.check_condition(&elif.condition) { self.errors.push(e); }
+            if let Err(e) = self.check_condition(&elif.condition) {
+                self.errors.push(e);
+            }
             self.symbol_table.enter_scope();
-            for stmt in &elif.body { self.analyze_statement(stmt); }
+            for stmt in &elif.body {
+                self.analyze_statement(stmt);
+            }
             self.symbol_table.exit_scope();
         }
 
         if let Some(else_body) = &cond.else_block {
             self.symbol_table.enter_scope();
-            for stmt in else_body { self.analyze_statement(stmt); }
+            for stmt in else_body {
+                self.analyze_statement(stmt);
+            }
             self.symbol_table.exit_scope();
         }
     }
@@ -1198,10 +1720,18 @@ impl SemanticAnalyzer {
         self.symbol_table.enter_scope();
         match loop_stmt {
             LoopStmt::While { condition, body } => {
-                if let Err(e) = self.check_condition(condition) { self.errors.push(e); }
-                for stmt in body { self.analyze_statement(stmt); }
+                if let Err(e) = self.check_condition(condition) {
+                    self.errors.push(e);
+                }
+                for stmt in body {
+                    self.analyze_statement(stmt);
+                }
             }
-            LoopStmt::For { iterator, iterable, body } => {
+            LoopStmt::For {
+                iterator,
+                iterable,
+                body,
+            } => {
                 let iterable_type = match self.type_check_expression(iterable) {
                     Ok(t) => t,
                     Err(e) => {
@@ -1238,7 +1768,9 @@ impl SemanticAnalyzer {
                 };
                 self.symbol_table.define(symbol);
 
-                for stmt in body { self.analyze_statement(stmt); }
+                for stmt in body {
+                    self.analyze_statement(stmt);
+                }
             }
         }
         self.symbol_table.exit_scope();
@@ -1259,10 +1791,17 @@ impl SemanticAnalyzer {
     }
 
     fn is_compatible(&self, expected: &Type, found: &Type) -> bool {
-        if expected == found { return true; }
-        if matches!(expected, Type::Float | Type::Int | Type::I64 | Type::I32 | Type::U8) &&
-           matches!(found, Type::Float | Type::Int | Type::I64 | Type::I32 | Type::U8) {
-               return true;
+        if expected == found {
+            return true;
+        }
+        if matches!(
+            expected,
+            Type::Float | Type::Int | Type::I64 | Type::I32 | Type::U8
+        ) && matches!(
+            found,
+            Type::Float | Type::Int | Type::I64 | Type::I32 | Type::U8
+        ) {
+            return true;
         }
         if let (Type::User(expected_name), Type::User(found_name)) = (expected, found) {
             return expected_name == found_name;
@@ -1276,10 +1815,15 @@ impl SemanticAnalyzer {
         if let (Type::ListOf(expected_elem), Type::ListOf(found_elem)) = (expected, found) {
             return self.is_compatible(expected_elem, found_elem);
         }
-        if let (Type::DictOf(expected_key, expected_value), Type::DictOf(found_key, found_value)) = (expected, found) {
-            return self.is_compatible(expected_key, found_key) && self.is_compatible(expected_value, found_value);
+        if let (Type::DictOf(expected_key, expected_value), Type::DictOf(found_key, found_value)) =
+            (expected, found)
+        {
+            return self.is_compatible(expected_key, found_key)
+                && self.is_compatible(expected_value, found_value);
         }
-        if *expected == Type::Any || *found == Type::Any { return true; }
+        if *expected == Type::Any || *found == Type::Any {
+            return true;
+        }
         false
     }
 
@@ -1293,7 +1837,13 @@ impl SemanticAnalyzer {
                 }
             }
             ExprKind::Literal(value) => match value {
-                LiteralValue::Number(n) => if n.fract() == 0.0 { Ok(Type::Int) } else { Ok(Type::Float) },
+                LiteralValue::Number(n) => {
+                    if n.fract() == 0.0 {
+                        Ok(Type::Int)
+                    } else {
+                        Ok(Type::Float)
+                    }
+                }
                 LiteralValue::String(_) => Ok(Type::String),
                 LiteralValue::Boolean(_) => Ok(Type::Bool),
                 LiteralValue::List(items) => {
@@ -1328,7 +1878,11 @@ impl SemanticAnalyzer {
                         } else if left_type == Type::Any || right_type == Type::Any {
                             Ok(Type::Any)
                         } else if left_type.is_numeric() && right_type.is_numeric() {
-                            if left_type == Type::Float || right_type == Type::Float { Ok(Type::Float) } else { Ok(Type::Int) }
+                            if left_type == Type::Float || right_type == Type::Float {
+                                Ok(Type::Float)
+                            } else {
+                                Ok(Type::Int)
+                            }
                         } else {
                             Err(SemanticError::new(
                                 SemanticErrorKind::InvalidOperation {
@@ -1340,11 +1894,18 @@ impl SemanticAnalyzer {
                             ))
                         }
                     }
-                    BinaryOp::Subtract | BinaryOp::Multiply | BinaryOp::Divide | BinaryOp::IntDivide => {
+                    BinaryOp::Subtract
+                    | BinaryOp::Multiply
+                    | BinaryOp::Divide
+                    | BinaryOp::IntDivide => {
                         if left_type == Type::Any || right_type == Type::Any {
                             Ok(Type::Any)
                         } else if left_type.is_numeric() && right_type.is_numeric() {
-                            if left_type == Type::Float || right_type == Type::Float { Ok(Type::Float) } else { Ok(Type::Int) }
+                            if left_type == Type::Float || right_type == Type::Float {
+                                Ok(Type::Float)
+                            } else {
+                                Ok(Type::Int)
+                            }
                         } else {
                             Err(SemanticError::new(
                                 SemanticErrorKind::InvalidOperation {
@@ -1357,16 +1918,20 @@ impl SemanticAnalyzer {
                         }
                     }
                     _ => {
-                         if self.is_compatible(&left_type, &right_type) || self.is_compatible(&right_type, &left_type) { Ok(Type::Bool) } else {
-                             Err(SemanticError::new(
-                                 SemanticErrorKind::InvalidOperation {
-                                     op: format!("{:?}", op),
-                                     type1: left_type,
-                                     type2: Some(right_type),
-                                 },
-                                 expression.span.clone(),
-                             ))
-                         }
+                        if self.is_compatible(&left_type, &right_type)
+                            || self.is_compatible(&right_type, &left_type)
+                        {
+                            Ok(Type::Bool)
+                        } else {
+                            Err(SemanticError::new(
+                                SemanticErrorKind::InvalidOperation {
+                                    op: format!("{:?}", op),
+                                    type1: left_type,
+                                    type2: Some(right_type),
+                                },
+                                expression.span.clone(),
+                            ))
+                        }
                     }
                 }
             }
@@ -1374,8 +1939,17 @@ impl SemanticAnalyzer {
                 let expr_type = self.type_check_expression(expr)?;
                 match op {
                     UnaryOp::Negative => {
-                        if expr_type.is_numeric() { Ok(expr_type) } else {
-                            Err(SemanticError::new(SemanticErrorKind::InvalidOperation { op: "Negative".to_string(), type1: expr_type, type2: None }, expression.span.clone()))
+                        if expr_type.is_numeric() {
+                            Ok(expr_type)
+                        } else {
+                            Err(SemanticError::new(
+                                SemanticErrorKind::InvalidOperation {
+                                    op: "Negative".to_string(),
+                                    type1: expr_type,
+                                    type2: None,
+                                },
+                                expression.span.clone(),
+                            ))
                         }
                     }
                     UnaryOp::Not => Ok(Type::Bool),
@@ -1396,11 +1970,20 @@ impl SemanticAnalyzer {
                 };
                 let callee_type = self.type_check_expression(callee)?;
                 if let Type::Function(param_types, return_type) = callee_type {
-                    let is_variadic = callee_symbol.as_ref().map(|s| s.is_variadic).unwrap_or(false);
+                    let is_variadic = callee_symbol
+                        .as_ref()
+                        .map(|s| s.is_variadic)
+                        .unwrap_or(false);
                     if (!is_variadic && args.len() != param_types.len())
                         || (is_variadic && args.len() < param_types.len())
                     {
-                        return Err(SemanticError::new(SemanticErrorKind::WrongNumberOfArguments { expected: param_types.len(), found: args.len() }, expression.span.clone()));
+                        return Err(SemanticError::new(
+                            SemanticErrorKind::WrongNumberOfArguments {
+                                expected: param_types.len(),
+                                found: args.len(),
+                            },
+                            expression.span.clone(),
+                        ));
                     }
                     for (i, arg) in args.iter().enumerate() {
                         let arg_type = self.type_check_expression(arg)?;
@@ -1412,25 +1995,44 @@ impl SemanticAnalyzer {
                             Type::Any
                         };
                         if !self.is_compatible(&expected_type, &arg_type) {
-                            return Err(SemanticError::new(SemanticErrorKind::TypeMismatch { expected: expected_type, found: arg_type }, arg.span.clone()));
+                            return Err(SemanticError::new(
+                                SemanticErrorKind::TypeMismatch {
+                                    expected: expected_type,
+                                    found: arg_type,
+                                },
+                                arg.span.clone(),
+                            ));
                         }
                     }
                     Ok(*return_type)
                 } else if callee_type == Type::Any {
-                    for arg in args { let _ = self.type_check_expression(arg)?; }
+                    for arg in args {
+                        let _ = self.type_check_expression(arg)?;
+                    }
                     Ok(Type::Any)
                 } else {
-                    Err(SemanticError::new(SemanticErrorKind::NotCallable(callee_type), expression.span.clone()))
+                    Err(SemanticError::new(
+                        SemanticErrorKind::NotCallable(callee_type),
+                        expression.span.clone(),
+                    ))
                 }
             }
             ExprKind::PropertyAccess { target, property } => {
                 let target_type = self.type_check_expression(target)?;
                 match target_type {
                     Type::Any => Ok(Type::Any),
-                    Type::User(class_name) => self.class_member_type(&class_name, property).ok_or_else(|| {
-                        SemanticError::new(SemanticErrorKind::PropertyNotFound(property.clone()), expression.span.clone())
-                    }),
-                    _ => Err(SemanticError::new(SemanticErrorKind::PropertyNotFound(property.clone()), expression.span.clone())),
+                    Type::User(class_name) => self
+                        .class_member_type(&class_name, property)
+                        .ok_or_else(|| {
+                            SemanticError::new(
+                                SemanticErrorKind::PropertyNotFound(property.clone()),
+                                expression.span.clone(),
+                            )
+                        }),
+                    _ => Err(SemanticError::new(
+                        SemanticErrorKind::PropertyNotFound(property.clone()),
+                        expression.span.clone(),
+                    )),
                 }
             }
             ExprKind::IndexAccess { target, index } => {
@@ -1441,21 +2043,30 @@ impl SemanticAnalyzer {
                     Type::Any => Ok(Type::Any),
                     Type::String => {
                         if !index_type.is_numeric() && index_type != Type::Any {
-                            Err(SemanticError::new(SemanticErrorKind::InvalidIndexType(index_type), expression.span.clone()))
+                            Err(SemanticError::new(
+                                SemanticErrorKind::InvalidIndexType(index_type),
+                                expression.span.clone(),
+                            ))
                         } else {
                             Ok(Type::String)
                         }
                     }
                     Type::List => {
                         if !index_type.is_numeric() && index_type != Type::Any {
-                            Err(SemanticError::new(SemanticErrorKind::InvalidIndexType(index_type), expression.span.clone()))
+                            Err(SemanticError::new(
+                                SemanticErrorKind::InvalidIndexType(index_type),
+                                expression.span.clone(),
+                            ))
                         } else {
                             Ok(Type::Any)
                         }
                     }
                     Type::ListOf(element_type) => {
                         if !index_type.is_numeric() && index_type != Type::Any {
-                            Err(SemanticError::new(SemanticErrorKind::InvalidIndexType(index_type), expression.span.clone()))
+                            Err(SemanticError::new(
+                                SemanticErrorKind::InvalidIndexType(index_type),
+                                expression.span.clone(),
+                            ))
                         } else {
                             Ok(*element_type)
                         }
@@ -1474,7 +2085,10 @@ impl SemanticAnalyzer {
                             Ok(*value_type)
                         }
                     }
-                    other => Err(SemanticError::new(SemanticErrorKind::IndexAccessOnNonIndexable(other), expression.span.clone())),
+                    other => Err(SemanticError::new(
+                        SemanticErrorKind::IndexAccessOnNonIndexable(other),
+                        expression.span.clone(),
+                    )),
                 }
             }
             ExprKind::New { class, args, .. } => {
@@ -1539,6 +2153,28 @@ mod tests {
     }
 
     #[test]
+    fn sqlite_cleanup_functions_are_not_public_snask_api() {
+        let analyzer = analyze_source(
+            r#"
+import "sqlite"
+
+class main
+    fun start()
+        sqlite_close("not-a-public-handle")
+"#,
+        );
+
+        assert!(
+            analyzer
+                .errors
+                .iter()
+                .any(|e| matches!(e.kind, SemanticErrorKind::VariableNotFound(ref name) if name == "sqlite_close")),
+            "expected sqlite_close to be hidden from user code, got: {:?}",
+            analyzer.errors
+        );
+    }
+
+    #[test]
     fn new_returns_nominal_user_type_and_type_annotation_accepts_class_name() {
         let analyzer = analyze_source(
             r#"
@@ -1595,10 +2231,9 @@ class main
         );
 
         assert!(
-            analyzer
-                .errors
-                .iter()
-                .any(|e| matches!(e.kind, SemanticErrorKind::PropertyNotFound(ref name) if name == "z")),
+            analyzer.errors.iter().any(
+                |e| matches!(e.kind, SemanticErrorKind::PropertyNotFound(ref name) if name == "z")
+            ),
             "expected PropertyNotFound for z, got: {:?}",
             analyzer.errors
         );
@@ -1693,6 +2328,51 @@ class main
         assert!(
             analyzer.errors.is_empty(),
             "expected no semantic errors, got: {:?}",
+            analyzer.errors
+        );
+    }
+
+    #[test]
+    fn list_generic_annotation_checks_element_type() {
+        let analyzer = analyze_source(
+            r#"
+class main
+    fun start()
+        let xs: list<int> = [1, 2, 3]
+        xs[0] = "oops"
+"#,
+        );
+
+        assert!(
+            analyzer
+                .errors
+                .iter()
+                .any(|e| matches!(e.kind, SemanticErrorKind::TypeMismatch { .. })),
+            "expected type mismatch for list<int> assignment, got: {:?}",
+            analyzer.errors
+        );
+    }
+
+    #[test]
+    fn dict_generic_annotation_checks_key_and_value_types() {
+        let analyzer = analyze_source(
+            r#"
+class main
+    fun start()
+        let scores: dict<str, int> = { "alice": 10 }
+        scores[1] = 20
+        scores["bob"] = "high"
+"#,
+        );
+
+        let mismatches = analyzer
+            .errors
+            .iter()
+            .filter(|e| matches!(e.kind, SemanticErrorKind::TypeMismatch { .. }))
+            .count();
+        assert!(
+            mismatches >= 2,
+            "expected key and value type mismatches for dict<str, int>, got: {:?}",
             analyzer.errors
         );
     }

@@ -1,11 +1,25 @@
-use std::path::{Path, PathBuf};
-use std::fs;
 use crate::ast::Program;
+use crate::packages::{get_frameworks_dir, get_packages_dir};
 use crate::parser::parse_program;
-use crate::packages::{get_packages_dir, get_frameworks_dir};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub fn is_native_module(name: &str) -> bool {
-    matches!(name, "gui" | "os" | "sfs" | "string" | "math" | "json" | "http" | "collections" | "io" | "sys" | "sqlite")
+    matches!(
+        name,
+        "gui"
+            | "os"
+            | "sfs"
+            | "string"
+            | "math"
+            | "json"
+            | "http"
+            | "collections"
+            | "io"
+            | "sys"
+            | "sqlite"
+            | "zlib"
+    )
 }
 
 pub fn load_module(path: &str) -> Result<Program, String> {
@@ -41,13 +55,13 @@ pub fn load_module_from(base_dir: &Path, path: &str) -> Result<Program, String> 
 
     // 4. Try global frameworks dir (~/.snask/frameworks/)
     let global_frameworks_dir = get_frameworks_dir();
-    
+
     let fw_path = if path.ends_with(".snask") {
         global_frameworks_dir.join(path)
     } else {
         global_frameworks_dir.join(format!("{}.snask", path))
     };
-    
+
     if fw_path.exists() {
         return read_and_parse_module(&fw_path);
     }
@@ -68,11 +82,16 @@ pub fn load_from_import(
     let dir = if is_current_dir {
         base_dir.to_path_buf()
     } else {
-        from.iter().fold(base_dir.to_path_buf(), |acc, s| acc.join(s))
+        from.iter()
+            .fold(base_dir.to_path_buf(), |acc, s| acc.join(s))
     };
     let file_path = dir.join(format!("{}.snask", module));
     if !file_path.exists() {
-        return Err(format!("Module '{}' not found at {}", module, file_path.display()));
+        return Err(format!(
+            "Module '{}' not found at {}",
+            module,
+            file_path.display()
+        ));
     }
     let program = read_and_parse_module(&file_path)?;
     Ok((program, file_path))
@@ -81,7 +100,6 @@ pub fn load_from_import(
 fn read_and_parse_module(path: &Path) -> Result<Program, String> {
     let source = fs::read_to_string(path)
         .map_err(|e| format!("Failed to read module {}: {}", path.display(), e))?;
-    
-    parse_program(&source)
-        .map_err(|e| format!("Syntax error in module {}: {}", path.display(), e))
+
+    parse_program(&source).map_err(|e| format!("Syntax error in module {}: {}", path.display(), e))
 }

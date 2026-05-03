@@ -1,5 +1,150 @@
+use crate::diagnostics::humane_code;
+
+pub fn run_explain(code: &str) -> Result<(), String> {
+    let normalized = normalize_code(code);
+    let Some(explanation) = get_explanation(normalized) else {
+        return Err(format!(
+            "unknown diagnostic code `{code}`.\n\nTry a code like `S1002`, `S2002`, or `SNASK-SEM-TYPE-MISMATCH`."
+        ));
+    };
+    println!("{}", explanation.trim());
+    Ok(())
+}
+
+fn normalize_code(code: &str) -> &str {
+    let trimmed = code.trim();
+    match trimmed {
+        "SNASK-PARSE-MISSING-RPAREN" => humane_code(trimmed),
+        "SNASK-PARSE-MISSING-RBRACKET" => humane_code(trimmed),
+        "SNASK-PARSE-MISSING-RBRACE" => humane_code(trimmed),
+        "SNASK-PARSE-INDENT" => humane_code(trimmed),
+        "SNASK-PARSE-SEMICOLON" => humane_code(trimmed),
+        "SNASK-PARSE-EXPR" => humane_code(trimmed),
+        "SNASK-PARSE-EXPECTED" => humane_code(trimmed),
+        "SNASK-PARSE-TOKENIZE" => humane_code(trimmed),
+        "SNASK-SEM-VAR-REDECL" => humane_code(trimmed),
+        "SNASK-SEM-VAR-NOT-FOUND" => humane_code(trimmed),
+        "SNASK-SEM-FUN-REDECL" => humane_code(trimmed),
+        "SNASK-SEM-FUN-NOT-FOUND" => humane_code(trimmed),
+        "SNASK-SEM-UNKNOWN-TYPE" => humane_code(trimmed),
+        "SNASK-SEM-MISSING-RETURN" => humane_code(trimmed),
+        "SNASK-SEM-TYPE-MISMATCH" => humane_code(trimmed),
+        "SNASK-SEM-INVALID-OP" => humane_code(trimmed),
+        "SNASK-SEM-IMMUTABLE-ASSIGN" => humane_code(trimmed),
+        "SNASK-SEM-RETURN-OUTSIDE" => humane_code(trimmed),
+        "SNASK-SEM-ARG-COUNT" => humane_code(trimmed),
+        "SNASK-SEM-NOT-INDEXABLE" => humane_code(trimmed),
+        "SNASK-SEM-INDEX-TYPE" => humane_code(trimmed),
+        "SNASK-SEM-PROP-NOT-FOUND" => humane_code(trimmed),
+        "SNASK-SEM-NOT-CALLABLE" => humane_code(trimmed),
+        "SNASK-SEM-RESTRICTED-NATIVE" => humane_code(trimmed),
+        "SNASK-TINY-DISALLOWED-LIB" => humane_code(trimmed),
+        _ => trimmed,
+    }
+}
+
 pub fn get_explanation(code: &str) -> Option<&'static str> {
     match code {
+        "S1002" => Some(
+            "S1002: missing closing `)`
+
+Snask found a function call or grouped expression that started with `(` but did not find the matching `)`.
+
+Example:
+  print(\"Hello\"
+
+Fix:
+  print(\"Hello\")
+
+Tip:
+  Look slightly before the highlighted location. The opening `(` is usually on the same line.",
+        ),
+        "S1003" => Some(
+            "S1003: missing closing `]`
+
+A list, index access, or type expression opened `[` but did not close it.
+
+Example:
+  let values = [1, 2, 3
+
+Fix:
+  let values = [1, 2, 3]",
+        ),
+        "S1004" => Some(
+            "S1004: missing closing `}`
+
+A brace block opened `{` but did not close it. Snask supports indentation-first code, so prefer indentation unless braces are intentional.",
+        ),
+        "S1005" => Some(
+            "S1005: expected an indented block
+
+Snask uses indentation to define blocks. After declarations like `class`, `fun`, `if`, `while`, `for`, and `zone`, the next line must be indented.
+
+Example:
+  fun start()
+  print(\"Hello\")
+
+Fix:
+  fun start()
+      print(\"Hello\")",
+        ),
+        "S1010" => Some(
+            "S1010: expected an expression
+
+Snask expected a value, variable, function call, object creation, or another expression here.
+
+Example:
+  let x =
+
+Fix:
+  let x = 10",
+        ),
+        "S1011" => Some(
+            "S1011: unexpected token
+
+The parser found a token that does not fit the grammar at this location. Check for a missing delimiter, an unfinished expression, or a statement in the wrong place.",
+        ),
+        "S2002" => Some(
+            "S2002: variable not found
+
+You are using a name that is not visible in the current scope. This is often a typo or a variable declared inside another block.
+
+Example:
+  let message = \"Hello\"
+  print(mesage)
+
+Fix:
+  print(message)",
+        ),
+        "S2004" => Some(
+            "S2004: function not found
+
+Snask could not find a function with this name in the current scope. Check spelling, imports, and whether the function belongs to a namespace.",
+        ),
+        "S2010" => Some(
+            "S2010: type mismatch
+
+Snask found a value of one type where another type was expected.
+
+Example:
+  let age: int = \"18\"
+
+Fix:
+  let age: int = 18",
+        ),
+        "S2012" => Some(
+            "S2012: immutable assignment
+
+Variables declared with `let` cannot be reassigned. Use `mut` when the value is meant to change.
+
+Example:
+  let count = 0
+  count = 1
+
+Fix:
+  mut count = 0
+  count = 1",
+        ),
         "SNASK-PARSE-EXPR" => Some(
             "In Snask, when you declare a variable with 'let', you are creating a binding.
 
@@ -49,5 +194,24 @@ pub fn get_explanation(code: &str) -> Option<&'static str> {
                x = 20; // Correct: 'x' is mutable.\n"
         ),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_explanation;
+
+    #[test]
+    fn explain_has_entry_for_missing_paren() {
+        let text = get_explanation("S1002").expect("S1002 should be documented");
+        assert!(text.contains("missing closing `)`"));
+        assert!(text.contains("Fix:"));
+    }
+
+    #[test]
+    fn explain_has_entry_for_unknown_variable() {
+        let text = get_explanation("S2002").expect("S2002 should be documented");
+        assert!(text.contains("variable not found"));
+        assert!(text.contains("print(message)"));
     }
 }

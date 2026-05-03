@@ -3,9 +3,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use clap::Parser;
-use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
-use serde::{Serialize, Deserialize};
+use rand::{Rng, SeedableRng};
+use serde::{Deserialize, Serialize};
 
 use snask::snif_fmt::format_snif;
 use snask::snif_parser::SnifValue;
@@ -95,7 +95,11 @@ fn make_doc(rng: &mut StdRng, users: usize, services: usize) -> ConfigDoc {
         users_vec.push(User {
             id: i as u64,
             name: format!("user_{}", rand_ascii(rng, 12)),
-            role: if i % 5 == 0 { "admin".into() } else { "member".into() },
+            role: if i % 5 == 0 {
+                "admin".into()
+            } else {
+                "member".into()
+            },
             enabled: rng.gen_bool(0.9),
             tags: (0..6).map(|_| rand_ascii(rng, 8)).collect(),
         });
@@ -109,7 +113,11 @@ fn make_doc(rng: &mut StdRng, users: usize, services: usize) -> ConfigDoc {
         }
         services_vec.push(Service {
             name: format!("svc_{}_{}", i, rand_ascii(rng, 10)),
-            url: format!("https://{}.example.com/api/{}", rand_ascii(rng, 12), rand_ascii(rng, 8)),
+            url: format!(
+                "https://{}.example.com/api/{}",
+                rand_ascii(rng, 12),
+                rand_ascii(rng, 8)
+            ),
             timeout_ms: rng.gen_range(500..8000),
             retries: rng.gen_range(0..8) as u8,
             headers,
@@ -123,7 +131,12 @@ fn make_doc(rng: &mut StdRng, users: usize, services: usize) -> ConfigDoc {
             entry: "main.snask".into(),
             description: rand_ascii(rng, 80),
         },
-        build: Build { profile: "release-size".into(), opt_level: 2, strip: true, lto: "thin".into() },
+        build: Build {
+            profile: "release-size".into(),
+            opt_level: 2,
+            strip: true,
+            lto: "thin".into(),
+        },
         env,
         features,
         users: users_vec,
@@ -138,7 +151,9 @@ fn snif_from_json_value(v: &serde_json::Value) -> SnifValue {
         serde_json::Value::Bool(b) => SnifValue::Bool(*b),
         serde_json::Value::Number(n) => SnifValue::Number(n.as_f64().unwrap_or(0.0)),
         serde_json::Value::String(s) => SnifValue::String(s.clone()),
-        serde_json::Value::Array(a) => SnifValue::Array(a.iter().map(snif_from_json_value).collect()),
+        serde_json::Value::Array(a) => {
+            SnifValue::Array(a.iter().map(snif_from_json_value).collect())
+        }
         serde_json::Value::Object(o) => {
             let mut m = BTreeMap::new();
             for (k, vv) in o.iter() {
@@ -208,4 +223,3 @@ fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-

@@ -1,7 +1,7 @@
+use std::env;
+use std::io::{self, Write};
 use std::thread;
 use std::time::Duration;
-use std::io::{self, Write};
-use std::env;
 
 pub fn run_fetch() {
     let snask_version = env!("CARGO_PKG_VERSION");
@@ -18,24 +18,27 @@ pub fn run_fetch() {
         "      db    `888  ",
         "     888.  .d88P  ",
         "      Y888888P'   ",
-        "         `        "
+        "         `        ",
     ];
 
     print!("\x1B[2J");
-    
+
     // Animação de cores (Ciano para Verde Água)
     for i in 0..15 {
-        let color = 36 + (i % 2); 
-        print!("\x1B[1;1H"); 
+        let color = 36 + (i % 2);
+        print!("\x1B[1;1H");
         for line in &s_art {
             println!("\x1b[1;{}m{}\x1b[0m", color, line);
         }
-        println!("\n  \x1b[1;37mSnask v{} | O futuro é nosso! 🚀\x1b[0m", snask_version);
+        println!(
+            "\n  \x1b[1;37mSnask v{} | O futuro é nosso! 🚀\x1b[0m",
+            snask_version
+        );
         println!("  ---------------------------------------");
         println!("  OS:      {}", os);
         println!("  Arch:    {}", arch);
         println!("  Runtime: Native (LLVM/C)");
-        
+
         io::stdout().flush().unwrap();
         thread::sleep(Duration::from_millis(200));
     }

@@ -1,0 +1,5 @@
+import_c_om "SDL2/SDL.h" as sdl2
+
+class main
+    fun start()
+        print(sdl2.get_platform())

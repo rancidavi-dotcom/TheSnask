@@ -1,0 +1,12 @@
+import "sqlite"
+
+fun return_in_if() : int
+    zone "if_return"
+        let db = sqlite.Database.open("om_zone_if_return.sqlite")
+        if true
+            return 22
+        return 0
+
+class main
+    fun start()
+        print(return_in_if())

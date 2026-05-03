@@ -1,0 +1,33 @@
+library stdio
+
+function printf:
+    c_function: printf
+    surface: stdio.printf
+    input: str
+    output: int
+    safety: SAFE
+    reason: standard variadic printf
+
+function scanf:
+    c_function: scanf
+    surface: stdio.scanf
+    input: str
+    output: int
+    safety: SAFE
+    reason: standard variadic scanf
+
+function fopen:
+    c_function: fopen
+    surface: stdio.fopen
+    input: str
+    output: ptr
+    safety: SAFE
+    reason: standard fopen
+
+function fclose:
+    c_function: fclose
+    surface: stdio.fclose
+    input: ptr
+    output: int
+    safety: SAFE
+    reason: standard fclose

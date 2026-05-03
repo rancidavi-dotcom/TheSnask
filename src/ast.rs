@@ -1,5 +1,5 @@
+use crate::span::{Position, Span};
 use crate::types::Type;
-use crate::span::{Span, Position};
 
 // Moved from parser.rs to be a central part of the AST
 #[derive(Debug, PartialEq, Clone)]
@@ -283,6 +283,10 @@ pub enum StmtKind {
     DictDeclaration(DictDecl),
     DictSet(DictSet),
     Import(String),
+    ImportCOm {
+        header: String,
+        alias: String,
+    },
     FromImport {
         from: Vec<String>,
         is_current_dir: bool,

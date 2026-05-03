@@ -1,0 +1,12 @@
+import "sqlite"
+
+fun return_in_nested_zone() : int
+    zone "outer"
+        let outer_db = sqlite.Database.open("om_zone_nested_outer.sqlite")
+        zone "inner"
+            let inner_db = sqlite.Database.open("om_zone_nested_inner.sqlite")
+            return 33
+
+class main
+    fun start()
+        print(return_in_nested_zone())

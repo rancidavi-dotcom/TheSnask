@@ -1,0 +1,8 @@
+import "sqlite"
+
+class main
+    fun start()
+        zone "app"
+            let db = sqlite.Database.open("om_statement.sqlite")
+            let stmt = db.prepare("SELECT 1")
+            print(stmt)

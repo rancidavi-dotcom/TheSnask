@@ -1,0 +1,11 @@
+import "sqlite"
+
+fun make_statement_and_return() : int
+    zone "app"
+        let db = sqlite.Database.open("om_statement_return.sqlite")
+        let stmt = db.prepare("SELECT 1")
+        return 44
+
+class main
+    fun start()
+        print(make_statement_and_return())

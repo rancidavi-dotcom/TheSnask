@@ -370,4 +370,3 @@ pub fn parse_snif(src: &str) -> Result<SnifValue, SnifParseError> {
     }
     Ok(v)
 }
-

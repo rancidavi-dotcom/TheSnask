@@ -1,0 +1,8 @@
+import "zlib"
+
+class main
+    fun start()
+        zone "app"
+            let compressed = zlib.compress("hello")
+            let text = zlib.decompress(compressed)
+            print(text)

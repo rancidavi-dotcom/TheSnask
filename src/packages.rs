@@ -1,16 +1,18 @@
-use std::path::PathBuf;
-use std::fs;
 use serde::Deserialize;
-use std::collections::HashMap;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // Opção B (git): o registry é um repositório git local em ~/.snask/registry (clone/pull do SnaskPackages).
 // Isso permite evoluir de um único registry.json para um índice por pacote (index/**/<pkg>.json) sem depender de um servidor.
 const REGISTRY_GIT_URL: &str = "https://github.com/rancidavi-dotcom/SnaskPackages";
-const REGISTRY_HTTP_FALLBACK_URL: &str = "https://raw.githubusercontent.com/rancidavi-dotcom/SnaskPackages/main/registry.json";
-const BASE_PKG_URL: &str = "https://raw.githubusercontent.com/rancidavi-dotcom/SnaskPackages/main/packages/";
+const REGISTRY_HTTP_FALLBACK_URL: &str =
+    "https://raw.githubusercontent.com/rancidavi-dotcom/SnaskPackages/main/registry.json";
+const BASE_PKG_URL: &str =
+    "https://raw.githubusercontent.com/rancidavi-dotcom/SnaskPackages/main/packages/";
 
 #[derive(Deserialize, Debug)]
 pub struct Package {
@@ -22,9 +24,15 @@ pub struct Package {
 }
 
 impl Package {
-    pub fn version(&self) -> &str { &self.version }
-    pub fn url(&self) -> &str { &self.url }
-    pub fn description(&self) -> &str { &self.description }
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+    pub fn description(&self) -> &str {
+        &self.description
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -86,7 +94,11 @@ pub fn install_framework(name: &str) -> Result<(), String> {
         }
     }
 
-    println!("✅ Framework '{}' instalado/atualizado com sucesso em: {}", name, dest_dir.display());
+    println!(
+        "✅ Framework '{}' instalado/atualizado com sucesso em: {}",
+        name,
+        dest_dir.display()
+    );
     Ok(())
 }
 
@@ -100,11 +112,18 @@ fn run_git(args: &[&str], cwd: Option<&PathBuf>) -> Result<(), String> {
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }
-    let out = cmd.output().map_err(|e| format!("Failed to run git {:?}: {}", args, e))?;
+    let out = cmd
+        .output()
+        .map_err(|e| format!("Failed to run git {:?}: {}", args, e))?;
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr);
         let stdout = String::from_utf8_lossy(&out.stdout);
-        return Err(format!("git {:?} failed.\nstdout: {}\nstderr: {}", args, stdout.trim(), stderr.trim()));
+        return Err(format!(
+            "git {:?} failed.\nstdout: {}\nstderr: {}",
+            args,
+            stdout.trim(),
+            stderr.trim()
+        ));
     }
     Ok(())
 }
@@ -119,24 +138,40 @@ fn ensure_registry_repo() -> Result<PathBuf, String> {
         // (Sem rebase para evitar conflitos caso o usuário tenha mexido localmente.)
         let _ = run_git(&["fetch", "--all", "--prune"], Some(&repo));
         run_git(&["pull", "--ff-only"], Some(&repo)).map_err(|e| {
-            format!("Failed to update registry via git. Tip: delete '{}' and run again.\n{}", repo.display(), e)
+            format!(
+                "Failed to update registry via git. Tip: delete '{}' and run again.\n{}",
+                repo.display(),
+                e
+            )
         })?;
         return Ok(repo);
     }
 
     // Primeiro clone
-    run_git(&["clone", "--depth", "1", REGISTRY_GIT_URL, repo.to_string_lossy().as_ref()], None)?;
+    run_git(
+        &[
+            "clone",
+            "--depth",
+            "1",
+            REGISTRY_GIT_URL,
+            repo.to_string_lossy().as_ref(),
+        ],
+        None,
+    )?;
     Ok(repo)
 }
 
 fn read_registry_from_repo(repo: &PathBuf) -> Result<Registry, String> {
+    let mut packages: HashMap<String, Package> = HashMap::new();
+
     // Preferência: índice por pacote em index/**/<name>.json
     let index_dir = repo.join("index");
     if index_dir.exists() {
-        let mut packages: HashMap<String, Package> = HashMap::new();
         let mut stack = vec![index_dir];
         while let Some(dir) = stack.pop() {
-            for entry in fs::read_dir(&dir).map_err(|e| format!("Failed to read index {}: {}", dir.display(), e))? {
+            for entry in fs::read_dir(&dir)
+                .map_err(|e| format!("Failed to read index {}: {}", dir.display(), e))?
+            {
                 let entry = entry.map_err(|e| e.to_string())?;
                 let path = entry.path();
                 if path.is_dir() {
@@ -146,27 +181,46 @@ fn read_registry_from_repo(repo: &PathBuf) -> Result<Registry, String> {
                 if path.extension().and_then(|s| s.to_str()) != Some("json") {
                     continue;
                 }
-                let bytes = fs::read(&path).map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+                let bytes = fs::read(&path)
+                    .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
                 let pkg: Package = serde_json::from_slice(&bytes)
                     .map_err(|e| format!("JSON inválido em {}: {}", path.display(), e))?;
                 // O nome do pacote vem do filename (sem .json), para evitar inconsistências.
-                let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
+                let name = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .to_string();
                 if !name.is_empty() {
                     packages.insert(name, pkg);
                 }
             }
         }
-        return Ok(Registry { packages });
     }
 
-    // Compatibilidade: registry.json na raiz do repo
+    // Compatibilidade: complementa com registry.json na raiz do repo.
+    // Alguns pacotes ainda podem existir apenas no formato legado.
     let legacy = repo.join("registry.json");
     if legacy.exists() {
-        let bytes = fs::read(&legacy).map_err(|e| format!("Failed to read {}: {}", legacy.display(), e))?;
-        return serde_json::from_slice(&bytes).map_err(|e| format!("Failed to parse registry.json (git): {}", e));
+        let bytes =
+            fs::read(&legacy).map_err(|e| format!("Failed to read {}: {}", legacy.display(), e))?;
+        let legacy_registry: Registry = serde_json::from_slice(&bytes)
+            .map_err(|e| format!("Failed to parse registry.json (git): {}", e))?;
+        for (name, pkg) in legacy_registry.packages {
+            if !packages.contains_key(&name) {
+                packages.insert(name, pkg);
+            }
+        }
     }
 
-    Err(format!("Invalid registry: couldn't find 'index/' nor 'registry.json' in '{}'.", repo.display()))
+    if packages.is_empty() {
+        return Err(format!(
+            "Invalid registry: couldn't find 'index/' nor 'registry.json' in '{}'.",
+            repo.display()
+        ));
+    }
+
+    Ok(Registry { packages })
 }
 
 pub fn fetch_registry() -> Result<Registry, String> {
@@ -174,11 +228,17 @@ pub fn fetch_registry() -> Result<Registry, String> {
     match ensure_registry_repo().and_then(|repo| read_registry_from_repo(&repo)) {
         Ok(r) => Ok(r),
         Err(git_err) => {
-            eprintln!("⚠️  Git registry failed, using HTTP fallback. ({})", git_err);
+            eprintln!(
+                "⚠️  Git registry failed, using HTTP fallback. ({})",
+                git_err
+            );
             let response = reqwest::blocking::get(REGISTRY_HTTP_FALLBACK_URL)
                 .map_err(|e| format!("Failed to access registry (HTTP): {}", e))?;
             if !response.status().is_success() {
-                return Err(format!("Failed to access registry (HTTP): HTTP {}", response.status()));
+                return Err(format!(
+                    "Failed to access registry (HTTP): HTTP {}",
+                    response.status()
+                ));
             }
             response
                 .json()
@@ -195,18 +255,27 @@ pub fn is_package_installed(name: &str) -> bool {
 pub fn read_installed_package_sha256(name: &str) -> Result<String, String> {
     let packages_dir = get_packages_dir();
     let path = packages_dir.join(format!("{}.snask", name));
-    let bytes = fs::read(&path).map_err(|e| format!("Failed to read installed package {}: {}", path.display(), e))?;
+    let bytes = fs::read(&path)
+        .map_err(|e| format!("Failed to read installed package {}: {}", path.display(), e))?;
     let hash = Sha256::digest(&bytes);
     Ok(format!("{:x}", hash))
 }
 
-pub fn read_installed_package_version_from_registry(name: &str, registry: &Registry) -> Option<String> {
+pub fn read_installed_package_version_from_registry(
+    name: &str,
+    registry: &Registry,
+) -> Option<String> {
     registry.packages.get(name).map(|p| p.version.clone())
 }
 
-pub fn install_package_with_registry(name: &str, registry: &Registry) -> Result<(String, String, PathBuf), String> {
+pub fn install_package_with_registry(
+    name: &str,
+    registry: &Registry,
+) -> Result<(String, String, PathBuf), String> {
     // returns (version, sha256, path)
-    let package = registry.packages.get(name)
+    let package = registry
+        .packages
+        .get(name)
         .ok_or_else(|| format!("Package '{}' not found in registry.", name))?;
 
     let url = if package.url.trim().is_empty() {
@@ -228,27 +297,42 @@ pub fn install_package_with_registry(name: &str, registry: &Registry) -> Result<
             return fs::read(&local).ok();
         }
         None
-    })().unwrap_or_else(|| Vec::new());
+    })()
+    .unwrap_or_else(|| Vec::new());
 
     let content = if !content.is_empty() {
         content
     } else {
         // Fallback: baixa por HTTP
-        let download_url = if url.starts_with("http") { url.clone() } else { format!("{}{}", BASE_PKG_URL, url) };
-        // GitHub raw pode ficar em cache; adiciona um cache-buster simples.
-        let download_url = if download_url.contains("raw.githubusercontent.com") && !download_url.contains('?') {
-            let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-            format!("{}?t={}", download_url, ts)
+        let download_url = if url.starts_with("http") {
+            url.clone()
         } else {
-            download_url
+            format!("{}{}", BASE_PKG_URL, url)
         };
+        // GitHub raw pode ficar em cache; adiciona um cache-buster simples.
+        let download_url =
+            if download_url.contains("raw.githubusercontent.com") && !download_url.contains('?') {
+                let ts = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                format!("{}?t={}", download_url, ts)
+            } else {
+                download_url
+            };
 
         let pkg_response = reqwest::blocking::get(&download_url)
             .map_err(|e| format!("Failed to download package: {}", e))?;
         if !pkg_response.status().is_success() {
-            return Err(format!("Failed to download package file: HTTP {}", pkg_response.status()));
+            return Err(format!(
+                "Failed to download package file: HTTP {}",
+                pkg_response.status()
+            ));
         }
-        pkg_response.bytes().map_err(|e| format!("Failed to read package bytes: {}", e))?.to_vec()
+        pkg_response
+            .bytes()
+            .map_err(|e| format!("Failed to read package bytes: {}", e))?
+            .to_vec()
     };
 
     let hash = Sha256::digest(&content);
@@ -264,12 +348,14 @@ pub fn install_package_with_registry(name: &str, registry: &Registry) -> Result<
 
 pub fn install_package(name: &str) -> Result<(), String> {
     println!("🔍 Buscando pacote '{}' no registry oficial...", name);
-    
+
     // 1. Fetch registry.json
     let registry: Registry = fetch_registry()?;
 
     // 2. Check if package exists
-    let package = registry.packages.get(name)
+    let package = registry
+        .packages
+        .get(name)
         .ok_or_else(|| format!("Package '{}' not found in registry.", name))?;
 
     println!("📦 Pacote encontrado! Versão: {}", package.version);
@@ -278,7 +364,11 @@ pub fn install_package(name: &str) -> Result<(), String> {
     // 3/4. Download and save (and compute hash)
     let (ver, _sha, dest_path) = install_package_with_registry(name, &registry)?;
 
-    println!("✅ Package '{}' installed successfully at: {}", name, dest_path.display());
+    println!(
+        "✅ Package '{}' installed successfully at: {}",
+        name,
+        dest_path.display()
+    );
     println!("📌 Versão instalada: {}", ver);
     println!("💡 Use: import \"{}\" no seu código Snask.", name);
 
@@ -302,7 +392,7 @@ pub fn uninstall_package(name: &str) -> Result<(), String> {
 pub fn list_packages() -> Result<(), String> {
     let packages_dir = get_packages_dir();
     println!("📦 Pacotes Snask instalados em {}:", packages_dir.display());
-    
+
     let entries = fs::read_dir(packages_dir).map_err(|e| e.to_string())?;
     let mut found = false;
 
@@ -324,7 +414,7 @@ pub fn list_packages() -> Result<(), String> {
 
 pub fn search_packages(query: &str) -> Result<(), String> {
     println!("🔍 Pesquisando por '{}' no registry...", query);
-    
+
     let registry: Registry = fetch_registry()?;
 
     let mut found = false;

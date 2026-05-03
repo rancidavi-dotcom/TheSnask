@@ -47,7 +47,9 @@ fn as_typed_literal(v: &SnifValue) -> Option<(&'static str, &str)> {
     let SnifValue::Object(o) = v else { return None };
     if o.len() == 1 {
         let (k, v) = o.iter().next().unwrap();
-        let SnifValue::String(payload) = v else { return None };
+        let SnifValue::String(payload) = v else {
+            return None;
+        };
         let t = match k.as_str() {
             "$date" => "date",
             "$dec" => "dec",
@@ -61,8 +63,10 @@ fn as_typed_literal(v: &SnifValue) -> Option<(&'static str, &str)> {
 }
 
 fn is_scalar(v: &SnifValue) -> bool {
-    matches!(v, SnifValue::Null | SnifValue::Bool(_) | SnifValue::Number(_) | SnifValue::String(_))
-        || matches!(as_typed_literal(v), Some(_))
+    matches!(
+        v,
+        SnifValue::Null | SnifValue::Bool(_) | SnifValue::Number(_) | SnifValue::String(_)
+    ) || matches!(as_typed_literal(v), Some(_))
 }
 
 fn inline_len(v: &SnifValue) -> usize {

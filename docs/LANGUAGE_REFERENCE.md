@@ -143,7 +143,7 @@ Every program requires a `class main`. However, the entry function no longer nee
 class Point {
     mut x = 0
     mut y = 0
-    
+
     fun init(x, y) {
         self.x = x
         self.y = y
@@ -157,17 +157,25 @@ class Point {
 
 ### Lists (Ordered)
 ```snask
-let fruits = ["Apple", "Banana", "Cherry",] // Trailing comma!
+let fruits: list<str> = ["Apple", "Banana", "Cherry",] // Trailing comma!
 print(fruits[0])
 ```
 
 ### Dictionaries (Key/Value)
 ```snask
-let user = { 
-    "id": 1, 
-    "role": "admin", 
+let user: dict<str, int> = {
+    "id": 1,
+    "level": 10,
 }
-print(user.role) // Dot notation supported
+print(user["id"])
+```
+
+Collection annotations can be nested:
+
+```snask
+let table: dict<str, list<int>> = {
+    "scores": [10, 20, 30],
+}
 ```
 
 ---

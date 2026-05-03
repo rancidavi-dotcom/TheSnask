@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
-use serde::{Serialize, Deserialize};
 
 /// Representa uma posição no código fonte
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -11,15 +11,27 @@ pub struct Position {
 
 impl Position {
     pub fn new(line: usize, column: usize, offset: usize) -> Self {
-        Position { line, column, offset }
+        Position {
+            line,
+            column,
+            offset,
+        }
     }
 
     pub fn start() -> Self {
-        Position { line: 1, column: 1, offset: 0 }
+        Position {
+            line: 1,
+            column: 1,
+            offset: 0,
+        }
     }
 
     pub fn from_line_col(line: usize, column: usize) -> Self {
-        Position { line, column, offset: 0 }
+        Position {
+            line,
+            column,
+            offset: 0,
+        }
     }
 
     pub fn advance_cols(&self, cols: usize) -> Self {
@@ -50,12 +62,18 @@ impl Span {
     }
 
     pub fn single(pos: Position) -> Self {
-        Span { start: pos, end: pos }
+        Span {
+            start: pos,
+            end: pos,
+        }
     }
 
     pub fn dummy() -> Self {
         let pos = Position::start();
-        Span { start: pos, end: pos }
+        Span {
+            start: pos,
+            end: pos,
+        }
     }
 
     /// Combina dois spans em um único span que cobre ambos
@@ -107,7 +125,11 @@ impl Span {
 impl fmt::Display for Span {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.start.line == self.end.line {
-            write!(f, "{}:{}-{}", self.start.line, self.start.column, self.end.column)
+            write!(
+                f,
+                "{}:{}-{}",
+                self.start.line, self.start.column, self.end.column
+            )
         } else {
             write!(f, "{}-{}", self.start, self.end)
         }

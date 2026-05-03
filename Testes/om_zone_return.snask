@@ -1,0 +1,10 @@
+import "sqlite"
+
+fun return_in_zone() : int
+    zone "return"
+        let db = sqlite.Database.open("om_zone_return.sqlite")
+        return 11
+
+class main
+    fun start()
+        print(return_in_zone())

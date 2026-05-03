@@ -1,0 +1,14 @@
+library sqlite
+
+resource Database:
+    c_type: sqlite3*
+    constructor: sqlite3_open
+    destructor: sqlite3_close
+    surface_type: sqlite.Database
+
+resource Statement:
+    c_type: sqlite3_stmt*
+    constructor: sqlite3_prepare_v2
+    destructor: sqlite3_finalize
+    surface_type: sqlite.Statement
+    depends_on: Database

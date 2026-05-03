@@ -1,7 +1,7 @@
+use crate::diagnostics::{Annotation, Diagnostic, DiagnosticBag};
 use crate::snif_fmt::format_snif;
 use crate::snif_parser::{parse_snif, SnifParseError, SnifValue};
 use crate::snif_schema::{snask_manifest_schema_md, validate_snask_manifest, SnifSchemaError};
-use crate::diagnostics::{Annotation, Diagnostic, DiagnosticBag};
 use crate::span::{Position, Span};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -67,7 +67,11 @@ pub fn render_snif_parse_diagnostic(filename: &str, source: &str, e: &SnifParseE
     bag.render_all(filename, source)
 }
 
-pub fn render_snif_schema_diagnostic(filename: &str, source: &str, errs: &[SnifSchemaError]) -> String {
+pub fn render_snif_schema_diagnostic(
+    filename: &str,
+    source: &str,
+    errs: &[SnifSchemaError],
+) -> String {
     let start = Position::from_line_col(1, 1);
     let end = start.advance_cols(1);
     let span = Span::new(start, end);

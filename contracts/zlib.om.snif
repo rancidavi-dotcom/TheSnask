@@ -1,0 +1,17 @@
+library zlib
+
+function compress:
+    c_function: compress2
+    surface: zlib.compress
+    input: str
+    output: bytes
+    safety: COPY_ONLY
+    reason: bounded buffer copied into OM-owned Bytes
+
+function decompress:
+    c_function: uncompress
+    surface: zlib.decompress
+    input: bytes
+    output: str
+    safety: COPY_ONLY
+    reason: bounded buffer copied into OM-owned str

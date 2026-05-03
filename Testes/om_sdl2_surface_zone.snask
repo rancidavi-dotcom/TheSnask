@@ -1,0 +1,7 @@
+import_c_om "SDL2/SDL.h" as sdl2
+
+class main
+    fun start()
+        zone "sdl-surface":
+            let surface = sdl2.create_rgbsurface(0, 64, 64, 32, 0, 0, 0, 0)
+            print("SDL surface allocated under OM")

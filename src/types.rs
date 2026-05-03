@@ -21,7 +21,10 @@ pub enum Type {
 
 impl Type {
     pub fn is_numeric(&self) -> bool {
-        matches!(self, Type::Int | Type::Float | Type::U8 | Type::I32 | Type::I64 | Type::Ptr)
+        matches!(
+            self,
+            Type::Int | Type::Float | Type::U8 | Type::I32 | Type::I64 | Type::Ptr
+        )
     }
 
     pub fn is_list_like(&self) -> bool {

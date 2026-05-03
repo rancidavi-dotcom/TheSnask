@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::value::Value;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Symbol {
@@ -30,19 +30,34 @@ impl SymbolTable {
 
     // Exit the current scope
     pub fn exit_scope(&mut self) {
-        if self.scopes.len() > 1 { // Do not pop the global scope
+        if self.scopes.len() > 1 {
+            // Do not pop the global scope
             self.scopes.pop();
         }
     }
 
     // Define a new symbol in the current scope
     // Returns true if the symbol was successfully defined, false if it already exists in the current scope.
-    pub fn define(&mut self, name: String, value: Value, is_mutable: bool, is_reassignable: bool) -> bool {
+    pub fn define(
+        &mut self,
+        name: String,
+        value: Value,
+        is_mutable: bool,
+        is_reassignable: bool,
+    ) -> bool {
         let current_scope = self.scopes.last_mut().unwrap();
         if current_scope.contains_key(&name) {
             return false; // Symbol already exists in the current scope
         }
-        current_scope.insert(name.clone(), Symbol { name, value, is_mutable, is_reassignable });
+        current_scope.insert(
+            name.clone(),
+            Symbol {
+                name,
+                value,
+                is_mutable,
+                is_reassignable,
+            },
+        );
         true
     }
 
@@ -57,13 +72,12 @@ impl SymbolTable {
     }
 
     // Look up a mutable symbol, starting from the current scope and going outwards
-        pub fn get_mut(&mut self, name: &str) -> Option<&mut Symbol> {
-            for scope in self.scopes.iter_mut().rev() {
-                if let Some(symbol) = scope.get_mut(name) {
-                    return Some(symbol);
-                }
+    pub fn get_mut(&mut self, name: &str) -> Option<&mut Symbol> {
+        for scope in self.scopes.iter_mut().rev() {
+            if let Some(symbol) = scope.get_mut(name) {
+                return Some(symbol);
             }
-            None
         }
+        None
     }
-    
+}

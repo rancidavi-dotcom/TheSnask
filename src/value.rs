@@ -23,11 +23,15 @@ impl Hash for Value {
                 } else {
                     n.to_bits().hash(state);
                 }
-            },
+            }
             Value::String(s) => s.hash(state),
             Value::Boolean(b) => b.hash(state),
-            Value::List(_) => { "List".hash(state); },
-            Value::Dict(_) => { "Dict".hash(state); },
+            Value::List(_) => {
+                "List".hash(state);
+            }
+            Value::Dict(_) => {
+                "Dict".hash(state);
+            }
             Value::Nil => "Nil".hash(state),
             Value::Function(f) => f.name.hash(state),
         }
@@ -49,7 +53,7 @@ impl fmt::Display for Value {
                     }
                 }
                 write!(f, "]")
-            },
+            }
             Value::Dict(dict) => {
                 write!(f, "{{")?;
                 let mut first = true;
@@ -61,7 +65,7 @@ impl fmt::Display for Value {
                     first = false;
                 }
                 write!(f, "}}")
-            },
+            }
             Value::Nil => write!(f, "nil"),
             Value::Function(func) => write!(f, "<fun {}>", func.name),
         }

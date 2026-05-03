@@ -3,8 +3,8 @@ use crate::span::Span;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::PathBuf;
 use std::io::Write;
+use std::path::PathBuf;
 
 pub const QUICKFIX_THRESHOLD: u8 = 90;
 pub const MAYBE_THRESHOLD: u8 = 70;
@@ -130,7 +130,10 @@ impl HyperDiagnostic {
 
         // ELI5: Why is this an error?
         if let Some(explanation) = crate::explain::get_explanation(self.id.0) {
-            d = d.with_note(format!("Why is this an error? \n   {}", explanation.replace('\n', "\n   ")));
+            d = d.with_note(format!(
+                "Why is this an error? \n   {}",
+                explanation.replace('\n', "\n   ")
+            ));
         }
 
         // Causes (never claim certainty).
@@ -170,10 +173,7 @@ impl HyperDiagnostic {
                 }
                 d = d.with_help(help);
             } else if top.confidence >= MAYBE_THRESHOLD {
-                d = d.with_note(format!(
-                    "possible fix ({}%): {}",
-                    top.confidence, top.title
-                ));
+                d = d.with_note(format!("possible fix ({}%): {}", top.confidence, top.title));
                 if let Some(existing) = &self.help {
                     d = d.with_help(existing.clone());
                 }
@@ -229,7 +229,10 @@ pub fn write_trace(trace: &Trace) -> std::io::Result<()> {
     let day = chrono::Local::now().format("%Y-%m-%d").to_string();
     let path = base.join(format!("{day}.jsonl"));
     let line = serde_json::to_string(trace).unwrap_or_else(|_| "{}".to_string());
-    let mut f = fs::OpenOptions::new().create(true).append(true).open(&path)?;
+    let mut f = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)?;
     writeln!(f, "{line}")?;
     Ok(())
 }

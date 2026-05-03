@@ -1,15 +1,20 @@
-use std::collections::{BTreeMap, HashSet};
-use std::fs;
-use std::process::Command;
-use std::path::{Path};
 use indicatif::{ProgressBar, ProgressStyle};
 use inkwell::context::Context;
+use std::collections::{BTreeMap, HashSet};
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 use crate::ast::{ConstDecl, Expr, ExprKind, LiteralValue, Location, Program, Stmt, StmtKind};
+use crate::diagnostics::{humane_code, Annotation, Diagnostic, DiagnosticBag};
 use crate::llvm_generator::LLVMGenerator;
-use crate::parser::{Parser, ParseError};
+use crate::modules::is_native_module;
+use crate::om_contract::{load_builtin_om_contract, load_om_contract, OmContract};
+use crate::om_scan::{scan_header, ScanOptions};
+use crate::parser::{ParseError, Parser};
 use crate::semantic_analyzer::{SemanticAnalyzer, SemanticError};
-use crate::sps::{SnifFeatureValue};
+use crate::sps::SnifFeatureValue;
+use crate::tools::{get_pkg_cflags, get_pkg_libs, has_pkg};
 
 /// Options for the compiler build process.
 #[derive(Debug, Clone, Default)]
@@ -45,9 +50,9 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
     pb.set_style(
         ProgressStyle::with_template("{bar:40.cyan/blue} {pos}/{len} {msg}")
             .unwrap()
-        .progress_chars("=>-"),
+            .progress_chars("=>-"),
     );
-    
+
     pb.set_message("Reading file");
     let source = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
     pb.inc(1);
@@ -57,7 +62,7 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
         pb.finish_and_clear();
         render_parser_diagnostic(file_path, &source, &e)
     })?;
-    
+
     let (program_opt, parse_errors) = parser.parse_program_recovering(10);
     if !parse_errors.is_empty() {
         pb.finish_and_clear();
@@ -77,7 +82,12 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
     let mut resolved_modules = HashSet::new();
     resolved_modules.insert(file_path.to_string());
     let entry_dir = Path::new(file_path).parent().unwrap_or(Path::new("."));
-    resolve_imports(&mut program, entry_dir, &mut resolved_program, &mut resolved_modules)?;
+    resolve_imports(
+        &mut program,
+        entry_dir,
+        &mut resolved_program,
+        &mut resolved_modules,
+    )?;
     pb.inc(1);
 
     pb.set_message("Expanding inheritance");
@@ -88,7 +98,9 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
     let needs_full_runtime = uses_full_runtime(&resolved_program);
     if options.min_runtime && needs_full_runtime {
         pb.finish_and_clear();
-        return Err("`--min-runtime` cannot be used with GUI/SQLite/Skia/Web imports.\n".to_string());
+        return Err(
+            "`--min-runtime` cannot be used with GUI/SQLite/Skia/Web imports.\n".to_string(),
+        );
     }
     let link_tiny_runtime = options.tiny || (options.min_runtime && !needs_full_runtime);
 
@@ -98,20 +110,206 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
     analyzer.analyze(&resolved_program);
     if !analyzer.errors.is_empty() {
         pb.finish_and_clear();
-        return Err(render_semantic_diagnostics(file_path, &source, &analyzer.errors));
+        return Err(render_semantic_diagnostics(
+            file_path,
+            &source,
+            &analyzer.errors,
+        ));
     }
     pb.inc(1);
 
     pb.set_message("Generating LLVM IR");
     let context = Context::create();
     let mut generator = LLVMGenerator::new(&context, file_path);
-    let ir = generator.generate(resolved_program)?;
+    generator.set_om_contracts(load_om_contracts(&resolved_program)?);
+    let ir = generator.generate(resolved_program.clone())?;
     pb.inc(1);
 
-    link_binary(file_path, ir, options, link_tiny_runtime, &pb)?;
-    
+    let extra_pkgs = get_imported_pkgs(&resolved_program);
+    link_binary(
+        file_path,
+        ir.into_bytes(),
+        options,
+        link_tiny_runtime,
+        &pb,
+        extra_pkgs,
+    )?;
+
     pb.finish_with_message("OK");
     Ok(())
+}
+
+fn get_imported_pkgs(program: &[Stmt]) -> Vec<String> {
+    let mut pkgs = Vec::new();
+    let mut seen = HashSet::new();
+    for stmt in program {
+        match &stmt.kind {
+            StmtKind::Import(module_name) => {
+                if (module_name == "sqlite" || module_name == "zlib")
+                    && seen.insert(module_name.clone())
+                {
+                    pkgs.push(resolve_pkg_name(module_name));
+                } else if !is_native_module(module_name) {
+                    let pkg = resolve_pkg_name(module_name);
+                    if has_pkg(&pkg) && seen.insert(pkg.clone()) {
+                        pkgs.push(pkg);
+                    }
+                }
+            }
+            StmtKind::ImportCOm { alias, .. } => {
+                if seen.insert(alias.clone()) {
+                    pkgs.push(alias.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+    pkgs
+}
+
+fn load_om_contracts(program: &[Stmt]) -> Result<Vec<OmContract>, String> {
+    let mut contracts = Vec::new();
+    let mut seen = HashSet::new();
+
+    for stmt in program {
+        match &stmt.kind {
+            StmtKind::Import(module_name) => {
+                if (module_name == "sqlite" || module_name == "zlib")
+                    && seen.insert(module_name.clone())
+                {
+                    contracts.push(load_builtin_om_contract(module_name)?);
+                } else if !is_native_module(module_name) {
+                    let pkg = resolve_pkg_name(module_name);
+                    if has_pkg(&pkg) && seen.insert(module_name.clone()) {
+                        contracts.push(load_or_generate_auto_om_contract(&pkg, module_name)?);
+                    }
+                }
+            }
+            StmtKind::ImportCOm { header, alias } => {
+                if seen.insert(alias.clone()) {
+                    contracts.push(load_or_generate_om_contract(header, alias)?);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(contracts)
+}
+
+fn resolve_pkg_name(name: &str) -> String {
+    if name == "sqlite" && has_pkg("sqlite3") && !has_pkg("sqlite") {
+        return "sqlite3".to_string();
+    }
+    name.to_string()
+}
+
+fn find_header_for_pkg(pkg_name: &str) -> Result<String, String> {
+    match pkg_name {
+        "zlib" => Ok("zlib.h".to_string()),
+        "sqlite3" | "sqlite" => Ok("sqlite3.h".to_string()),
+        "sdl2" => Ok("SDL2/SDL.h".to_string()),
+        "raylib" => Ok("raylib.h".to_string()),
+        "gl" => Ok("GL/gl.h".to_string()),
+        "libpng" | "png" => Ok("png.h".to_string()),
+        "libuv" | "uv" => Ok("uv.h".to_string()),
+        "freetype2" => Ok("ft2build.h".to_string()),
+        "gtk+-3.0" | "gtk3" => Ok("gtk/gtk.h".to_string()),
+        _ => {
+            // Default pattern
+            Ok(format!("{}.h", pkg_name))
+        }
+    }
+}
+
+fn load_or_generate_auto_om_contract(pkg_name: &str, alias: &str) -> Result<OmContract, String> {
+    let header = find_header_for_pkg(pkg_name)?;
+    let cflags = get_pkg_cflags(pkg_name).unwrap_or_default();
+    let generated = scan_header(ScanOptions {
+        header,
+        lib: alias.to_string(),
+        output: None,
+        extra_cflags: cflags,
+    })
+    .map_err(|e| format!("Auto OM scan failed for package `{pkg_name}`: {e}"))?;
+
+    merge_om_override_if_present(generated, alias)
+}
+
+fn load_or_generate_om_contract(header: &str, alias: &str) -> Result<OmContract, String> {
+    let generated = scan_header(ScanOptions {
+        header: header.to_string(),
+        lib: alias.to_string(),
+        output: None,
+        extra_cflags: get_pkg_cflags(alias).unwrap_or_default(),
+    })
+    .map_err(|e| format!("import_c_om failed while scanning `{header}` as `{alias}`: {e}"))?;
+
+    merge_om_override_if_present(generated, alias)
+}
+
+fn merge_om_override_if_present(
+    mut generated: OmContract,
+    alias: &str,
+) -> Result<OmContract, String> {
+    let Some(path) = find_om_contract_override(alias) else {
+        return Ok(generated);
+    };
+
+    let override_contract = load_om_contract(&path)?;
+
+    for override_constant in override_contract.constants {
+        if let Some(existing) = generated
+            .constants
+            .iter_mut()
+            .find(|constant| constant.surface == override_constant.surface)
+        {
+            *existing = override_constant;
+        } else {
+            generated.constants.push(override_constant);
+        }
+    }
+
+    for override_resource in override_contract.resources {
+        if let Some(existing) = generated
+            .resources
+            .iter_mut()
+            .find(|resource| resource.surface_type == override_resource.surface_type)
+        {
+            *existing = override_resource;
+        } else {
+            generated.resources.push(override_resource);
+        }
+    }
+
+    for mut override_function in override_contract.functions {
+        if let Some(existing) = generated
+            .functions
+            .iter_mut()
+            .find(|function| function.surface == override_function.surface)
+        {
+            if override_function.c_return_type.is_none() {
+                override_function.c_return_type = existing.c_return_type.clone();
+            }
+            if override_function.c_param_types.is_empty() {
+                override_function.c_param_types = existing.c_param_types.clone();
+            }
+            *existing = override_function;
+        } else {
+            generated.functions.push(override_function);
+        }
+    }
+
+    Ok(generated)
+}
+
+fn find_om_contract_override(alias: &str) -> Option<std::path::PathBuf> {
+    [
+        Path::new("contracts").join(format!("{alias}.om.snif")),
+        Path::new(&format!("{alias}.om.snif")).to_path_buf(),
+    ]
+    .into_iter()
+    .find(|path| path.exists())
 }
 
 fn inject_features(program: &mut Program, features: BTreeMap<String, SnifFeatureValue>) {
@@ -127,11 +325,7 @@ fn inject_features(program: &mut Program, features: BTreeMap<String, SnifFeature
         let const_decl = ConstDecl {
             name,
             var_type: None,
-            value: Expr::with_span(
-                ExprKind::Literal(literal_val),
-                loc.clone(),
-                span.clone(),
-            ),
+            value: Expr::with_span(ExprKind::Literal(literal_val), loc.clone(), span.clone()),
         };
         feature_stmts.push(Stmt::with_span(
             StmtKind::ConstDeclaration(const_decl),
@@ -162,7 +356,8 @@ fn validate_entrypoint(program: &Program) -> Result<(), String> {
 }
 
 fn expand_inheritance(program: &mut Program) -> Result<(), String> {
-    let mut classes: std::collections::HashMap<String, crate::ast::ClassDecl> = std::collections::HashMap::new();
+    let mut classes: std::collections::HashMap<String, crate::ast::ClassDecl> =
+        std::collections::HashMap::new();
     for stmt in program.iter() {
         if let StmtKind::ClassDeclaration(class) = &stmt.kind {
             classes.insert(class.name.clone(), class.clone());
@@ -179,7 +374,10 @@ fn expand_inheritance(program: &mut Program) -> Result<(), String> {
             let mut current = classes.get(name).unwrap().clone();
             if let Some(parent_name) = &current.parent {
                 let parent = classes.get(parent_name).ok_or_else(|| {
-                    format!("Parent class '{}' not found for class '{}'.", parent_name, name)
+                    format!(
+                        "Parent class '{}' not found for class '{}'.",
+                        parent_name, name
+                    )
                 })?;
 
                 let mut modified = false;
@@ -203,7 +401,7 @@ fn expand_inheritance(program: &mut Program) -> Result<(), String> {
             }
         }
     }
-    
+
     if iterations >= 100 {
         return Err("Circular inheritance or too deep hierarchy detected (max 100).".to_string());
     }
@@ -220,15 +418,23 @@ fn expand_inheritance(program: &mut Program) -> Result<(), String> {
 
 fn uses_full_runtime(program: &[Stmt]) -> bool {
     fn is_heavy_module(name: &str) -> bool {
-        matches!(name, "gui" | "sqlite" | "snask_skia" | "blaze" | "blaze_auth" | "auth")
+        matches!(
+            name,
+            "gui" | "sqlite" | "zlib" | "snask_skia" | "blaze" | "blaze_auth" | "auth"
+        )
     }
     for st in program {
         match &st.kind {
             StmtKind::Import(m) => {
-                if is_heavy_module(m) { return true; }
+                if is_heavy_module(m) {
+                    return true;
+                }
             }
+            StmtKind::ImportCOm { .. } => return true,
             StmtKind::FromImport { module, .. } => {
-                if is_heavy_module(module) { return true; }
+                if is_heavy_module(module) {
+                    return true;
+                }
             }
             _ => {}
         }
@@ -238,9 +444,11 @@ fn uses_full_runtime(program: &[Stmt]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_entrypoint;
+    use super::{render_parser_diagnostics, render_semantic_diagnostics, validate_entrypoint};
     use crate::ast::{ClassDecl, Location, Stmt, StmtKind};
-    use crate::span::Span;
+    use crate::parser::Parser;
+    use crate::semantic_analyzer::{SemanticError, SemanticErrorKind};
+    use crate::span::{Position, Span};
 
     fn loc() -> Location {
         Location { line: 1, column: 1 }
@@ -274,14 +482,66 @@ mod tests {
         let err = validate_entrypoint(&program).expect_err("empty main must fail");
         assert!(err.contains("at least one method"));
     }
+
+    #[test]
+    fn humane_parser_diagnostic_points_to_missing_paren() {
+        let source = "class main\n    fun start()\n        print(\"Hello\"\n";
+        let mut parser = Parser::new(source).expect("source should tokenize");
+        let (_program, errors) = parser.parse_program_recovering(10);
+        let rendered = render_parser_diagnostics("hello.snask", source, &errors);
+
+        assert!(rendered.contains("error[S1002]: missing closing `)`"));
+        assert!(rendered.contains("print(\"Hello\""));
+        assert!(rendered.contains("^ expected `)` here"));
+        assert!(!rendered.contains("ParseError"));
+    }
+
+    #[test]
+    fn humane_semantic_diagnostic_uses_snippet_and_suggestion() {
+        let source = "class main\n    fun start()\n        let message = \"Hello\"\n        print(mesage)\n";
+        let span = Span::new(Position::new(4, 15, 0), Position::new(4, 21, 0));
+        let error = SemanticError::new(
+            SemanticErrorKind::VariableNotFound("mesage".to_string()),
+            span,
+        )
+        .with_help("Did you mean 'message'?".to_string());
+
+        let rendered = render_semantic_diagnostics("name.snask", source, &[error]);
+
+        assert!(rendered.contains("error[S2002]: variable `mesage` was not found"));
+        assert!(rendered.contains("print(mesage)"));
+        assert!(rendered.contains("^^^^^^ unknown name"));
+        assert!(rendered.contains("help: Did you mean 'message'?"));
+        assert!(!rendered.contains("SemanticError"));
+    }
+
+    #[test]
+    fn humane_semantic_type_mismatch_uses_public_type_names() {
+        let source = "class main\n    fun start()\n        let age: int = \"18\"\n";
+        let span = Span::new(Position::new(3, 24, 0), Position::new(3, 28, 0));
+        let error = SemanticError::new(
+            SemanticErrorKind::TypeMismatch {
+                expected: crate::types::Type::Int,
+                found: crate::types::Type::String,
+            },
+            span,
+        );
+
+        let rendered = render_semantic_diagnostics("types.snask", source, &[error]);
+
+        assert!(rendered.contains("error[S2010]: expected `int`, found `str`"));
+        assert!(rendered.contains("type mismatch here"));
+        assert!(!rendered.contains("String"));
+    }
 }
 
-fn link_binary(
-    file_path: &str, 
-    ir: String, 
-    options: BuildOptions, 
+pub fn link_binary(
+    file_path: &str,
+    ir: Vec<u8>,
+    options: BuildOptions,
     link_tiny_runtime: bool,
-    pb: &ProgressBar
+    pb: &ProgressBar,
+    extra_pkgs: Vec<String>,
 ) -> Result<(), String> {
     let ir_file = "temp_snask.ll";
     fs::write(ir_file, ir).map_err(|e| e.to_string())?;
@@ -297,6 +557,13 @@ fn link_binary(
         format!("-O{}", options.opt_level)
     };
 
+    let mut extra_libs = Vec::new();
+    for pkg in extra_pkgs {
+        if let Ok(libs) = get_pkg_libs(&pkg) {
+            extra_libs.extend(libs);
+        }
+    }
+
     let have_lld = size_link
         && Command::new("ld.lld")
             .arg("--version")
@@ -311,7 +578,9 @@ fn link_binary(
         None
     };
 
-    let final_output = options.output_name.unwrap_or_else(|| file_path.replace(".snask", ""));
+    let final_output = options
+        .output_name
+        .unwrap_or_else(|| file_path.replace(".snask", ""));
 
     if options.lto {
         pb.set_message(format!("Linking (clang-18 {} +LTO)", clang_opt));
@@ -334,13 +603,21 @@ fn link_binary(
 
         let mut clang = Command::new("clang-18");
         clang.arg(&clang_opt).arg("-flto=thin");
-        if have_lld { clang.arg("-fuse-ld=lld"); }
-        if extreme_obj.is_some() { clang.arg("-nostdlib").arg("-static"); }
-        if let Some(t) = &options.target { clang.arg(format!("--target={}", t)); }
-        if let Some(p) = &extreme_obj { clang.arg(p); }
-        
+        if have_lld {
+            clang.arg("-fuse-ld=lld");
+        }
+        if extreme_obj.is_some() {
+            clang.arg("-nostdlib").arg("-static");
+        }
+        if let Some(t) = &options.target {
+            clang.arg(format!("--target={}", t));
+        }
+        if let Some(p) = &extreme_obj {
+            clang.arg(p);
+        }
+
         let lib_snask = format!("{}/.snask/lib/libsnask.a", home);
-        
+
         let mut args = vec![ir_file.to_string()];
         if options.extreme {
             // extreme doesn't need runtime bc
@@ -354,14 +631,30 @@ fn link_binary(
             .args(&args)
             .arg("-o")
             .arg(&final_output)
-            .args(if options.extreme { vec![] } else if options.tiny { vec!["-lc".to_string(), "-lgcc".to_string()] } else { vec!["-ldl".to_string()] })
-            .args(if link_tiny_runtime { vec![] } else { vec!["-lm".to_string()] })
+            .args(&extra_libs)
+            .args(if options.extreme {
+                vec![]
+            } else if options.tiny {
+                vec!["-lc".to_string(), "-lgcc".to_string()]
+            } else {
+                vec!["-ldl".to_string()]
+            })
+            .args(if link_tiny_runtime {
+                vec![]
+            } else {
+                vec!["-lm".to_string()]
+            })
             .args(get_link_flags(size_link, have_lld))
-            .args(get_runtime_linkargs_for(options.target.as_deref(), link_tiny_runtime))
+            .args(get_runtime_linkargs_for(
+                options.target.as_deref(),
+                link_tiny_runtime,
+            ))
             .status()
             .map_err(|e| e.to_string())?;
 
-        if !status.success() { return Err("Final link step failed (LTO path).".to_string()); }
+        if !status.success() {
+            return Err("Final link step failed (LTO path).".to_string());
+        }
         if std::env::var("SNASK_KEEP_TEMPS").ok().as_deref() != Some("1") {
             fs::remove_file(ir_file).ok();
         }
@@ -369,55 +662,102 @@ fn link_binary(
         let obj_file = "temp_snask.o";
         pb.set_message(format!("Compiling (llc-18 -O{})", options.opt_level));
         let mut llc = Command::new("llc-18");
-        llc.arg(format!("-O{}", options.opt_level)).arg("-relocation-model=pic").arg("-filetype=obj");
-        if let Some(t) = &options.target { llc.arg(format!("-mtriple={}", t)); }
-        llc.arg(ir_file).arg("-o").arg(obj_file).status().map_err(|e| e.to_string())?;
+        llc.arg(format!("-O{}", options.opt_level))
+            .arg("-relocation-model=pic")
+            .arg("-filetype=obj");
+        if let Some(t) = &options.target {
+            llc.arg(format!("-mtriple={}", t));
+        }
+        llc.arg(ir_file)
+            .arg("-o")
+            .arg(obj_file)
+            .status()
+            .map_err(|e| e.to_string())?;
 
         pb.set_message("Linking (clang-18)");
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        
+
         let mut runtime_path = if let Some(t) = &options.target {
-            if options.tiny { format!("{}/.snask/lib/{}/runtime_nano.o", home, t) }
-            else if link_tiny_runtime { format!("{}/.snask/lib/{}/runtime_tiny.o", home, t) }
-            else { format!("{}/.snask/lib/{}/runtime.o", home, t) }
-        } else if options.tiny { format!("{}/.snask/lib/runtime_nano.o", home) }
-        else if link_tiny_runtime { format!("{}/.snask/lib/runtime_tiny.o", home) }
-        else { format!("{}/.snask/lib/runtime.o", home) };
+            if options.tiny {
+                format!("{}/.snask/lib/{}/runtime_nano.o", home, t)
+            } else if link_tiny_runtime {
+                format!("{}/.snask/lib/{}/runtime_tiny.o", home, t)
+            } else {
+                format!("{}/.snask/lib/{}/runtime.o", home, t)
+            }
+        } else if options.tiny {
+            format!("{}/.snask/lib/runtime_nano.o", home)
+        } else if link_tiny_runtime {
+            format!("{}/.snask/lib/runtime_tiny.o", home)
+        } else {
+            format!("{}/.snask/lib/runtime.o", home)
+        };
 
         // APT Support: Check for global installation paths
         let global_runtime = "/usr/lib/snask/runtime/runtime.o";
-        if !std::path::Path::new(&runtime_path).exists() && std::path::Path::new(global_runtime).exists() {
-             runtime_path = global_runtime.to_string();
+        if !std::path::Path::new(&runtime_path).exists()
+            && std::path::Path::new(global_runtime).exists()
+        {
+            runtime_path = global_runtime.to_string();
         }
 
         let mut clang = Command::new("clang-18");
         clang.arg(&clang_opt);
-        if have_lld { clang.arg("-fuse-ld=lld"); }
-        if extreme_obj.is_some() { clang.arg("-nostdlib").arg("-static"); }
-        if let Some(t) = &options.target { clang.arg(format!("--target={}", t)); }
-        if let Some(p) = &extreme_obj { clang.arg(p); }
-        
+        if have_lld {
+            clang.arg("-fuse-ld=lld");
+        }
+        if extreme_obj.is_some() {
+            clang.arg("-nostdlib").arg("-static");
+        }
+        if let Some(t) = &options.target {
+            clang.arg(format!("--target={}", t));
+        }
+        if let Some(p) = &extreme_obj {
+            clang.arg(p);
+        }
+
         let mut lib_snask = format!("{}/.snask/lib/libsnask.a", home);
         let global_lib = "/usr/lib/snask/libsnask.a";
         if !std::path::Path::new(&lib_snask).exists() && std::path::Path::new(global_lib).exists() {
-             lib_snask = global_lib.to_string();
+            lib_snask = global_lib.to_string();
         }
-        
+
         let mut args = vec![obj_file.to_string()];
-        if options.extreme { } else if options.tiny { args.push(lib_snask); } else { args.push(runtime_path); }
+        if options.extreme {
+        } else if options.tiny {
+            args.push(lib_snask);
+        } else {
+            args.push(runtime_path);
+        }
 
         let status = clang
             .args(&args)
             .arg("-o")
             .arg(&final_output)
-            .args(if options.extreme { vec![] } else if options.tiny { vec!["-lc".to_string(), "-lgcc".to_string()] } else { vec!["-ldl".to_string()] })
-            .args(if link_tiny_runtime { vec![] } else { vec!["-lm".to_string()] })
+            .args(&extra_libs)
+            .args(if options.extreme {
+                vec![]
+            } else if options.tiny {
+                vec!["-lc".to_string(), "-lgcc".to_string()]
+            } else {
+                vec!["-ldl".to_string()]
+            })
+            .args(if link_tiny_runtime {
+                vec![]
+            } else {
+                vec!["-lm".to_string()]
+            })
             .args(get_link_flags(size_link, have_lld))
-            .args(get_runtime_linkargs_for(options.target.as_deref(), link_tiny_runtime))
+            .args(get_runtime_linkargs_for(
+                options.target.as_deref(),
+                link_tiny_runtime,
+            ))
             .status()
             .map_err(|e| e.to_string())?;
 
-        if !status.success() { return Err("Final link step failed.".to_string()); }
+        if !status.success() {
+            return Err("Final link step failed.".to_string());
+        }
         if std::env::var("SNASK_KEEP_TEMPS").ok().as_deref() != Some("1") {
             fs::remove_file(ir_file).ok();
             fs::remove_file(obj_file).ok();
@@ -431,7 +771,6 @@ fn link_binary(
     Ok(())
 }
 
-
 fn get_link_flags(size_link: bool, have_lld: bool) -> Vec<String> {
     if size_link {
         let mut v = vec![
@@ -440,7 +779,9 @@ fn get_link_flags(size_link: bool, have_lld: bool) -> Vec<String> {
             "-Wl,--build-id=none".to_string(),
             "-Wl,-O1".to_string(),
         ];
-        if have_lld { v.push("-Wl,--icf=all".to_string()); }
+        if have_lld {
+            v.push("-Wl,--icf=all".to_string());
+        }
         v
     } else {
         vec!["-Wl,--export-dynamic".to_string(), "-rdynamic".to_string()]
@@ -450,18 +791,59 @@ fn get_link_flags(size_link: bool, have_lld: bool) -> Vec<String> {
 pub fn get_runtime_linkargs_for(target: Option<&str>, tiny: bool) -> Vec<String> {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let p = if let Some(t) = target {
-        if tiny { format!("{}/.snask/lib/{}/runtime_tiny.linkargs", home, t) }
-        else { format!("{}/.snask/lib/{}/runtime.linkargs", home, t) }
+        if tiny {
+            format!("{}/.snask/lib/{}/runtime_tiny.linkargs", home, t)
+        } else {
+            format!("{}/.snask/lib/{}/runtime.linkargs", home, t)
+        }
     } else {
-        if tiny { format!("{}/.snask/lib/runtime_tiny.linkargs", home) }
-        else { format!("{}/.snask/lib/runtime.linkargs", home) }
+        if tiny {
+            format!("{}/.snask/lib/runtime_tiny.linkargs", home)
+        } else {
+            format!("{}/.snask/lib/runtime.linkargs", home)
+        }
     };
-    let Ok(s) = std::fs::read_to_string(&p) else { return Vec::new(); };
-    s.split_whitespace().map(|x| x.to_string()).collect()
+    if let Ok(s) = std::fs::read_to_string(&p) {
+        let mut args: Vec<String> = s.split_whitespace().map(|x| x.to_string()).collect();
+        for arg in fallback_runtime_linkargs() {
+            if !args.contains(&arg) {
+                args.push(arg);
+            }
+        }
+        return args;
+    }
+    fallback_runtime_linkargs()
+}
+
+fn fallback_runtime_linkargs() -> Vec<String> {
+    let mut args = Vec::new();
+    for pkg in ["gtk+-3.0", "sqlite3", "zlib"] {
+        let out = Command::new("pkg-config").args(["--libs", pkg]).output();
+        let Ok(out) = out else { continue };
+        if !out.status.success() {
+            continue;
+        }
+        let text = String::from_utf8_lossy(&out.stdout);
+        for token in text.split_whitespace() {
+            let token = token.to_string();
+            if !args.contains(&token) {
+                args.push(token);
+            }
+        }
+    }
+    if !args.iter().any(|arg| arg == "-lz") {
+        args.push("-lz".to_string());
+    }
+    args
 }
 
 fn strip_binary(path: &str) {
-    let strip_tool = if Command::new("llvm-strip-18").arg("--version").output().map(|o| o.status.success()).unwrap_or(false) {
+    let strip_tool = if Command::new("llvm-strip-18")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+    {
         "llvm-strip-18"
     } else if Command::new("strip").arg("--version").output().is_ok() {
         "strip"
@@ -482,20 +864,72 @@ pub fn resolve_imports(
     for stmt in program.drain(..) {
         match stmt.kind {
             StmtKind::Import(ref module_name) => {
-                let module_path = resolve_module_path(entry_dir, module_name)?;
-                if !resolved_modules.contains(&module_path) {
-                    resolved_modules.insert(module_path.clone());
-                    let source = fs::read_to_string(&module_path).map_err(|e| format!("Failed to read module {}: {}", module_name, e))?;
-                    let mut parser = Parser::new(&source).map_err(|e| render_parser_diagnostic(&module_path, &source, &e))?;
-                    let (mut module_program, errors) = parser.parse_program_recovering(10);
-                    if !errors.is_empty() {
-                        return Err(render_parser_diagnostics(&module_path, &source, &errors));
+                if is_native_module(module_name) {
+                    resolved_program.push(stmt);
+                    continue;
+                }
+                match resolve_module_path(entry_dir, module_name) {
+                    Ok(module_path) => {
+                        if !resolved_modules.contains(&module_path) {
+                            resolved_modules.insert(module_path.clone());
+                            let source = fs::read_to_string(&module_path).map_err(|e| {
+                                format!("Failed to read module {}: {}", module_name, e)
+                            })?;
+                            let mut parser = Parser::new(&source)
+                                .map_err(|e| render_parser_diagnostic(&module_path, &source, &e))?;
+                            let (module_program, errors) = parser.parse_program_recovering(10);
+                            if !errors.is_empty() {
+                                return Err(render_parser_diagnostics(
+                                    &module_path,
+                                    &source,
+                                    &errors,
+                                ));
+                            }
+                            if let Some(mut prog) = module_program {
+                                let prefix = module_name.split('/').last().unwrap_or(module_name);
+                                if prefix != "prelude" {
+                                    for s in &mut prog {
+                                        match &mut s.kind {
+                                            StmtKind::FuncDeclaration(f) => {
+                                                f.name = format!("{}::{}", prefix, f.name)
+                                            }
+                                            StmtKind::ClassDeclaration(c) => {
+                                                c.name = format!("{}::{}", prefix, c.name)
+                                            }
+                                            StmtKind::VarDeclaration(v) => {
+                                                v.name = format!("{}::{}", prefix, v.name)
+                                            }
+                                            StmtKind::MutDeclaration(v) => {
+                                                v.name = format!("{}::{}", prefix, v.name)
+                                            }
+                                            StmtKind::ConstDeclaration(v) => {
+                                                v.name = format!("{}::{}", prefix, v.name)
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                }
+                                resolve_imports(
+                                    &mut prog,
+                                    Path::new(&module_path).parent().unwrap(),
+                                    resolved_program,
+                                    resolved_modules,
+                                )?;
+                            }
+                        }
                     }
-                    if let Some(mut prog) = module_program {
-                        resolve_imports(&mut prog, Path::new(&module_path).parent().unwrap(), resolved_program, resolved_modules)?;
+                    Err(e) => {
+                        // If not found as .snask, check if it's a C package
+                        let pkg = resolve_pkg_name(module_name);
+                        if has_pkg(&pkg) {
+                            resolved_program.push(stmt);
+                            continue;
+                        }
+                        return Err(e);
                     }
                 }
             }
+            StmtKind::ImportCOm { .. } => resolved_program.push(stmt),
             _ => resolved_program.push(stmt),
         }
     }
@@ -508,13 +942,13 @@ fn resolve_module_path(entry_dir: &Path, module_name: &str) -> Result<String, St
     } else {
         format!("{}.snask", module_name)
     };
-    
+
     // 1. Local path
     let local = entry_dir.join(&name_with_ext);
     if local.exists() {
         return Ok(local.to_string_lossy().to_string());
     }
-    
+
     // Try raw module_name if it's a direct path
     let raw = entry_dir.join(module_name);
     if raw.exists() {
@@ -523,25 +957,129 @@ fn resolve_module_path(entry_dir: &Path, module_name: &str) -> Result<String, St
 
     // 2. Stdlib / Packages (MVP: check both direct and nested structure)
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let pkg_direct = Path::new(&home).join(".snask/packages").join(&name_with_ext);
+    let pkg_direct = Path::new(&home)
+        .join(".snask/packages")
+        .join(&name_with_ext);
     if pkg_direct.exists() {
         return Ok(pkg_direct.to_string_lossy().to_string());
     }
-    let pkg_nested = Path::new(&home).join(".snask/packages").join(module_name).join(&name_with_ext);
+    let pkg_nested = Path::new(&home)
+        .join(".snask/packages")
+        .join(module_name)
+        .join(&name_with_ext);
     if pkg_nested.exists() {
         return Ok(pkg_nested.to_string_lossy().to_string());
     }
     Err(format!("Module '{}' not found.", module_name))
 }
 
-pub fn render_parser_diagnostic(_filename: &str, _source: &str, err: &ParseError) -> String {
-    format!("Error: {} at line {}, col {}", err.message, err.span.start.line, err.span.start.column)
+pub fn render_parser_diagnostic(filename: &str, source: &str, err: &ParseError) -> String {
+    render_parser_diagnostics(filename, source, std::slice::from_ref(err))
 }
 
 pub fn render_parser_diagnostics(filename: &str, source: &str, errs: &[ParseError]) -> String {
-    errs.iter().map(|e| render_parser_diagnostic(filename, source, e)).collect::<Vec<_>>().join("\n")
+    let mut bag = DiagnosticBag::new();
+    let shown = errs.len().min(3);
+    for err in errs.iter().take(shown) {
+        let mut diagnostic = Diagnostic::error(parser_message(err))
+            .with_code(humane_code(err.code).to_string())
+            .with_annotation(Annotation::primary(
+                err.span,
+                parser_annotation(err).to_string(),
+            ));
+        for note in &err.notes {
+            diagnostic = diagnostic.with_note(note.clone());
+        }
+        if let Some(help) = &err.help {
+            diagnostic = diagnostic.with_help(help.clone());
+        }
+        bag.add(diagnostic);
+    }
+    let mut rendered = bag.render_all(filename, source);
+    if errs.len() > shown {
+        rendered.push_str(&format!(
+            "\nnote: {} more parse error(s) were hidden. Fix the first error and run the compiler again.\n",
+            errs.len() - shown
+        ));
+    }
+    rendered
 }
 
-pub fn render_semantic_diagnostics(filename: &str, _source: &str, errors: &[SemanticError]) -> String {
-    errors.iter().map(|e| format!("Semantic Error in {}: {:?}", filename, e)).collect::<Vec<_>>().join("\n")
+pub fn render_semantic_diagnostics(
+    filename: &str,
+    source: &str,
+    errors: &[SemanticError],
+) -> String {
+    let mut bag = DiagnosticBag::new();
+    let shown = errors.len().min(5);
+    for error in errors.iter().take(shown) {
+        let mut diagnostic = Diagnostic::error(error.message())
+            .with_code(humane_code(error.code()).to_string())
+            .with_annotation(Annotation::primary(
+                error.span,
+                semantic_annotation(error).to_string(),
+            ));
+        for note in &error.notes {
+            diagnostic = diagnostic.with_note(note.clone());
+        }
+        if let Some(help) = &error.help {
+            diagnostic = diagnostic.with_help(help.clone());
+        }
+        bag.add(diagnostic);
+    }
+    let mut rendered = bag.render_all(filename, source);
+    if errors.len() > shown {
+        rendered.push_str(&format!(
+            "\nnote: {} more semantic error(s) were hidden. Fix the first error and run the compiler again.\n",
+            errors.len() - shown
+        ));
+    }
+    rendered
+}
+
+fn parser_message(err: &ParseError) -> String {
+    match err.code {
+        "SNASK-PARSE-MISSING-RPAREN" => "missing closing `)`".to_string(),
+        "SNASK-PARSE-MISSING-RBRACKET" => "missing closing `]`".to_string(),
+        "SNASK-PARSE-MISSING-RBRACE" => "missing closing `}`".to_string(),
+        "SNASK-PARSE-INDENT" => "expected an indented block".to_string(),
+        "SNASK-PARSE-SEMICOLON" => "missing statement terminator".to_string(),
+        "SNASK-PARSE-EXPR" => "expected an expression".to_string(),
+        _ => err.message.clone(),
+    }
+}
+
+fn parser_annotation(err: &ParseError) -> &'static str {
+    match err.code {
+        "SNASK-PARSE-MISSING-RPAREN" => "expected `)` here",
+        "SNASK-PARSE-MISSING-RBRACKET" => "expected `]` here",
+        "SNASK-PARSE-MISSING-RBRACE" => "expected `}` here",
+        "SNASK-PARSE-INDENT" => "this block needs indentation",
+        "SNASK-PARSE-SEMICOLON" => "statement ends here",
+        "SNASK-PARSE-EXPR" => "expression should start here",
+        _ => "problem starts here",
+    }
+}
+
+fn semantic_annotation(error: &SemanticError) -> &'static str {
+    use crate::semantic_analyzer::SemanticErrorKind::*;
+    match &error.kind {
+        VariableAlreadyDeclared(_) => "already declared here",
+        VariableNotFound(_) => "unknown name",
+        FunctionAlreadyDeclared(_) => "already declared here",
+        FunctionNotFound(_) => "unknown function",
+        UnknownType(_) => "unknown type",
+        MissingReturn { .. } => "function may exit here without returning",
+        TypeMismatch { .. } => "type mismatch here",
+        InvalidOperation { .. } => "invalid operation",
+        ImmutableAssignment(_) => "cannot assign to immutable binding",
+        ReturnOutsideFunction => "`return` is only valid inside a function",
+        WrongNumberOfArguments { .. } => "wrong number of arguments",
+        IndexAccessOnNonIndexable(_) => "cannot index this value",
+        InvalidIndexType(_) => "invalid index type",
+        PropertyNotFound(_) => "unknown property",
+        NotCallable(_) => "this value is not callable",
+        RestrictedNativeFunction { .. } => "reserved native function",
+        TinyDisallowedLib { .. } => "not available in tiny mode",
+    }
 }

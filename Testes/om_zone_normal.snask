@@ -1,0 +1,7 @@
+import "sqlite"
+
+class main
+    fun start()
+        zone "normal"
+            let db = sqlite.Database.open("om_zone_normal.sqlite")
+            print("normal")

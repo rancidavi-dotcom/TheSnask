@@ -1,8 +1,8 @@
+use crate::compiler::{self, BuildOptions};
+use crate::sps;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::collections::BTreeMap;
-use crate::sps;
-use crate::compiler::{self, BuildOptions};
 
 pub fn run_dist(
     file: Option<String>,
@@ -21,7 +21,11 @@ pub fn run_dist(
         // pin + resolve deps para garantir build determinístico (e lock)
         sps::pin_from_lock(&cwd, &m)?;
         sps::resolve_deps_and_lock(&cwd, &m)?;
-        (Some(m.clone()), file.unwrap_or_else(|| m.package.entry.clone()), m.build.features.clone())
+        (
+            Some(m.clone()),
+            file.unwrap_or_else(|| m.package.entry.clone()),
+            m.build.features.clone(),
+        )
     } else {
         (None, compiler::resolve_entry_file(file)?, BTreeMap::new())
     };
@@ -75,16 +79,27 @@ pub fn run_dist(
         }
 
         // opt level: do SPS se existir, senão O2
-        let opt_level = manifest.as_ref().map(|m| m.opt_level_for(true)).unwrap_or(2);
+        let opt_level = manifest
+            .as_ref()
+            .map(|m| m.opt_level_for(true))
+            .unwrap_or(2);
 
         // dist is production-oriented: default to release-size unless the manifest explicitly chooses a profile.
         let (release_size, tiny, do_strip, opt_override) = if let Some(m) = &manifest {
-            let p = m.build.profile.clone().unwrap_or_else(|| "release-size".to_string());
+            let p = m
+                .build
+                .profile
+                .clone()
+                .unwrap_or_else(|| "release-size".to_string());
             let tiny = p == "tiny";
             let release_size = p == "release-size" || (!tiny && p == "release");
             let do_strip = m.build.strip.unwrap_or(release_size || tiny);
             let opt_override = m.build.opt.clone().or_else(|| {
-                if tiny { Some("Oz".to_string()) } else { Some("Os".to_string()) }
+                if tiny {
+                    Some("Oz".to_string())
+                } else {
+                    Some("Os".to_string())
+                }
             });
             (release_size, tiny, do_strip, opt_override)
         } else {
@@ -95,9 +110,15 @@ pub fn run_dist(
             "🔧 build: {} -> {} (profile={})",
             triple,
             out_path.display(),
-            if tiny { "tiny" } else if release_size { "release-size" } else { "release" }
+            if tiny {
+                "tiny"
+            } else if release_size {
+                "release-size"
+            } else {
+                "release"
+            }
         );
-        
+
         let build_opts = BuildOptions {
             output_name: Some(out_path.to_string_lossy().to_string()),
             target: t.clone(),
@@ -147,7 +168,10 @@ pub fn run_dist(
         if appimage {
             let bin_path = out_dir.join(&base_name);
             if !bin_path.exists() {
-                return Err(format!("Para gerar .AppImage, preciso do binário Linux nativo em '{}'.", bin_path.display()));
+                return Err(format!(
+                    "Para gerar .AppImage, preciso do binário Linux nativo em '{}'.",
+                    bin_path.display()
+                ));
             }
             let app = make_appimage(&out_dir, &base_name, &bin_path)?;
             println!("✅ .AppImage: {}", app.display());
@@ -172,7 +196,8 @@ fn install_linux_user(
 ) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
 
-    let home = std::env::var("HOME").map_err(|_| "HOME environment variable not found.".to_string())?;
+    let home =
+        std::env::var("HOME").map_err(|_| "HOME environment variable not found.".to_string())?;
     let local_bin = Path::new(&home).join(".local/bin");
     let apps = Path::new(&home).join(".local/share/applications");
     let icons = Path::new(&home).join(".local/share/icons/hicolor/scalable/apps");
@@ -184,13 +209,18 @@ fn install_linux_user(
     let app_id = app.as_ref().map(|a| a.id.as_str()).unwrap_or(base_name);
     let app_name = app.as_ref().map(|a| a.name.as_str()).unwrap_or(base_name);
     let comment = app.as_ref().map(|a| a.comment.as_str()).unwrap_or("");
-    let categories = app.as_ref().map(|a| a.categories.as_str()).unwrap_or("Utility;");
+    let categories = app
+        .as_ref()
+        .map(|a| a.categories.as_str())
+        .unwrap_or("Utility;");
     let terminal = app.as_ref().map(|a| a.terminal).unwrap_or(false);
     let icon_field = app.as_ref().map(|a| a.icon.as_str()).unwrap_or("");
 
     let dest_bin = local_bin.join(base_name);
     std::fs::copy(bin_path, &dest_bin).map_err(|e| e.to_string())?;
-    let mut perms = std::fs::metadata(&dest_bin).map_err(|e| e.to_string())?.permissions();
+    let mut perms = std::fs::metadata(&dest_bin)
+        .map_err(|e| e.to_string())?
+        .permissions();
     perms.set_mode(0o755);
     std::fs::set_permissions(&dest_bin, perms).map_err(|e| e.to_string())?;
 
@@ -243,7 +273,9 @@ fn make_deb(out_dir: &Path, name: &str, bin_path: &Path) -> Result<PathBuf, Stri
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(&dest_bin).map_err(|e| e.to_string())?.permissions();
+        let mut perms = std::fs::metadata(&dest_bin)
+            .map_err(|e| e.to_string())?
+            .permissions();
         perms.set_mode(0o755);
         std::fs::set_permissions(&dest_bin, perms).map_err(|e| e.to_string())?;
     }
@@ -263,7 +295,10 @@ fn make_deb(out_dir: &Path, name: &str, bin_path: &Path) -> Result<PathBuf, Stri
         .status()
         .map_err(|e| e.to_string())?;
     if !status.success() {
-        return Err("Failed to build .deb (dpkg-deb). Install `dpkg-deb` (dpkg package) and try again.".to_string());
+        return Err(
+            "Failed to build .deb (dpkg-deb). Install `dpkg-deb` (dpkg package) and try again."
+                .to_string(),
+        );
     }
     Ok(deb_path)
 }
@@ -281,7 +316,9 @@ fn make_appimage(out_dir: &Path, name: &str, bin_path: &Path) -> Result<PathBuf,
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(&dest_bin).map_err(|e| e.to_string())?.permissions();
+        let mut perms = std::fs::metadata(&dest_bin)
+            .map_err(|e| e.to_string())?
+            .permissions();
         perms.set_mode(0o755);
         std::fs::set_permissions(&dest_bin, perms).map_err(|e| e.to_string())?;
     }
@@ -293,7 +330,9 @@ fn make_appimage(out_dir: &Path, name: &str, bin_path: &Path) -> Result<PathBuf,
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(&apprun_path).map_err(|e| e.to_string())?.permissions();
+        let mut perms = std::fs::metadata(&apprun_path)
+            .map_err(|e| e.to_string())?
+            .permissions();
         perms.set_mode(0o755);
         std::fs::set_permissions(&apprun_path, perms).map_err(|e| e.to_string())?;
     }

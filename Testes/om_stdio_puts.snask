@@ -1,0 +1,5 @@
+import_c_om "stdio.h" as stdio
+
+class main
+    fun start()
+        stdio.puts("stdio.h via Snask Auto-OM")

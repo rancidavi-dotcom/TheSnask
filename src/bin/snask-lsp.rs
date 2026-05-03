@@ -1,21 +1,21 @@
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result as JsonResult;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
-use snask::parser::Parser;
-use snask::semantic_analyzer::SemanticAnalyzer;
-use snask::span as snask_span;
 use snask::ast::{Program, StmtKind};
+use snask::parser::Parser;
 use snask::parser::Token as SnaskToken;
+use snask::semantic_analyzer::SemanticAnalyzer;
+use snask::snif_fmt::format_snif;
 use snask::snif_parser::parse_snif;
 use snask::snif_schema::validate_snask_manifest;
-use snask::snif_fmt::format_snif;
+use snask::span as snask_span;
 
 #[derive(Default, Clone)]
 struct Document {
@@ -98,7 +98,10 @@ impl Backend {
     }
 
     fn should_skip_dir(name: &str) -> bool {
-        matches!(name, ".git" | "target" | "dist" | "build" | "node_modules" | ".snask")
+        matches!(
+            name,
+            ".git" | "target" | "dist" | "build" | "node_modules" | ".snask"
+        )
     }
 
     fn scan_snask_files(root: &Path) -> Vec<PathBuf> {
@@ -134,8 +137,12 @@ impl Backend {
 
         for root in roots {
             for file in Self::scan_snask_files(&root) {
-                let Ok(text) = fs::read_to_string(&file) else { continue };
-                let Ok(uri) = Url::from_file_path(&file) else { continue };
+                let Ok(text) = fs::read_to_string(&file) else {
+                    continue;
+                };
+                let Ok(uri) = Url::from_file_path(&file) else {
+                    continue;
+                };
                 if let Ok(program) = Parser::new(&text).and_then(|mut p| p.parse_program()) {
                     let symbols = Self::collect_symbols(&uri, &program);
                     let mut st = state.write().await;
@@ -282,7 +289,9 @@ impl Backend {
                     }
                 }
                 StmtKind::Loop(l) => match l {
-                    snask::ast::LoopStmt::While { body, .. } => Self::collect_locals_in_stmts(body, out),
+                    snask::ast::LoopStmt::While { body, .. } => {
+                        Self::collect_locals_in_stmts(body, out)
+                    }
                     snask::ast::LoopStmt::For { iterator, body, .. } => {
                         out.push((iterator.clone(), SymbolKind::Variable));
                         Self::collect_locals_in_stmts(body, out)
@@ -336,8 +345,14 @@ impl Backend {
                         for e in errs {
                             diags.push(Diagnostic {
                                 range: Range {
-                                    start: Position { line: 0, character: 0 },
-                                    end: Position { line: 0, character: 1 },
+                                    start: Position {
+                                        line: 0,
+                                        character: 0,
+                                    },
+                                    end: Position {
+                                        line: 0,
+                                        character: 1,
+                                    },
                                 },
                                 severity: Some(DiagnosticSeverity::ERROR),
                                 code: None,
@@ -356,8 +371,14 @@ impl Backend {
                     let col0 = (e.col as u32).saturating_sub(1);
                     diags.push(Diagnostic {
                         range: Range {
-                            start: Position { line: line0, character: col0 },
-                            end: Position { line: line0, character: col0.saturating_add(1) },
+                            start: Position {
+                                line: line0,
+                                character: col0,
+                            },
+                            end: Position {
+                                line: line0,
+                                character: col0.saturating_add(1),
+                            },
                         },
                         severity: Some(DiagnosticSeverity::ERROR),
                         code: None,
@@ -371,50 +392,71 @@ impl Backend {
                 }
             }
         } else {
-        match Parser::new(&text) {
-            Ok(mut p) => {
-                let (program_opt, parse_errors) = p.parse_program_recovering(10);
-                if !parse_errors.is_empty() {
-                    self.set_symbols(uri.clone(), FileSymbols::default()).await;
-                    for err in parse_errors {
-                        let range = Self::span_to_range(&err.span);
-                        let mut message = err.message.clone();
-                        for n in &err.notes {
-                            message.push_str(&format!("\n\nnote: {}", n));
+            match Parser::new(&text) {
+                Ok(mut p) => {
+                    let (program_opt, parse_errors) = p.parse_program_recovering(10);
+                    if !parse_errors.is_empty() {
+                        self.set_symbols(uri.clone(), FileSymbols::default()).await;
+                        for err in parse_errors {
+                            let range = Self::span_to_range(&err.span);
+                            let mut message = err.message.clone();
+                            for n in &err.notes {
+                                message.push_str(&format!("\n\nnote: {}", n));
+                            }
+                            if let Some(h) = &err.help {
+                                message.push_str(&format!("\n\nhelp: {}", h));
+                            }
+                            diags.push(Diagnostic {
+                                range,
+                                severity: Some(DiagnosticSeverity::ERROR),
+                                code: Some(NumberOrString::String(err.code.to_string())),
+                                code_description: None,
+                                source: Some("snask".to_string()),
+                                message,
+                                related_information: None,
+                                tags: None,
+                                data: None,
+                            });
                         }
-                        if let Some(h) = &err.help {
-                            message.push_str(&format!("\n\nhelp: {}", h));
-                        }
-                        diags.push(Diagnostic {
-                            range,
-                            severity: Some(DiagnosticSeverity::ERROR),
-                            code: Some(NumberOrString::String(err.code.to_string())),
-                            code_description: None,
-                            source: Some("snask".to_string()),
-                            message,
-                            related_information: None,
-                            tags: None,
-                            data: None,
-                        });
-                    }
-                } else if let Some(program) = program_opt {
-                let symbols = Self::collect_symbols(&uri, &program);
-                self.set_symbols(uri.clone(), symbols).await;
+                    } else if let Some(program) = program_opt {
+                        let symbols = Self::collect_symbols(&uri, &program);
+                        self.set_symbols(uri.clone(), symbols).await;
 
-                let mut analyzer = SemanticAnalyzer::new();
-                analyzer.analyze(&program);
-                for err in analyzer.errors {
-                    let mut message = err.message();
-                    for n in &err.notes {
-                        message.push_str(&format!("\n\nnote: {}", n));
+                        let mut analyzer = SemanticAnalyzer::new();
+                        analyzer.analyze(&program);
+                        for err in analyzer.errors {
+                            let mut message = err.message();
+                            for n in &err.notes {
+                                message.push_str(&format!("\n\nnote: {}", n));
+                            }
+                            if let Some(h) = &err.help {
+                                message.push_str(&format!("\n\nhelp: {}", h));
+                            }
+                            diags.push(Diagnostic {
+                                range: Self::span_to_range(&err.span),
+                                severity: Some(DiagnosticSeverity::ERROR),
+                                code: Some(NumberOrString::String("SNASK-SEM".to_string())),
+                                code_description: None,
+                                source: Some("snask".to_string()),
+                                message,
+                                related_information: None,
+                                tags: None,
+                                data: None,
+                            });
+                        }
                     }
+                }
+                Err(err) => {
+                    self.set_symbols(uri.clone(), FileSymbols::default()).await;
+                    let range = Self::span_to_range(&err.span);
+                    let mut message = err.message.clone();
                     if let Some(h) = &err.help {
                         message.push_str(&format!("\n\nhelp: {}", h));
                     }
                     diags.push(Diagnostic {
-                        range: Self::span_to_range(&err.span),
+                        range,
                         severity: Some(DiagnosticSeverity::ERROR),
-                        code: Some(NumberOrString::String("SNASK-SEM".to_string())),
+                        code: Some(NumberOrString::String(err.code.to_string())),
                         code_description: None,
                         source: Some("snask".to_string()),
                         message,
@@ -423,28 +465,7 @@ impl Backend {
                         data: None,
                     });
                 }
-                }
             }
-            Err(err) => {
-                self.set_symbols(uri.clone(), FileSymbols::default()).await;
-                let range = Self::span_to_range(&err.span);
-                let mut message = err.message.clone();
-                if let Some(h) = &err.help {
-                    message.push_str(&format!("\n\nhelp: {}", h));
-                }
-                diags.push(Diagnostic {
-                    range,
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    code: Some(NumberOrString::String(err.code.to_string())),
-                    code_description: None,
-                    source: Some("snask".to_string()),
-                    message,
-                    related_information: None,
-                    tags: None,
-                    data: None,
-                });
-            }
-        }
         }
 
         self.client
@@ -477,7 +498,11 @@ impl LanguageServer for Backend {
                 .filter_map(|f| f.uri.to_file_path().ok())
                 .collect()
         } else if let Some(root_uri) = &params.root_uri {
-            root_uri.to_file_path().ok().map(|p| vec![p]).unwrap_or_default()
+            root_uri
+                .to_file_path()
+                .ok()
+                .map(|p| vec![p])
+                .unwrap_or_default()
         } else {
             vec![]
         };
@@ -488,23 +513,31 @@ impl LanguageServer for Backend {
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::INCREMENTAL)),
+                text_document_sync: Some(TextDocumentSyncCapability::Kind(
+                    TextDocumentSyncKind::INCREMENTAL,
+                )),
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: Some(false),
-                    trigger_characters: Some(vec![":".to_string(), ".".to_string(), "\"".to_string()]),
+                    trigger_characters: Some(vec![
+                        ":".to_string(),
+                        ".".to_string(),
+                        "\"".to_string(),
+                    ]),
                     ..Default::default()
                 }),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 definition_provider: Some(OneOf::Left(true)),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
-                semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
-                    SemanticTokensOptions {
-                        work_done_progress_options: WorkDoneProgressOptions::default(),
-                        legend,
-                        range: Some(false),
-                        full: Some(SemanticTokensFullOptions::Bool(true)),
-                    },
-                )),
+                semantic_tokens_provider: Some(
+                    SemanticTokensServerCapabilities::SemanticTokensOptions(
+                        SemanticTokensOptions {
+                            work_done_progress_options: WorkDoneProgressOptions::default(),
+                            legend,
+                            range: Some(false),
+                            full: Some(SemanticTokensFullOptions::Bool(true)),
+                        },
+                    ),
+                ),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -528,7 +561,8 @@ impl LanguageServer for Backend {
         let doc = params.text_document;
         self.set_doc(doc.uri.clone(), doc.text.clone(), doc.version)
             .await;
-        self.publish_diagnostics(doc.uri, doc.text, doc.version).await;
+        self.publish_diagnostics(doc.uri, doc.text, doc.version)
+            .await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -545,7 +579,11 @@ impl LanguageServer for Backend {
             if let Some(range) = change.range {
                 // Minimal incremental apply (UTF-16 positions are complex; this is best-effort).
                 // If it fails, fallback to full text.
-                if range.start.line == 0 && range.start.character == 0 && range.end.line == 0 && range.end.character == 0 {
+                if range.start.line == 0
+                    && range.start.character == 0
+                    && range.end.line == 0
+                    && range.end.character == 0
+                {
                     text = change.text;
                 } else {
                     // Fallback: treat as full text (VS Code usually sends full text if configured).
@@ -588,7 +626,11 @@ impl LanguageServer for Backend {
             }
         } else {
             let line = doc.text.lines().nth(pos.line as usize).unwrap_or("");
-            format!("Snask (v{})\n\n`{}`", env!("CARGO_PKG_VERSION"), line.trim())
+            format!(
+                "Snask (v{})\n\n`{}`",
+                env!("CARGO_PKG_VERSION"),
+                line.trim()
+            )
         };
 
         Ok(Some(Hover {
@@ -600,7 +642,10 @@ impl LanguageServer for Backend {
         }))
     }
 
-    async fn goto_definition(&self, params: GotoDefinitionParams) -> JsonResult<Option<GotoDefinitionResponse>> {
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> JsonResult<Option<GotoDefinitionResponse>> {
         let uri = params.text_document_position_params.text_document.uri;
         let pos = params.text_document_position_params.position;
         let doc = match self.get_doc(&uri).await {
@@ -632,25 +677,37 @@ impl LanguageServer for Backend {
         let mut items: Vec<CompletionItem> = Vec::new();
 
         // Keywords/snippets
-        items.extend([
-            ("class main", "class main\n    fun start()\n        ", CompletionItemKind::KEYWORD),
-            ("fun", "fun ", CompletionItemKind::KEYWORD),
-            ("let", "let ", CompletionItemKind::KEYWORD),
-            ("mut", "mut ", CompletionItemKind::KEYWORD),
-            ("const", "const ", CompletionItemKind::KEYWORD),
-            ("if", "if ", CompletionItemKind::KEYWORD),
-            ("elif", "elif ", CompletionItemKind::KEYWORD),
-            ("else", "else", CompletionItemKind::KEYWORD),
-            ("while", "while ", CompletionItemKind::KEYWORD),
-            ("for", "for ", CompletionItemKind::KEYWORD),
-            ("import", "import \"\";\n", CompletionItemKind::KEYWORD),
-            ("from / import", "from / import ", CompletionItemKind::KEYWORD),
-        ].into_iter().map(|(label, insert, kind)| CompletionItem {
-            label: label.to_string(),
-            kind: Some(kind),
-            insert_text: Some(insert.to_string()),
-            ..Default::default()
-        }));
+        items.extend(
+            [
+                (
+                    "class main",
+                    "class main\n    fun start()\n        ",
+                    CompletionItemKind::KEYWORD,
+                ),
+                ("fun", "fun ", CompletionItemKind::KEYWORD),
+                ("let", "let ", CompletionItemKind::KEYWORD),
+                ("mut", "mut ", CompletionItemKind::KEYWORD),
+                ("const", "const ", CompletionItemKind::KEYWORD),
+                ("if", "if ", CompletionItemKind::KEYWORD),
+                ("elif", "elif ", CompletionItemKind::KEYWORD),
+                ("else", "else", CompletionItemKind::KEYWORD),
+                ("while", "while ", CompletionItemKind::KEYWORD),
+                ("for", "for ", CompletionItemKind::KEYWORD),
+                ("import", "import \"\";\n", CompletionItemKind::KEYWORD),
+                (
+                    "from / import",
+                    "from / import ",
+                    CompletionItemKind::KEYWORD,
+                ),
+            ]
+            .into_iter()
+            .map(|(label, insert, kind)| CompletionItem {
+                label: label.to_string(),
+                kind: Some(kind),
+                insert_text: Some(insert.to_string()),
+                ..Default::default()
+            }),
+        );
 
         // Parse current doc to get locals at position (best-effort).
         if let Ok(program) = Parser::new(&doc.text).and_then(|mut p| p.parse_program()) {
@@ -701,7 +758,10 @@ impl LanguageServer for Backend {
         Ok(Some(CompletionResponse::Array(items)))
     }
 
-    async fn semantic_tokens_full(&self, params: SemanticTokensParams) -> JsonResult<Option<SemanticTokensResult>> {
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> JsonResult<Option<SemanticTokensResult>> {
         let uri = params.text_document.uri;
         let doc = match self.get_doc(&uri).await {
             Some(d) => d,
@@ -786,7 +846,15 @@ impl LanguageServer for Backend {
                         }
                     }
                     let len = col.saturating_sub(start_col).max(1);
-                    push_tok(&mut data, &mut prev_line, &mut prev_col, line, start_col, len, 4);
+                    push_tok(
+                        &mut data,
+                        &mut prev_line,
+                        &mut prev_col,
+                        line,
+                        start_col,
+                        len,
+                        4,
+                    );
                     continue;
                 }
 
@@ -799,7 +867,10 @@ impl LanguageServer for Backend {
                     let start_col = col;
                     while i < bytes.len() {
                         let c = bytes[i];
-                        let ok = (c as char).is_ascii_alphanumeric() || c == b'_' || c == b'$' || c == b'-';
+                        let ok = (c as char).is_ascii_alphanumeric()
+                            || c == b'_'
+                            || c == b'$'
+                            || c == b'-';
                         if !ok {
                             break;
                         }
@@ -808,7 +879,15 @@ impl LanguageServer for Backend {
                     }
                     if i > start {
                         let len = (i - start) as u32;
-                        push_tok(&mut data, &mut prev_line, &mut prev_col, line, start_col, len, 3);
+                        push_tok(
+                            &mut data,
+                            &mut prev_line,
+                            &mut prev_col,
+                            line,
+                            start_col,
+                            len,
+                            3,
+                        );
                     }
                     continue;
                 }
@@ -821,7 +900,12 @@ impl LanguageServer for Backend {
                     col += 1;
                     while i < bytes.len() {
                         let c = bytes[i];
-                        let ok = (c as char).is_ascii_digit() || c == b'.' || c == b'e' || c == b'E' || c == b'+' || c == b'-';
+                        let ok = (c as char).is_ascii_digit()
+                            || c == b'.'
+                            || c == b'e'
+                            || c == b'E'
+                            || c == b'+'
+                            || c == b'-';
                         if !ok {
                             break;
                         }
@@ -829,7 +913,15 @@ impl LanguageServer for Backend {
                         col += 1;
                     }
                     let len = (i - start_i) as u32;
-                    push_tok(&mut data, &mut prev_line, &mut prev_col, line, start_col, len.max(1), 5);
+                    push_tok(
+                        &mut data,
+                        &mut prev_line,
+                        &mut prev_col,
+                        line,
+                        start_col,
+                        len.max(1),
+                        5,
+                    );
                     continue;
                 }
 
@@ -841,7 +933,10 @@ impl LanguageServer for Backend {
                     col += 1;
                     while i < bytes.len() {
                         let c = bytes[i];
-                        let ok = (c as char).is_ascii_alphanumeric() || c == b'_' || c == b'$' || c == b'-';
+                        let ok = (c as char).is_ascii_alphanumeric()
+                            || c == b'_'
+                            || c == b'$'
+                            || c == b'-';
                         if !ok {
                             break;
                         }
@@ -851,11 +946,25 @@ impl LanguageServer for Backend {
                     let len = (i - start_i) as u32;
                     // If next non-ws is ':', treat as object key (namespace-ish).
                     let mut j = i;
-                    while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t' || bytes[j] == b'\r') {
+                    while j < bytes.len()
+                        && (bytes[j] == b' ' || bytes[j] == b'\t' || bytes[j] == b'\r')
+                    {
                         j += 1;
                     }
-                    let tok_type = if j < bytes.len() && bytes[j] == b':' { 7 } else { 2 };
-                    push_tok(&mut data, &mut prev_line, &mut prev_col, line, start_col, len.max(1), tok_type);
+                    let tok_type = if j < bytes.len() && bytes[j] == b':' {
+                        7
+                    } else {
+                        2
+                    };
+                    push_tok(
+                        &mut data,
+                        &mut prev_line,
+                        &mut prev_col,
+                        line,
+                        start_col,
+                        len.max(1),
+                        tok_type,
+                    );
                     continue;
                 }
 
@@ -876,7 +985,12 @@ impl LanguageServer for Backend {
 
         let tokens = match snask::parser::tokenize(&doc.text) {
             Ok(t) => t,
-            Err(_) => return Ok(Some(SemanticTokensResult::Tokens(SemanticTokens { result_id: None, data: vec![] }))),
+            Err(_) => {
+                return Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
+                    result_id: None,
+                    data: vec![],
+                })))
+            }
         };
 
         let mut data: Vec<SemanticToken> = Vec::new();
@@ -925,31 +1039,50 @@ impl LanguageServer for Backend {
                 SnaskToken::String(s, _) => ((s.len() + 2).max(1) as u32, Some(4)),
 
                 // Operators/delims
-                SnaskToken::Plus(_) | SnaskToken::Minus(_) | SnaskToken::Star(_) | SnaskToken::Slash(_)
-                | SnaskToken::Equal(_) | SnaskToken::Less(_) | SnaskToken::Greater(_)
-                | SnaskToken::Comma(_) | SnaskToken::Dot(_) | SnaskToken::Colon(_)
+                SnaskToken::Plus(_)
+                | SnaskToken::Minus(_)
+                | SnaskToken::Star(_)
+                | SnaskToken::Slash(_)
+                | SnaskToken::Equal(_)
+                | SnaskToken::Less(_)
+                | SnaskToken::Greater(_)
+                | SnaskToken::Comma(_)
+                | SnaskToken::Dot(_)
+                | SnaskToken::Colon(_)
                 | SnaskToken::Semicolon(_) => (1, Some(6)),
-                SnaskToken::DoubleSlash(_) | SnaskToken::PlusEqual(_) | SnaskToken::MinusEqual(_)
-                | SnaskToken::StarEqual(_) | SnaskToken::SlashEqual(_) | SnaskToken::EqualEqual(_)
-                | SnaskToken::BangEqual(_) | SnaskToken::LessEqual(_) | SnaskToken::GreaterEqual(_)
+                SnaskToken::DoubleSlash(_)
+                | SnaskToken::PlusEqual(_)
+                | SnaskToken::MinusEqual(_)
+                | SnaskToken::StarEqual(_)
+                | SnaskToken::SlashEqual(_)
+                | SnaskToken::EqualEqual(_)
+                | SnaskToken::BangEqual(_)
+                | SnaskToken::LessEqual(_)
+                | SnaskToken::GreaterEqual(_)
                 | SnaskToken::DoubleColon(_) => (2, Some(6)),
                 SnaskToken::TripleEqual(_) => (3, Some(6)),
 
                 // Brackets/parens
-                SnaskToken::LeftParen(_) | SnaskToken::RightParen(_)
-                | SnaskToken::LeftBrace(_) | SnaskToken::RightBrace(_)
-                | SnaskToken::LeftBracket(_) | SnaskToken::RightBracket(_) => (1, Some(6)),
+                SnaskToken::LeftParen(_)
+                | SnaskToken::RightParen(_)
+                | SnaskToken::LeftBrace(_)
+                | SnaskToken::RightBrace(_)
+                | SnaskToken::LeftBracket(_)
+                | SnaskToken::RightBracket(_) => (1, Some(6)),
 
                 // Whitespace / structural
-                SnaskToken::Indent(_) | SnaskToken::Dedent(_) | SnaskToken::Newline(_) | SnaskToken::Eof(_) => (0, None),
+                SnaskToken::Indent(_)
+                | SnaskToken::Dedent(_)
+                | SnaskToken::Newline(_)
+                | SnaskToken::Eof(_) => (0, None),
                 SnaskToken::List(_) | SnaskToken::Dict(_) => (4, Some(0)),
                 _ => (1, None),
             };
 
             // Update "expect next identifier" state based on current token
             match t {
-                SnaskToken::Fun(_) => expect_ident_as = Some(1),       // function
-                SnaskToken::Class(_) => expect_ident_as = Some(3),     // type
+                SnaskToken::Fun(_) => expect_ident_as = Some(1), // function
+                SnaskToken::Class(_) => expect_ident_as = Some(3), // type
                 SnaskToken::Let(_) | SnaskToken::Mut(_) => expect_ident_as = Some(2), // variable
                 SnaskToken::Const(_) => expect_ident_as = Some(2),
                 SnaskToken::From(_) | SnaskToken::Import(_) => expect_ident_as = Some(7), // namespace/module-ish
@@ -986,7 +1119,10 @@ impl LanguageServer for Backend {
         })))
     }
 
-    async fn code_action(&self, params: CodeActionParams) -> JsonResult<Option<CodeActionResponse>> {
+    async fn code_action(
+        &self,
+        params: CodeActionParams,
+    ) -> JsonResult<Option<CodeActionResponse>> {
         let uri = params.text_document.uri;
         let doc = match self.get_doc(&uri).await {
             Some(d) => d,
@@ -1002,16 +1138,17 @@ impl LanguageServer for Backend {
                 let formatted = format_snif(&v);
                 let v_clone = v.clone();
                 let last_line = doc.text.lines().count().saturating_sub(1) as u32;
-                let last_col = doc
-                    .text
-                    .lines()
-                    .last()
-                    .map(|l| l.len() as u32)
-                    .unwrap_or(0);
+                let last_col = doc.text.lines().last().map(|l| l.len() as u32).unwrap_or(0);
                 let edit = TextEdit {
                     range: Range {
-                        start: Position { line: 0, character: 0 },
-                        end: Position { line: last_line, character: last_col },
+                        start: Position {
+                            line: 0,
+                            character: 0,
+                        },
+                        end: Position {
+                            line: last_line,
+                            character: last_col,
+                        },
                     },
                     new_text: formatted,
                 };
@@ -1031,18 +1168,32 @@ impl LanguageServer for Backend {
                     let missing_entry = errs.iter().any(|e| e.path == "$.package.entry");
                     if missing_entry {
                         if let snask::snif_parser::SnifValue::Object(mut root) = v_clone {
-                            if let Some(snask::snif_parser::SnifValue::Object(mut pkg)) = root.remove("package") {
+                            if let Some(snask::snif_parser::SnifValue::Object(mut pkg)) =
+                                root.remove("package")
+                            {
                                 if !pkg.contains_key("entry") {
                                     pkg.insert(
                                         "entry".to_string(),
-                                        snask::snif_parser::SnifValue::String("main.snask".to_string()),
+                                        snask::snif_parser::SnifValue::String(
+                                            "main.snask".to_string(),
+                                        ),
                                     );
-                                    root.insert("package".to_string(), snask::snif_parser::SnifValue::Object(pkg));
-                                    let fixed = format_snif(&snask::snif_parser::SnifValue::Object(root));
+                                    root.insert(
+                                        "package".to_string(),
+                                        snask::snif_parser::SnifValue::Object(pkg),
+                                    );
+                                    let fixed =
+                                        format_snif(&snask::snif_parser::SnifValue::Object(root));
                                     let edit = TextEdit {
                                         range: Range {
-                                            start: Position { line: 0, character: 0 },
-                                            end: Position { line: last_line, character: last_col },
+                                            start: Position {
+                                                line: 0,
+                                                character: 0,
+                                            },
+                                            end: Position {
+                                                line: last_line,
+                                                character: last_col,
+                                            },
                                         },
                                         new_text: fixed,
                                     };
@@ -1050,7 +1201,10 @@ impl LanguageServer for Backend {
                                         title: "Add package.entry = \"main.snask\"".to_string(),
                                         kind: Some(CodeActionKind::QUICKFIX),
                                         diagnostics: None,
-                                        edit: Some(Self::mk_workspace_edit(uri.clone(), vec![edit])),
+                                        edit: Some(Self::mk_workspace_edit(
+                                            uri.clone(),
+                                            vec![edit],
+                                        )),
                                         is_preferred: Some(false),
                                         ..Default::default()
                                     };
@@ -1170,14 +1324,22 @@ impl LanguageServer for Backend {
             }
 
             // Quickfix: insert import for restricted native help
-            if msg.starts_with("Direct use of native '") && msg.contains("Import the library: import \"") {
+            if msg.starts_with("Direct use of native '")
+                && msg.contains("Import the library: import \"")
+            {
                 if let Some(idx) = msg.find("import \"") {
                     let after = &msg[idx + "import \"".len()..];
                     if let Some((lib, _)) = after.split_once("\"") {
                         let edit = TextEdit {
                             range: Range {
-                                start: Position { line: 0, character: 0 },
-                                end: Position { line: 0, character: 0 },
+                                start: Position {
+                                    line: 0,
+                                    character: 0,
+                                },
+                                end: Position {
+                                    line: 0,
+                                    character: 0,
+                                },
                             },
                             new_text: format!("import \"{lib}\";\n"),
                         };

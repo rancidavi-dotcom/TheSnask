@@ -5,6 +5,8 @@
 
 In the world of C/C++, memory is a minefield. In Java/Go/Python, memory is managed by a background process (Garbage Collector) that causes unpredictable pauses (stuttering). **OM is the Third Way.**
 
+For the C interop layer built on top of OM, see `docs/OM_SNASK_SYSTEM.md`. That document covers `import_c_om`, Auto-OM contract inference, `.om.snif` patches, native LLVM calls to C libraries, and OM-managed C resources.
+
 ---
 
 ## 🏗️ The OM Philosophy: "Cleaning Contexts, Not Objects"
