@@ -1,0 +1,2316 @@
+library sqlite3
+# generated_by: snask om scan
+# policy: expose only SAFE and COPY_ONLY entries
+
+resource Blob:
+    c_type: sqlite3_blob*
+    constructor: sqlite3_blob_open
+    destructor: sqlite3_blob_close
+    surface_type: sqlite3.Blob
+    safety: SAFE
+    reason: constructor `sqlite3_blob_open` writes `sqlite3_blob **` and paired destructor `sqlite3_blob_close` accepts `sqlite3_blob*`
+
+resource Sqlite3:
+    c_type: sqlite3*
+    constructor: sqlite3_open
+    destructor: sqlite3_close
+    surface_type: sqlite3.Sqlite3
+    safety: SAFE
+    reason: constructor `sqlite3_open` writes `sqlite3 **` and paired destructor `sqlite3_close` accepts `sqlite3*`
+
+function sqlite3_aggregate_context:
+    c_function: sqlite3_aggregate_context
+    surface: sqlite3.sqlite3_aggregate_context
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_aggregate_count:
+    c_function: sqlite3_aggregate_count
+    surface: sqlite3.sqlite3_aggregate_count
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_auto_extension:
+    c_function: sqlite3_auto_extension
+    surface: sqlite3.sqlite3_auto_extension
+    input: callback_null
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_autovacuum_pages:
+    c_function: sqlite3_autovacuum_pages
+    surface: sqlite3.sqlite3_autovacuum_pages
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_backup_finish:
+    c_function: sqlite3_backup_finish
+    surface: sqlite3.sqlite3_backup_finish
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_backup_init:
+    c_function: sqlite3_backup_init
+    surface: sqlite3.sqlite3_backup_init
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_backup*`
+
+function sqlite3_backup_pagecount:
+    c_function: sqlite3_backup_pagecount
+    surface: sqlite3.sqlite3_backup_pagecount
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_backup_remaining:
+    c_function: sqlite3_backup_remaining
+    surface: sqlite3.sqlite3_backup_remaining
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_backup_step:
+    c_function: sqlite3_backup_step
+    surface: sqlite3.sqlite3_backup_step
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_blob:
+    c_function: sqlite3_bind_blob
+    surface: sqlite3.sqlite3_bind_blob
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_blob64:
+    c_function: sqlite3_bind_blob64
+    surface: sqlite3.sqlite3_bind_blob64
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_double:
+    c_function: sqlite3_bind_double
+    surface: sqlite3.sqlite3_bind_double
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_int:
+    c_function: sqlite3_bind_int
+    surface: sqlite3.sqlite3_bind_int
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_int64:
+    c_function: sqlite3_bind_int64
+    surface: sqlite3.sqlite3_bind_int64
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_null:
+    c_function: sqlite3_bind_null
+    surface: sqlite3.sqlite3_bind_null
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_parameter_count:
+    c_function: sqlite3_bind_parameter_count
+    surface: sqlite3.sqlite3_bind_parameter_count
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_parameter_index:
+    c_function: sqlite3_bind_parameter_index
+    surface: sqlite3.sqlite3_bind_parameter_index
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_parameter_name:
+    c_function: sqlite3_bind_parameter_name
+    surface: sqlite3.sqlite3_bind_parameter_name
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_bind_pointer:
+    c_function: sqlite3_bind_pointer
+    surface: sqlite3.sqlite3_bind_pointer
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_text:
+    c_function: sqlite3_bind_text
+    surface: sqlite3.sqlite3_bind_text
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_text16:
+    c_function: sqlite3_bind_text16
+    surface: sqlite3.sqlite3_bind_text16
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_text64:
+    c_function: sqlite3_bind_text64
+    surface: sqlite3.sqlite3_bind_text64
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_value:
+    c_function: sqlite3_bind_value
+    surface: sqlite3.sqlite3_bind_value
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_zeroblob:
+    c_function: sqlite3_bind_zeroblob
+    surface: sqlite3.sqlite3_bind_zeroblob
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_bind_zeroblob64:
+    c_function: sqlite3_bind_zeroblob64
+    surface: sqlite3.sqlite3_bind_zeroblob64
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_blob_bytes:
+    c_function: sqlite3_blob_bytes
+    surface: sqlite3.sqlite3_blob_bytes
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_blob_bytes` takes recognized resource `sqlite3_blob*` as first argument
+
+function sqlite3_blob_close:
+    c_function: sqlite3_blob_close
+    surface: sqlite3.sqlite3_blob_close
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_blob_close` takes recognized resource `sqlite3_blob*` as first argument
+
+function sqlite3_blob_read:
+    c_function: sqlite3_blob_read
+    surface: sqlite3.sqlite3_blob_read
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_blob_reopen:
+    c_function: sqlite3_blob_reopen
+    surface: sqlite3.sqlite3_blob_reopen
+    input: value
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_blob_reopen` takes recognized resource `sqlite3_blob*` as first argument
+
+function sqlite3_blob_write:
+    c_function: sqlite3_blob_write
+    surface: sqlite3.sqlite3_blob_write
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_busy_handler:
+    c_function: sqlite3_busy_handler
+    surface: sqlite3.sqlite3_busy_handler
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_busy_timeout:
+    c_function: sqlite3_busy_timeout
+    surface: sqlite3.sqlite3_busy_timeout
+    input: value
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_busy_timeout` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_cancel_auto_extension:
+    c_function: sqlite3_cancel_auto_extension
+    surface: sqlite3.sqlite3_cancel_auto_extension
+    input: callback_null
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_changes:
+    c_function: sqlite3_changes
+    surface: sqlite3.sqlite3_changes
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_changes` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_changes64:
+    c_function: sqlite3_changes64
+    surface: sqlite3.sqlite3_changes64
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: method `sqlite3_changes64` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_clear_bindings:
+    c_function: sqlite3_clear_bindings
+    surface: sqlite3.sqlite3_clear_bindings
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_close:
+    c_function: sqlite3_close
+    surface: sqlite3.sqlite3_close
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_close` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_close_v2:
+    c_function: sqlite3_close_v2
+    surface: sqlite3.sqlite3_close_v2
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_close_v2` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_collation_needed:
+    c_function: sqlite3_collation_needed
+    surface: sqlite3.sqlite3_collation_needed
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_collation_needed16:
+    c_function: sqlite3_collation_needed16
+    surface: sqlite3.sqlite3_collation_needed16
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_column_blob:
+    c_function: sqlite3_column_blob
+    surface: sqlite3.sqlite3_column_blob
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_column_bytes:
+    c_function: sqlite3_column_bytes
+    surface: sqlite3.sqlite3_column_bytes
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_column_bytes16:
+    c_function: sqlite3_column_bytes16
+    surface: sqlite3.sqlite3_column_bytes16
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_column_count:
+    c_function: sqlite3_column_count
+    surface: sqlite3.sqlite3_column_count
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_column_database_name:
+    c_function: sqlite3_column_database_name
+    surface: sqlite3.sqlite3_column_database_name
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_column_database_name16:
+    c_function: sqlite3_column_database_name16
+    surface: sqlite3.sqlite3_column_database_name16
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_column_decltype:
+    c_function: sqlite3_column_decltype
+    surface: sqlite3.sqlite3_column_decltype
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_column_decltype16:
+    c_function: sqlite3_column_decltype16
+    surface: sqlite3.sqlite3_column_decltype16
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_column_double:
+    c_function: sqlite3_column_double
+    surface: sqlite3.sqlite3_column_double
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_column_int:
+    c_function: sqlite3_column_int
+    surface: sqlite3.sqlite3_column_int
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_column_int64:
+    c_function: sqlite3_column_int64
+    surface: sqlite3.sqlite3_column_int64
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_int64`
+
+function sqlite3_column_name:
+    c_function: sqlite3_column_name
+    surface: sqlite3.sqlite3_column_name
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_column_name16:
+    c_function: sqlite3_column_name16
+    surface: sqlite3.sqlite3_column_name16
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_column_origin_name:
+    c_function: sqlite3_column_origin_name
+    surface: sqlite3.sqlite3_column_origin_name
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_column_origin_name16:
+    c_function: sqlite3_column_origin_name16
+    surface: sqlite3.sqlite3_column_origin_name16
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_column_table_name:
+    c_function: sqlite3_column_table_name
+    surface: sqlite3.sqlite3_column_table_name
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_column_table_name16:
+    c_function: sqlite3_column_table_name16
+    surface: sqlite3.sqlite3_column_table_name16
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_column_text:
+    c_function: sqlite3_column_text
+    surface: sqlite3.sqlite3_column_text
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `unsigned char*`
+
+function sqlite3_column_text16:
+    c_function: sqlite3_column_text16
+    surface: sqlite3.sqlite3_column_text16
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_column_type:
+    c_function: sqlite3_column_type
+    surface: sqlite3.sqlite3_column_type
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_column_value:
+    c_function: sqlite3_column_value
+    surface: sqlite3.sqlite3_column_value
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_value*`
+
+function sqlite3_commit_hook:
+    c_function: sqlite3_commit_hook
+    surface: sqlite3.sqlite3_commit_hook
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_compileoption_get:
+    c_function: sqlite3_compileoption_get
+    surface: sqlite3.sqlite3_compileoption_get
+    input: value
+    output: str
+    safety: COPY_ONLY
+    reason: returns const char*; scanner exposes only an OM string copy
+
+function sqlite3_compileoption_used:
+    c_function: sqlite3_compileoption_used
+    surface: sqlite3.sqlite3_compileoption_used
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_complete:
+    c_function: sqlite3_complete
+    surface: sqlite3.sqlite3_complete
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_complete16:
+    c_function: sqlite3_complete16
+    surface: sqlite3.sqlite3_complete16
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_config:
+    c_function: sqlite3_config
+    surface: sqlite3.sqlite3_config
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_context_db_handle:
+    c_function: sqlite3_context_db_handle
+    surface: sqlite3.sqlite3_context_db_handle
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3*`
+
+function sqlite3_create_collation:
+    c_function: sqlite3_create_collation
+    surface: sqlite3.sqlite3_create_collation
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_create_collation16:
+    c_function: sqlite3_create_collation16
+    surface: sqlite3.sqlite3_create_collation16
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_create_collation_v2:
+    c_function: sqlite3_create_collation_v2
+    surface: sqlite3.sqlite3_create_collation_v2
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_create_filename:
+    c_function: sqlite3_create_filename
+    surface: sqlite3.sqlite3_create_filename
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_filename`
+
+function sqlite3_create_function:
+    c_function: sqlite3_create_function
+    surface: sqlite3.sqlite3_create_function
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_create_function16:
+    c_function: sqlite3_create_function16
+    surface: sqlite3.sqlite3_create_function16
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_create_function_v2:
+    c_function: sqlite3_create_function_v2
+    surface: sqlite3.sqlite3_create_function_v2
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_create_module:
+    c_function: sqlite3_create_module
+    surface: sqlite3.sqlite3_create_module
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_create_module_v2:
+    c_function: sqlite3_create_module_v2
+    surface: sqlite3.sqlite3_create_module_v2
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_create_window_function:
+    c_function: sqlite3_create_window_function
+    surface: sqlite3.sqlite3_create_window_function
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_data_count:
+    c_function: sqlite3_data_count
+    surface: sqlite3.sqlite3_data_count
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_database_file_object:
+    c_function: sqlite3_database_file_object
+    surface: sqlite3.sqlite3_database_file_object
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_file*`
+
+function sqlite3_db_cacheflush:
+    c_function: sqlite3_db_cacheflush
+    surface: sqlite3.sqlite3_db_cacheflush
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_db_cacheflush` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_db_config:
+    c_function: sqlite3_db_config
+    surface: sqlite3.sqlite3_db_config
+    input: value
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_db_config` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_db_filename:
+    c_function: sqlite3_db_filename
+    surface: sqlite3.sqlite3_db_filename
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_filename`
+
+function sqlite3_db_handle:
+    c_function: sqlite3_db_handle
+    surface: sqlite3.sqlite3_db_handle
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3*`
+
+function sqlite3_db_mutex:
+    c_function: sqlite3_db_mutex
+    surface: sqlite3.sqlite3_db_mutex
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_mutex*`
+
+function sqlite3_db_name:
+    c_function: sqlite3_db_name
+    surface: sqlite3.sqlite3_db_name
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_db_readonly:
+    c_function: sqlite3_db_readonly
+    surface: sqlite3.sqlite3_db_readonly
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_db_release_memory:
+    c_function: sqlite3_db_release_memory
+    surface: sqlite3.sqlite3_db_release_memory
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_db_release_memory` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_db_status:
+    c_function: sqlite3_db_status
+    surface: sqlite3.sqlite3_db_status
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_declare_vtab:
+    c_function: sqlite3_declare_vtab
+    surface: sqlite3.sqlite3_declare_vtab
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_deserialize:
+    c_function: sqlite3_deserialize
+    surface: sqlite3.sqlite3_deserialize
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_drop_modules:
+    c_function: sqlite3_drop_modules
+    surface: sqlite3.sqlite3_drop_modules
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_enable_load_extension:
+    c_function: sqlite3_enable_load_extension
+    surface: sqlite3.sqlite3_enable_load_extension
+    input: value
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_enable_load_extension` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_enable_shared_cache:
+    c_function: sqlite3_enable_shared_cache
+    surface: sqlite3.sqlite3_enable_shared_cache
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_errcode:
+    c_function: sqlite3_errcode
+    surface: sqlite3.sqlite3_errcode
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_errcode` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_errmsg:
+    c_function: sqlite3_errmsg
+    surface: sqlite3.sqlite3_errmsg
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_errmsg16:
+    c_function: sqlite3_errmsg16
+    surface: sqlite3.sqlite3_errmsg16
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_error_offset:
+    c_function: sqlite3_error_offset
+    surface: sqlite3.sqlite3_error_offset
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_error_offset` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_errstr:
+    c_function: sqlite3_errstr
+    surface: sqlite3.sqlite3_errstr
+    input: value
+    output: str
+    safety: COPY_ONLY
+    reason: returns const char*; scanner exposes only an OM string copy
+
+function sqlite3_exec:
+    c_function: sqlite3_exec
+    surface: sqlite3.sqlite3_exec
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_expanded_sql:
+    c_function: sqlite3_expanded_sql
+    surface: sqlite3.sqlite3_expanded_sql
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_expired:
+    c_function: sqlite3_expired
+    surface: sqlite3.sqlite3_expired
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_extended_errcode:
+    c_function: sqlite3_extended_errcode
+    surface: sqlite3.sqlite3_extended_errcode
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_extended_errcode` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_extended_result_codes:
+    c_function: sqlite3_extended_result_codes
+    surface: sqlite3.sqlite3_extended_result_codes
+    input: value
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_extended_result_codes` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_file_control:
+    c_function: sqlite3_file_control
+    surface: sqlite3.sqlite3_file_control
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_filename_database:
+    c_function: sqlite3_filename_database
+    surface: sqlite3.sqlite3_filename_database
+    input: value
+    output: str
+    safety: COPY_ONLY
+    reason: returns const char*; scanner exposes only an OM string copy
+
+function sqlite3_filename_journal:
+    c_function: sqlite3_filename_journal
+    surface: sqlite3.sqlite3_filename_journal
+    input: value
+    output: str
+    safety: COPY_ONLY
+    reason: returns const char*; scanner exposes only an OM string copy
+
+function sqlite3_filename_wal:
+    c_function: sqlite3_filename_wal
+    surface: sqlite3.sqlite3_filename_wal
+    input: value
+    output: str
+    safety: COPY_ONLY
+    reason: returns const char*; scanner exposes only an OM string copy
+
+function sqlite3_finalize:
+    c_function: sqlite3_finalize
+    surface: sqlite3.sqlite3_finalize
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: cleanup/destructor functions are hidden behind OM zone cleanup
+
+function sqlite3_free:
+    c_function: sqlite3_free
+    surface: sqlite3.sqlite3_free
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: cleanup/destructor functions are hidden behind OM zone cleanup
+
+function sqlite3_free_filename:
+    c_function: sqlite3_free_filename
+    surface: sqlite3.sqlite3_free_filename
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: cleanup/destructor functions are hidden behind OM zone cleanup
+
+function sqlite3_free_table:
+    c_function: sqlite3_free_table
+    surface: sqlite3.sqlite3_free_table
+    input: resource_out
+    output: nil
+    safety: BLOCKED
+    reason: cleanup/destructor functions are hidden behind OM zone cleanup
+
+function sqlite3_get_autocommit:
+    c_function: sqlite3_get_autocommit
+    surface: sqlite3.sqlite3_get_autocommit
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_get_autocommit` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_get_auxdata:
+    c_function: sqlite3_get_auxdata
+    surface: sqlite3.sqlite3_get_auxdata
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_get_clientdata:
+    c_function: sqlite3_get_clientdata
+    surface: sqlite3.sqlite3_get_clientdata
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_get_table:
+    c_function: sqlite3_get_table
+    surface: sqlite3.sqlite3_get_table
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_global_recover:
+    c_function: sqlite3_global_recover
+    surface: sqlite3.sqlite3_global_recover
+    input: unit
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_hard_heap_limit64:
+    c_function: sqlite3_hard_heap_limit64
+    surface: sqlite3.sqlite3_hard_heap_limit64
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_int64`
+
+function sqlite3_initialize:
+    c_function: sqlite3_initialize
+    surface: sqlite3.sqlite3_initialize
+    input: unit
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_interrupt:
+    c_function: sqlite3_interrupt
+    surface: sqlite3.sqlite3_interrupt
+    input: resource
+    output: unit
+    safety: SAFE
+    reason: method `sqlite3_interrupt` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_is_interrupted:
+    c_function: sqlite3_is_interrupted
+    surface: sqlite3.sqlite3_is_interrupted
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_is_interrupted` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_keyword_check:
+    c_function: sqlite3_keyword_check
+    surface: sqlite3.sqlite3_keyword_check
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_keyword_count:
+    c_function: sqlite3_keyword_count
+    surface: sqlite3.sqlite3_keyword_count
+    input: unit
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_keyword_name:
+    c_function: sqlite3_keyword_name
+    surface: sqlite3.sqlite3_keyword_name
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_last_insert_rowid:
+    c_function: sqlite3_last_insert_rowid
+    surface: sqlite3.sqlite3_last_insert_rowid
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: method `sqlite3_last_insert_rowid` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_libversion:
+    c_function: sqlite3_libversion
+    surface: sqlite3.sqlite3_libversion
+    input: unit
+    output: str
+    safety: COPY_ONLY
+    reason: returns const char*; scanner exposes only an OM string copy
+
+function sqlite3_libversion_number:
+    c_function: sqlite3_libversion_number
+    surface: sqlite3.sqlite3_libversion_number
+    input: unit
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_limit:
+    c_function: sqlite3_limit
+    surface: sqlite3.sqlite3_limit
+    input: value
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_limit` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_load_extension:
+    c_function: sqlite3_load_extension
+    surface: sqlite3.sqlite3_load_extension
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_log:
+    c_function: sqlite3_log
+    surface: sqlite3.sqlite3_log
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_malloc:
+    c_function: sqlite3_malloc
+    surface: sqlite3.sqlite3_malloc
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_malloc64:
+    c_function: sqlite3_malloc64
+    surface: sqlite3.sqlite3_malloc64
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_memory_alarm:
+    c_function: sqlite3_memory_alarm
+    surface: sqlite3.sqlite3_memory_alarm
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_memory_highwater:
+    c_function: sqlite3_memory_highwater
+    surface: sqlite3.sqlite3_memory_highwater
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_int64`
+
+function sqlite3_memory_used:
+    c_function: sqlite3_memory_used
+    surface: sqlite3.sqlite3_memory_used
+    input: unit
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_int64`
+
+function sqlite3_mprintf:
+    c_function: sqlite3_mprintf
+    surface: sqlite3.sqlite3_mprintf
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_msize:
+    c_function: sqlite3_msize
+    surface: sqlite3.sqlite3_msize
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_uint64`
+
+function sqlite3_mutex_alloc:
+    c_function: sqlite3_mutex_alloc
+    surface: sqlite3.sqlite3_mutex_alloc
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_mutex*`
+
+function sqlite3_mutex_enter:
+    c_function: sqlite3_mutex_enter
+    surface: sqlite3.sqlite3_mutex_enter
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_mutex_free:
+    c_function: sqlite3_mutex_free
+    surface: sqlite3.sqlite3_mutex_free
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: cleanup/destructor functions are hidden behind OM zone cleanup
+
+function sqlite3_mutex_held:
+    c_function: sqlite3_mutex_held
+    surface: sqlite3.sqlite3_mutex_held
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_mutex_leave:
+    c_function: sqlite3_mutex_leave
+    surface: sqlite3.sqlite3_mutex_leave
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_mutex_notheld:
+    c_function: sqlite3_mutex_notheld
+    surface: sqlite3.sqlite3_mutex_notheld
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_mutex_try:
+    c_function: sqlite3_mutex_try
+    surface: sqlite3.sqlite3_mutex_try
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_next_stmt:
+    c_function: sqlite3_next_stmt
+    surface: sqlite3.sqlite3_next_stmt
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_stmt*`
+
+function sqlite3_os_end:
+    c_function: sqlite3_os_end
+    surface: sqlite3.sqlite3_os_end
+    input: unit
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_os_init:
+    c_function: sqlite3_os_init
+    surface: sqlite3.sqlite3_os_init
+    input: unit
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_overload_function:
+    c_function: sqlite3_overload_function
+    surface: sqlite3.sqlite3_overload_function
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_prepare:
+    c_function: sqlite3_prepare
+    surface: sqlite3.sqlite3_prepare
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_prepare16:
+    c_function: sqlite3_prepare16
+    surface: sqlite3.sqlite3_prepare16
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_prepare16_v2:
+    c_function: sqlite3_prepare16_v2
+    surface: sqlite3.sqlite3_prepare16_v2
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_prepare16_v3:
+    c_function: sqlite3_prepare16_v3
+    surface: sqlite3.sqlite3_prepare16_v3
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_prepare_v2:
+    c_function: sqlite3_prepare_v2
+    surface: sqlite3.sqlite3_prepare_v2
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_prepare_v3:
+    c_function: sqlite3_prepare_v3
+    surface: sqlite3.sqlite3_prepare_v3
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_profile:
+    c_function: sqlite3_profile
+    surface: sqlite3.sqlite3_profile
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_progress_handler:
+    c_function: sqlite3_progress_handler
+    surface: sqlite3.sqlite3_progress_handler
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_randomness:
+    c_function: sqlite3_randomness
+    surface: sqlite3.sqlite3_randomness
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_realloc:
+    c_function: sqlite3_realloc
+    surface: sqlite3.sqlite3_realloc
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_realloc64:
+    c_function: sqlite3_realloc64
+    surface: sqlite3.sqlite3_realloc64
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_release_memory:
+    c_function: sqlite3_release_memory
+    surface: sqlite3.sqlite3_release_memory
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_reset:
+    c_function: sqlite3_reset
+    surface: sqlite3.sqlite3_reset
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_reset_auto_extension:
+    c_function: sqlite3_reset_auto_extension
+    surface: sqlite3.sqlite3_reset_auto_extension
+    input: unit
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_blob:
+    c_function: sqlite3_result_blob
+    surface: sqlite3.sqlite3_result_blob
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_blob64:
+    c_function: sqlite3_result_blob64
+    surface: sqlite3.sqlite3_result_blob64
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_double:
+    c_function: sqlite3_result_double
+    surface: sqlite3.sqlite3_result_double
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_error:
+    c_function: sqlite3_result_error
+    surface: sqlite3.sqlite3_result_error
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_error16:
+    c_function: sqlite3_result_error16
+    surface: sqlite3.sqlite3_result_error16
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_error_code:
+    c_function: sqlite3_result_error_code
+    surface: sqlite3.sqlite3_result_error_code
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_error_nomem:
+    c_function: sqlite3_result_error_nomem
+    surface: sqlite3.sqlite3_result_error_nomem
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_error_toobig:
+    c_function: sqlite3_result_error_toobig
+    surface: sqlite3.sqlite3_result_error_toobig
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_int:
+    c_function: sqlite3_result_int
+    surface: sqlite3.sqlite3_result_int
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_int64:
+    c_function: sqlite3_result_int64
+    surface: sqlite3.sqlite3_result_int64
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_null:
+    c_function: sqlite3_result_null
+    surface: sqlite3.sqlite3_result_null
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_pointer:
+    c_function: sqlite3_result_pointer
+    surface: sqlite3.sqlite3_result_pointer
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_subtype:
+    c_function: sqlite3_result_subtype
+    surface: sqlite3.sqlite3_result_subtype
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_text:
+    c_function: sqlite3_result_text
+    surface: sqlite3.sqlite3_result_text
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_text16:
+    c_function: sqlite3_result_text16
+    surface: sqlite3.sqlite3_result_text16
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_text16be:
+    c_function: sqlite3_result_text16be
+    surface: sqlite3.sqlite3_result_text16be
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_text16le:
+    c_function: sqlite3_result_text16le
+    surface: sqlite3.sqlite3_result_text16le
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_text64:
+    c_function: sqlite3_result_text64
+    surface: sqlite3.sqlite3_result_text64
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_value:
+    c_function: sqlite3_result_value
+    surface: sqlite3.sqlite3_result_value
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_zeroblob:
+    c_function: sqlite3_result_zeroblob
+    surface: sqlite3.sqlite3_result_zeroblob
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_result_zeroblob64:
+    c_function: sqlite3_result_zeroblob64
+    surface: sqlite3.sqlite3_result_zeroblob64
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_rollback_hook:
+    c_function: sqlite3_rollback_hook
+    surface: sqlite3.sqlite3_rollback_hook
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_rtree_geometry_callback:
+    c_function: sqlite3_rtree_geometry_callback
+    surface: sqlite3.sqlite3_rtree_geometry_callback
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_rtree_query_callback:
+    c_function: sqlite3_rtree_query_callback
+    surface: sqlite3.sqlite3_rtree_query_callback
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_serialize:
+    c_function: sqlite3_serialize
+    surface: sqlite3.sqlite3_serialize
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `unsigned char*`
+
+function sqlite3_set_authorizer:
+    c_function: sqlite3_set_authorizer
+    surface: sqlite3.sqlite3_set_authorizer
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_set_auxdata:
+    c_function: sqlite3_set_auxdata
+    surface: sqlite3.sqlite3_set_auxdata
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_set_clientdata:
+    c_function: sqlite3_set_clientdata
+    surface: sqlite3.sqlite3_set_clientdata
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_set_last_insert_rowid:
+    c_function: sqlite3_set_last_insert_rowid
+    surface: sqlite3.sqlite3_set_last_insert_rowid
+    input: value
+    output: unit
+    safety: SAFE
+    reason: method `sqlite3_set_last_insert_rowid` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_shutdown:
+    c_function: sqlite3_shutdown
+    surface: sqlite3.sqlite3_shutdown
+    input: unit
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_sleep:
+    c_function: sqlite3_sleep
+    surface: sqlite3.sqlite3_sleep
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_snapshot_cmp:
+    c_function: sqlite3_snapshot_cmp
+    surface: sqlite3.sqlite3_snapshot_cmp
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_snapshot_free:
+    c_function: sqlite3_snapshot_free
+    surface: sqlite3.sqlite3_snapshot_free
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: cleanup/destructor functions are hidden behind OM zone cleanup
+
+function sqlite3_snapshot_get:
+    c_function: sqlite3_snapshot_get
+    surface: sqlite3.sqlite3_snapshot_get
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_snapshot_open:
+    c_function: sqlite3_snapshot_open
+    surface: sqlite3.sqlite3_snapshot_open
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_snapshot_recover:
+    c_function: sqlite3_snapshot_recover
+    surface: sqlite3.sqlite3_snapshot_recover
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_snprintf:
+    c_function: sqlite3_snprintf
+    surface: sqlite3.sqlite3_snprintf
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_soft_heap_limit:
+    c_function: sqlite3_soft_heap_limit
+    surface: sqlite3.sqlite3_soft_heap_limit
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_soft_heap_limit64:
+    c_function: sqlite3_soft_heap_limit64
+    surface: sqlite3.sqlite3_soft_heap_limit64
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_int64`
+
+function sqlite3_sourceid:
+    c_function: sqlite3_sourceid
+    surface: sqlite3.sqlite3_sourceid
+    input: unit
+    output: str
+    safety: COPY_ONLY
+    reason: returns const char*; scanner exposes only an OM string copy
+
+function sqlite3_sql:
+    c_function: sqlite3_sql
+    surface: sqlite3.sqlite3_sql
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_status:
+    c_function: sqlite3_status
+    surface: sqlite3.sqlite3_status
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_status64:
+    c_function: sqlite3_status64
+    surface: sqlite3.sqlite3_status64
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_step:
+    c_function: sqlite3_step
+    surface: sqlite3.sqlite3_step
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_stmt_busy:
+    c_function: sqlite3_stmt_busy
+    surface: sqlite3.sqlite3_stmt_busy
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_stmt_explain:
+    c_function: sqlite3_stmt_explain
+    surface: sqlite3.sqlite3_stmt_explain
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_stmt_isexplain:
+    c_function: sqlite3_stmt_isexplain
+    surface: sqlite3.sqlite3_stmt_isexplain
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_stmt_readonly:
+    c_function: sqlite3_stmt_readonly
+    surface: sqlite3.sqlite3_stmt_readonly
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_stmt_scanstatus:
+    c_function: sqlite3_stmt_scanstatus
+    surface: sqlite3.sqlite3_stmt_scanstatus
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_stmt_scanstatus_reset:
+    c_function: sqlite3_stmt_scanstatus_reset
+    surface: sqlite3.sqlite3_stmt_scanstatus_reset
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_stmt_scanstatus_v2:
+    c_function: sqlite3_stmt_scanstatus_v2
+    surface: sqlite3.sqlite3_stmt_scanstatus_v2
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_stmt_status:
+    c_function: sqlite3_stmt_status
+    surface: sqlite3.sqlite3_stmt_status
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_str_append:
+    c_function: sqlite3_str_append
+    surface: sqlite3.sqlite3_str_append
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_str_appendall:
+    c_function: sqlite3_str_appendall
+    surface: sqlite3.sqlite3_str_appendall
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_str_appendchar:
+    c_function: sqlite3_str_appendchar
+    surface: sqlite3.sqlite3_str_appendchar
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_str_appendf:
+    c_function: sqlite3_str_appendf
+    surface: sqlite3.sqlite3_str_appendf
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_str_errcode:
+    c_function: sqlite3_str_errcode
+    surface: sqlite3.sqlite3_str_errcode
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_str_finish:
+    c_function: sqlite3_str_finish
+    surface: sqlite3.sqlite3_str_finish
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_str_length:
+    c_function: sqlite3_str_length
+    surface: sqlite3.sqlite3_str_length
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_str_new:
+    c_function: sqlite3_str_new
+    surface: sqlite3.sqlite3_str_new
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_str*`
+
+function sqlite3_str_reset:
+    c_function: sqlite3_str_reset
+    surface: sqlite3.sqlite3_str_reset
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_str_value:
+    c_function: sqlite3_str_value
+    surface: sqlite3.sqlite3_str_value
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_str_vappendf:
+    c_function: sqlite3_str_vappendf
+    surface: sqlite3.sqlite3_str_vappendf
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_strglob:
+    c_function: sqlite3_strglob
+    surface: sqlite3.sqlite3_strglob
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_stricmp:
+    c_function: sqlite3_stricmp
+    surface: sqlite3.sqlite3_stricmp
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_strlike:
+    c_function: sqlite3_strlike
+    surface: sqlite3.sqlite3_strlike
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_strnicmp:
+    c_function: sqlite3_strnicmp
+    surface: sqlite3.sqlite3_strnicmp
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_system_errno:
+    c_function: sqlite3_system_errno
+    surface: sqlite3.sqlite3_system_errno
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_system_errno` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_table_column_metadata:
+    c_function: sqlite3_table_column_metadata
+    surface: sqlite3.sqlite3_table_column_metadata
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_test_control:
+    c_function: sqlite3_test_control
+    surface: sqlite3.sqlite3_test_control
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_thread_cleanup:
+    c_function: sqlite3_thread_cleanup
+    surface: sqlite3.sqlite3_thread_cleanup
+    input: unit
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_threadsafe:
+    c_function: sqlite3_threadsafe
+    surface: sqlite3.sqlite3_threadsafe
+    input: unit
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_total_changes:
+    c_function: sqlite3_total_changes
+    surface: sqlite3.sqlite3_total_changes
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_total_changes` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_total_changes64:
+    c_function: sqlite3_total_changes64
+    surface: sqlite3.sqlite3_total_changes64
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: method `sqlite3_total_changes64` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_trace:
+    c_function: sqlite3_trace
+    surface: sqlite3.sqlite3_trace
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_trace_v2:
+    c_function: sqlite3_trace_v2
+    surface: sqlite3.sqlite3_trace_v2
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_transfer_bindings:
+    c_function: sqlite3_transfer_bindings
+    surface: sqlite3.sqlite3_transfer_bindings
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_txn_state:
+    c_function: sqlite3_txn_state
+    surface: sqlite3.sqlite3_txn_state
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_unlock_notify:
+    c_function: sqlite3_unlock_notify
+    surface: sqlite3.sqlite3_unlock_notify
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_update_hook:
+    c_function: sqlite3_update_hook
+    surface: sqlite3.sqlite3_update_hook
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_uri_boolean:
+    c_function: sqlite3_uri_boolean
+    surface: sqlite3.sqlite3_uri_boolean
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_uri_int64:
+    c_function: sqlite3_uri_int64
+    surface: sqlite3.sqlite3_uri_int64
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_int64`
+
+function sqlite3_uri_key:
+    c_function: sqlite3_uri_key
+    surface: sqlite3.sqlite3_uri_key
+    input: value
+    output: str
+    safety: COPY_ONLY
+    reason: returns const char*; scanner exposes only an OM string copy
+
+function sqlite3_uri_parameter:
+    c_function: sqlite3_uri_parameter
+    surface: sqlite3.sqlite3_uri_parameter
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_user_data:
+    c_function: sqlite3_user_data
+    surface: sqlite3.sqlite3_user_data
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_value_blob:
+    c_function: sqlite3_value_blob
+    surface: sqlite3.sqlite3_value_blob
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_value_bytes:
+    c_function: sqlite3_value_bytes
+    surface: sqlite3.sqlite3_value_bytes
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_value_bytes16:
+    c_function: sqlite3_value_bytes16
+    surface: sqlite3.sqlite3_value_bytes16
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_value_double:
+    c_function: sqlite3_value_double
+    surface: sqlite3.sqlite3_value_double
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_value_dup:
+    c_function: sqlite3_value_dup
+    surface: sqlite3.sqlite3_value_dup
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_value*`
+
+function sqlite3_value_encoding:
+    c_function: sqlite3_value_encoding
+    surface: sqlite3.sqlite3_value_encoding
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_value_free:
+    c_function: sqlite3_value_free
+    surface: sqlite3.sqlite3_value_free
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: cleanup/destructor functions are hidden behind OM zone cleanup
+
+function sqlite3_value_frombind:
+    c_function: sqlite3_value_frombind
+    surface: sqlite3.sqlite3_value_frombind
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_value_int:
+    c_function: sqlite3_value_int
+    surface: sqlite3.sqlite3_value_int
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_value_int64:
+    c_function: sqlite3_value_int64
+    surface: sqlite3.sqlite3_value_int64
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_int64`
+
+function sqlite3_value_nochange:
+    c_function: sqlite3_value_nochange
+    surface: sqlite3.sqlite3_value_nochange
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_value_numeric_type:
+    c_function: sqlite3_value_numeric_type
+    surface: sqlite3.sqlite3_value_numeric_type
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_value_pointer:
+    c_function: sqlite3_value_pointer
+    surface: sqlite3.sqlite3_value_pointer
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_value_subtype:
+    c_function: sqlite3_value_subtype
+    surface: sqlite3.sqlite3_value_subtype
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `unsigned int`
+
+function sqlite3_value_text:
+    c_function: sqlite3_value_text
+    surface: sqlite3.sqlite3_value_text
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `unsigned char*`
+
+function sqlite3_value_text16:
+    c_function: sqlite3_value_text16
+    surface: sqlite3.sqlite3_value_text16
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_value_text16be:
+    c_function: sqlite3_value_text16be
+    surface: sqlite3.sqlite3_value_text16be
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_value_text16le:
+    c_function: sqlite3_value_text16le
+    surface: sqlite3.sqlite3_value_text16le
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_value_type:
+    c_function: sqlite3_value_type
+    surface: sqlite3.sqlite3_value_type
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_vfs_find:
+    c_function: sqlite3_vfs_find
+    surface: sqlite3.sqlite3_vfs_find
+    input: resource
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `sqlite3_vfs*`
+
+function sqlite3_vfs_register:
+    c_function: sqlite3_vfs_register
+    surface: sqlite3.sqlite3_vfs_register
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_vfs_unregister:
+    c_function: sqlite3_vfs_unregister
+    surface: sqlite3.sqlite3_vfs_unregister
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_vmprintf:
+    c_function: sqlite3_vmprintf
+    surface: sqlite3.sqlite3_vmprintf
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_vsnprintf:
+    c_function: sqlite3_vsnprintf
+    surface: sqlite3.sqlite3_vsnprintf
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_vtab_collation:
+    c_function: sqlite3_vtab_collation
+    surface: sqlite3.sqlite3_vtab_collation
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `char*`
+
+function sqlite3_vtab_config:
+    c_function: sqlite3_vtab_config
+    surface: sqlite3.sqlite3_vtab_config
+    input: value
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_vtab_config` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_vtab_distinct:
+    c_function: sqlite3_vtab_distinct
+    surface: sqlite3.sqlite3_vtab_distinct
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_vtab_in:
+    c_function: sqlite3_vtab_in
+    surface: sqlite3.sqlite3_vtab_in
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_vtab_in_first:
+    c_function: sqlite3_vtab_in_first
+    surface: sqlite3.sqlite3_vtab_in_first
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_vtab_in_next:
+    c_function: sqlite3_vtab_in_next
+    surface: sqlite3.sqlite3_vtab_in_next
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_vtab_nochange:
+    c_function: sqlite3_vtab_nochange
+    surface: sqlite3.sqlite3_vtab_nochange
+    input: resource
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_vtab_on_conflict:
+    c_function: sqlite3_vtab_on_conflict
+    surface: sqlite3.sqlite3_vtab_on_conflict
+    input: resource
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_vtab_on_conflict` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_vtab_rhs_value:
+    c_function: sqlite3_vtab_rhs_value
+    surface: sqlite3.sqlite3_vtab_rhs_value
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_wal_autocheckpoint:
+    c_function: sqlite3_wal_autocheckpoint
+    surface: sqlite3.sqlite3_wal_autocheckpoint
+    input: value
+    output: value
+    safety: SAFE
+    reason: method `sqlite3_wal_autocheckpoint` takes recognized resource `sqlite3*` as first argument
+
+function sqlite3_wal_checkpoint:
+    c_function: sqlite3_wal_checkpoint
+    surface: sqlite3.sqlite3_wal_checkpoint
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_wal_checkpoint_v2:
+    c_function: sqlite3_wal_checkpoint_v2
+    surface: sqlite3.sqlite3_wal_checkpoint_v2
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_wal_hook:
+    c_function: sqlite3_wal_hook
+    surface: sqlite3.sqlite3_wal_hook
+    input: value
+    output: nil
+    safety: BLOCKED
+    reason: unsupported return type `void*`
+
+function sqlite3_win32_set_directory:
+    c_function: sqlite3_win32_set_directory
+    surface: sqlite3.sqlite3_win32_set_directory
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_win32_set_directory16:
+    c_function: sqlite3_win32_set_directory16
+    surface: sqlite3.sqlite3_win32_set_directory16
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+
+function sqlite3_win32_set_directory8:
+    c_function: sqlite3_win32_set_directory8
+    surface: sqlite3.sqlite3_win32_set_directory8
+    input: value
+    output: nil
+    safety: SAFE
+    reason: all parameters and return type are OM-safe
+

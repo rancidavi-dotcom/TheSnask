@@ -1,0 +1,6 @@
+class main
+    fun start()
+        print("Testando os_system...")
+        let ok = os_system("ls -la")
+        print("Status do comando: " + ok)
+        return true

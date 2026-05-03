@@ -1,0 +1,12 @@
+import "requests"
+
+class main
+    fun start()
+        print("Testando get...")
+        let url = "https://raw.githubusercontent.com/rancidavi-dotcom/SnaskPackages/main/json.snask"
+        let content = get(url)
+        if is_nil(content)
+            print("Falha ao baixar do GitHub.")
+        else
+            print("Sucesso! Tamanho: " + len(content))
+        return true

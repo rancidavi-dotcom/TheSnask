@@ -1,0 +1,249 @@
+OM scan report for `sqlite3.h` as `sqlite3`
+AST: 291 functions, 46 typedefs, 34 structs/unions, 0 enums
+
+SAFE: 204
+COPY_ONLY: 8
+BLOCKED: 77
+
+Exposed resources:
+- sqlite3.Blob via sqlite3_blob_open / sqlite3_blob_close; constructor `sqlite3_blob_open` writes `sqlite3_blob **` and paired destructor `sqlite3_blob_close` accepts `sqlite3_blob*`
+- sqlite3.Sqlite3 via sqlite3_open / sqlite3_close; constructor `sqlite3_open` writes `sqlite3 **` and paired destructor `sqlite3_close` accepts `sqlite3*`
+
+Exposed functions:
+- sqlite3.sqlite3_aggregate_count => sqlite3_aggregate_count (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_auto_extension => sqlite3_auto_extension (SAFE, callback_null -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_autovacuum_pages => sqlite3_autovacuum_pages (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_backup_finish => sqlite3_backup_finish (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_backup_pagecount => sqlite3_backup_pagecount (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_backup_remaining => sqlite3_backup_remaining (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_backup_step => sqlite3_backup_step (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_blob => sqlite3_bind_blob (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_blob64 => sqlite3_bind_blob64 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_double => sqlite3_bind_double (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_int => sqlite3_bind_int (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_int64 => sqlite3_bind_int64 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_null => sqlite3_bind_null (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_parameter_count => sqlite3_bind_parameter_count (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_parameter_index => sqlite3_bind_parameter_index (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_pointer => sqlite3_bind_pointer (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_text => sqlite3_bind_text (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_text16 => sqlite3_bind_text16 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_text64 => sqlite3_bind_text64 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_value => sqlite3_bind_value (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_zeroblob => sqlite3_bind_zeroblob (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_bind_zeroblob64 => sqlite3_bind_zeroblob64 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_blob_bytes => sqlite3_blob_bytes (SAFE, resource -> value); method `sqlite3_blob_bytes` takes recognized resource `sqlite3_blob*` as first argument
+- sqlite3.sqlite3_blob_close => sqlite3_blob_close (SAFE, resource -> value); method `sqlite3_blob_close` takes recognized resource `sqlite3_blob*` as first argument
+- sqlite3.sqlite3_blob_read => sqlite3_blob_read (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_blob_reopen => sqlite3_blob_reopen (SAFE, value -> value); method `sqlite3_blob_reopen` takes recognized resource `sqlite3_blob*` as first argument
+- sqlite3.sqlite3_blob_write => sqlite3_blob_write (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_busy_handler => sqlite3_busy_handler (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_busy_timeout => sqlite3_busy_timeout (SAFE, value -> value); method `sqlite3_busy_timeout` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_cancel_auto_extension => sqlite3_cancel_auto_extension (SAFE, callback_null -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_changes => sqlite3_changes (SAFE, resource -> value); method `sqlite3_changes` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_changes64 => sqlite3_changes64 (SAFE, resource -> nil); method `sqlite3_changes64` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_clear_bindings => sqlite3_clear_bindings (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_close => sqlite3_close (SAFE, resource -> value); method `sqlite3_close` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_close_v2 => sqlite3_close_v2 (SAFE, resource -> value); method `sqlite3_close_v2` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_collation_needed => sqlite3_collation_needed (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_collation_needed16 => sqlite3_collation_needed16 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_column_bytes => sqlite3_column_bytes (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_column_bytes16 => sqlite3_column_bytes16 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_column_count => sqlite3_column_count (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_column_double => sqlite3_column_double (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_column_int => sqlite3_column_int (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_column_type => sqlite3_column_type (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_compileoption_get => sqlite3_compileoption_get (COPY_ONLY, value -> str); returns const char*; scanner exposes only an OM string copy
+- sqlite3.sqlite3_compileoption_used => sqlite3_compileoption_used (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_complete => sqlite3_complete (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_complete16 => sqlite3_complete16 (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_config => sqlite3_config (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_create_collation => sqlite3_create_collation (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_create_collation16 => sqlite3_create_collation16 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_create_collation_v2 => sqlite3_create_collation_v2 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_create_function => sqlite3_create_function (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_create_function16 => sqlite3_create_function16 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_create_function_v2 => sqlite3_create_function_v2 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_create_module => sqlite3_create_module (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_create_module_v2 => sqlite3_create_module_v2 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_create_window_function => sqlite3_create_window_function (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_data_count => sqlite3_data_count (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_db_cacheflush => sqlite3_db_cacheflush (SAFE, resource -> value); method `sqlite3_db_cacheflush` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_db_config => sqlite3_db_config (SAFE, value -> value); method `sqlite3_db_config` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_db_readonly => sqlite3_db_readonly (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_db_release_memory => sqlite3_db_release_memory (SAFE, resource -> value); method `sqlite3_db_release_memory` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_db_status => sqlite3_db_status (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_declare_vtab => sqlite3_declare_vtab (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_deserialize => sqlite3_deserialize (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_drop_modules => sqlite3_drop_modules (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_enable_load_extension => sqlite3_enable_load_extension (SAFE, value -> value); method `sqlite3_enable_load_extension` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_enable_shared_cache => sqlite3_enable_shared_cache (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_errcode => sqlite3_errcode (SAFE, resource -> value); method `sqlite3_errcode` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_error_offset => sqlite3_error_offset (SAFE, resource -> value); method `sqlite3_error_offset` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_errstr => sqlite3_errstr (COPY_ONLY, value -> str); returns const char*; scanner exposes only an OM string copy
+- sqlite3.sqlite3_exec => sqlite3_exec (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_expired => sqlite3_expired (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_extended_errcode => sqlite3_extended_errcode (SAFE, resource -> value); method `sqlite3_extended_errcode` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_extended_result_codes => sqlite3_extended_result_codes (SAFE, value -> value); method `sqlite3_extended_result_codes` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_file_control => sqlite3_file_control (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_filename_database => sqlite3_filename_database (COPY_ONLY, value -> str); returns const char*; scanner exposes only an OM string copy
+- sqlite3.sqlite3_filename_journal => sqlite3_filename_journal (COPY_ONLY, value -> str); returns const char*; scanner exposes only an OM string copy
+- sqlite3.sqlite3_filename_wal => sqlite3_filename_wal (COPY_ONLY, value -> str); returns const char*; scanner exposes only an OM string copy
+- sqlite3.sqlite3_get_autocommit => sqlite3_get_autocommit (SAFE, resource -> value); method `sqlite3_get_autocommit` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_get_table => sqlite3_get_table (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_global_recover => sqlite3_global_recover (SAFE, unit -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_initialize => sqlite3_initialize (SAFE, unit -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_interrupt => sqlite3_interrupt (SAFE, resource -> unit); method `sqlite3_interrupt` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_is_interrupted => sqlite3_is_interrupted (SAFE, resource -> value); method `sqlite3_is_interrupted` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_keyword_check => sqlite3_keyword_check (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_keyword_count => sqlite3_keyword_count (SAFE, unit -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_keyword_name => sqlite3_keyword_name (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_last_insert_rowid => sqlite3_last_insert_rowid (SAFE, resource -> nil); method `sqlite3_last_insert_rowid` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_libversion => sqlite3_libversion (COPY_ONLY, unit -> str); returns const char*; scanner exposes only an OM string copy
+- sqlite3.sqlite3_libversion_number => sqlite3_libversion_number (SAFE, unit -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_limit => sqlite3_limit (SAFE, value -> value); method `sqlite3_limit` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_load_extension => sqlite3_load_extension (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_log => sqlite3_log (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_memory_alarm => sqlite3_memory_alarm (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_mutex_enter => sqlite3_mutex_enter (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_mutex_held => sqlite3_mutex_held (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_mutex_leave => sqlite3_mutex_leave (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_mutex_notheld => sqlite3_mutex_notheld (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_mutex_try => sqlite3_mutex_try (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_os_end => sqlite3_os_end (SAFE, unit -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_os_init => sqlite3_os_init (SAFE, unit -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_overload_function => sqlite3_overload_function (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_prepare => sqlite3_prepare (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_prepare16 => sqlite3_prepare16 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_prepare16_v2 => sqlite3_prepare16_v2 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_prepare16_v3 => sqlite3_prepare16_v3 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_prepare_v2 => sqlite3_prepare_v2 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_prepare_v3 => sqlite3_prepare_v3 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_progress_handler => sqlite3_progress_handler (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_randomness => sqlite3_randomness (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_release_memory => sqlite3_release_memory (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_reset => sqlite3_reset (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_reset_auto_extension => sqlite3_reset_auto_extension (SAFE, unit -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_blob => sqlite3_result_blob (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_blob64 => sqlite3_result_blob64 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_double => sqlite3_result_double (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_error => sqlite3_result_error (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_error16 => sqlite3_result_error16 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_error_code => sqlite3_result_error_code (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_error_nomem => sqlite3_result_error_nomem (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_error_toobig => sqlite3_result_error_toobig (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_int => sqlite3_result_int (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_int64 => sqlite3_result_int64 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_null => sqlite3_result_null (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_pointer => sqlite3_result_pointer (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_subtype => sqlite3_result_subtype (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_text => sqlite3_result_text (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_text16 => sqlite3_result_text16 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_text16be => sqlite3_result_text16be (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_text16le => sqlite3_result_text16le (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_text64 => sqlite3_result_text64 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_value => sqlite3_result_value (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_zeroblob => sqlite3_result_zeroblob (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_result_zeroblob64 => sqlite3_result_zeroblob64 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_rtree_geometry_callback => sqlite3_rtree_geometry_callback (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_rtree_query_callback => sqlite3_rtree_query_callback (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_set_authorizer => sqlite3_set_authorizer (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_set_auxdata => sqlite3_set_auxdata (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_set_clientdata => sqlite3_set_clientdata (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_set_last_insert_rowid => sqlite3_set_last_insert_rowid (SAFE, value -> unit); method `sqlite3_set_last_insert_rowid` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_shutdown => sqlite3_shutdown (SAFE, unit -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_sleep => sqlite3_sleep (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_snapshot_cmp => sqlite3_snapshot_cmp (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_snapshot_get => sqlite3_snapshot_get (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_snapshot_open => sqlite3_snapshot_open (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_snapshot_recover => sqlite3_snapshot_recover (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_soft_heap_limit => sqlite3_soft_heap_limit (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_sourceid => sqlite3_sourceid (COPY_ONLY, unit -> str); returns const char*; scanner exposes only an OM string copy
+- sqlite3.sqlite3_status => sqlite3_status (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_status64 => sqlite3_status64 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_step => sqlite3_step (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_stmt_busy => sqlite3_stmt_busy (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_stmt_explain => sqlite3_stmt_explain (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_stmt_isexplain => sqlite3_stmt_isexplain (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_stmt_readonly => sqlite3_stmt_readonly (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_stmt_scanstatus => sqlite3_stmt_scanstatus (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_stmt_scanstatus_reset => sqlite3_stmt_scanstatus_reset (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_stmt_scanstatus_v2 => sqlite3_stmt_scanstatus_v2 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_stmt_status => sqlite3_stmt_status (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_str_append => sqlite3_str_append (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_str_appendall => sqlite3_str_appendall (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_str_appendchar => sqlite3_str_appendchar (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_str_appendf => sqlite3_str_appendf (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_str_errcode => sqlite3_str_errcode (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_str_length => sqlite3_str_length (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_str_reset => sqlite3_str_reset (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_str_vappendf => sqlite3_str_vappendf (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_strglob => sqlite3_strglob (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_stricmp => sqlite3_stricmp (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_strlike => sqlite3_strlike (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_strnicmp => sqlite3_strnicmp (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_system_errno => sqlite3_system_errno (SAFE, resource -> value); method `sqlite3_system_errno` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_table_column_metadata => sqlite3_table_column_metadata (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_test_control => sqlite3_test_control (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_thread_cleanup => sqlite3_thread_cleanup (SAFE, unit -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_threadsafe => sqlite3_threadsafe (SAFE, unit -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_total_changes => sqlite3_total_changes (SAFE, resource -> value); method `sqlite3_total_changes` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_total_changes64 => sqlite3_total_changes64 (SAFE, resource -> nil); method `sqlite3_total_changes64` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_trace_v2 => sqlite3_trace_v2 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_transfer_bindings => sqlite3_transfer_bindings (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_txn_state => sqlite3_txn_state (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_unlock_notify => sqlite3_unlock_notify (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_uri_boolean => sqlite3_uri_boolean (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_uri_key => sqlite3_uri_key (COPY_ONLY, value -> str); returns const char*; scanner exposes only an OM string copy
+- sqlite3.sqlite3_value_bytes => sqlite3_value_bytes (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_value_bytes16 => sqlite3_value_bytes16 (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_value_double => sqlite3_value_double (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_value_encoding => sqlite3_value_encoding (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_value_frombind => sqlite3_value_frombind (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_value_int => sqlite3_value_int (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_value_nochange => sqlite3_value_nochange (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_value_numeric_type => sqlite3_value_numeric_type (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_value_type => sqlite3_value_type (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_vfs_register => sqlite3_vfs_register (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_vfs_unregister => sqlite3_vfs_unregister (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_vtab_config => sqlite3_vtab_config (SAFE, value -> value); method `sqlite3_vtab_config` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_vtab_distinct => sqlite3_vtab_distinct (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_vtab_in => sqlite3_vtab_in (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_vtab_in_first => sqlite3_vtab_in_first (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_vtab_in_next => sqlite3_vtab_in_next (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_vtab_nochange => sqlite3_vtab_nochange (SAFE, resource -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_vtab_on_conflict => sqlite3_vtab_on_conflict (SAFE, resource -> value); method `sqlite3_vtab_on_conflict` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_vtab_rhs_value => sqlite3_vtab_rhs_value (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_wal_autocheckpoint => sqlite3_wal_autocheckpoint (SAFE, value -> value); method `sqlite3_wal_autocheckpoint` takes recognized resource `sqlite3*` as first argument
+- sqlite3.sqlite3_wal_checkpoint => sqlite3_wal_checkpoint (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_wal_checkpoint_v2 => sqlite3_wal_checkpoint_v2 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_win32_set_directory => sqlite3_win32_set_directory (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_win32_set_directory16 => sqlite3_win32_set_directory16 (SAFE, value -> nil); all parameters and return type are OM-safe
+- sqlite3.sqlite3_win32_set_directory8 => sqlite3_win32_set_directory8 (SAFE, value -> nil); all parameters and return type are OM-safe
+
+Blocked examples:
+- sqlite3_aggregate_context: unsupported return type `void*`
+- sqlite3_backup_init: unsupported return type `sqlite3_backup*`
+- sqlite3_bind_parameter_name: unsupported return type `char*`
+- sqlite3_column_blob: unsupported return type `void*`
+- sqlite3_column_database_name: unsupported return type `char*`
+- sqlite3_column_database_name16: unsupported return type `void*`
+- sqlite3_column_decltype: unsupported return type `char*`
+- sqlite3_column_decltype16: unsupported return type `void*`
+- sqlite3_column_int64: unsupported return type `sqlite3_int64`
+- sqlite3_column_name: unsupported return type `char*`
+- sqlite3_column_name16: unsupported return type `void*`
+- sqlite3_column_origin_name: unsupported return type `char*`
+- sqlite3_column_origin_name16: unsupported return type `void*`
+- sqlite3_column_table_name: unsupported return type `char*`
+- sqlite3_column_table_name16: unsupported return type `void*`
+- sqlite3_column_text: unsupported return type `unsigned char*`
+- sqlite3_column_text16: unsupported return type `void*`
+- sqlite3_column_value: unsupported return type `sqlite3_value*`
+- sqlite3_commit_hook: unsupported return type `void*`
+- sqlite3_context_db_handle: unsupported return type `sqlite3*`
+- sqlite3_create_filename: unsupported return type `sqlite3_filename`
+- sqlite3_database_file_object: unsupported return type `sqlite3_file*`
+- sqlite3_db_filename: unsupported return type `sqlite3_filename`
+- sqlite3_db_handle: unsupported return type `sqlite3*`
+- sqlite3_db_mutex: unsupported return type `sqlite3_mutex*`

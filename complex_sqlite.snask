@@ -1,0 +1,27 @@
+import "sqlite3"
+
+class main
+    fun start()
+        print("--- Snask SQLite3 Raw Demo ---")
+        
+        zone "db":
+            // 1. Abrir banco (OM gerencia o ciclo de vida)
+            // sqlite3_open retorna int e 'escreve' no recurso
+            let db = sqlite3.sqlite3_open("snask_complex.db")
+            print("Banco aberto com sucesso.")
+            
+            let sql_create = "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, bio TEXT);"
+            sqlite3.sqlite3_exec(db, sql_create, nil, nil, nil)
+            print("Tabela 'users' garantida.")
+            
+            let sql_insert = "INSERT INTO users (name, bio) VALUES ('Dev Snask', 'Evoluindo o scanner OM...');"
+            sqlite3.sqlite3_exec(db, sql_insert, nil, nil, nil)
+            print("Usuário inserido.")
+            
+            let changes = sqlite3.sqlite3_changes(db)
+            print("Linhas alteradas na última operação: " + changes)
+            
+            let ver = sqlite3.sqlite3_libversion()
+            print("SQLite3 Engine Version: " + ver)
+
+        print("--- Fim da Demo (Banco fechado automaticamente) ---")

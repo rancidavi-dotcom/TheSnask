@@ -1,0 +1,355 @@
+fun g_init()
+    return gui_init()
+
+fun g_run()
+    return gui_run()
+
+fun g_window(title, w, h)
+    return gui_window(title, w, h)
+
+fun g_set_resizable(win, enabled)
+    return gui_set_resizable(win, enabled)
+
+fun g_vbox()
+    return gui_vbox()
+
+fun g_hbox()
+    return gui_hbox()
+
+fun g_scrolled()
+    return gui_scrolled()
+
+fun g_set_child(parent, child)
+    return gui_set_child(parent, child)
+
+fun g_add(parent, child)
+    return gui_add(parent, child)
+
+fun g_add_expand(parent, child)
+    return gui_add_expand(parent, child)
+
+fun g_separator_h()
+    return gui_separator_h()
+
+fun g_label(text)
+    return gui_label(text)
+
+fun g_button(text)
+    return gui_button(text)
+
+fun g_show_all(widget)
+    return gui_show_all(widget)
+
+fun g_on_click(widget, handler)
+    return gui_on_click(widget, handler)
+
+fun g_on_select_ctx(list_widget, handler, ctx)
+    return gui_on_select_ctx(list_widget, handler, ctx)
+
+fun g_css(text)
+    return gui_css(text)
+
+fun g_add_class(widget, class_name)
+    return gui_add_class(widget, class_name)
+
+fun g_listbox()
+    return gui_listbox()
+
+fun g_list_add_text(list_widget, text)
+    return gui_list_add_text(list_widget, text)
+
+fun g_msg_info(title, msg)
+    return gui_msg_info(title, msg)
+
+fun g_msg_error(title, msg)
+    return gui_msg_error(title, msg)
+
+fun gl_section(parent, title)
+    let lbl = g_label(title)
+    g_add(parent, lbl)
+    g_add(parent, g_separator_h())
+    return lbl
+
+fun gl_spacer_h(parent)
+    let sep = g_separator_h()
+    g_add(parent, sep)
+    return sep
+
+fun home_dir()
+    let home = os_getenv("HOME")
+    if is_nil(home) or home == ""
+        return "."
+    return home
+
+fun snask_home()
+    return home_dir() + "/.snask"
+
+fun packages_dir()
+    return snask_home() + "/packages"
+
+fun registry_packages_dir()
+    return snask_home() + "/registry/packages"
+
+fun package_file(name)
+    return packages_dir() + "/" + name + ".snask"
+
+fun registry_package_file(name)
+    return registry_packages_dir() + "/" + name + ".snask"
+
+fun ensure_dirs()
+    sfs_mkdir(snask_home())
+    sfs_mkdir(packages_dir())
+    return true
+
+fun is_pkg_installed(name)
+    return sfs_exists(package_file(name))
+
+fun yes_no(flag)
+    if flag
+        return "sim"
+    return "nao"
+
+fun deps_text(pkg)
+    let deps = pkg["deps"]
+    if len(deps) == 0
+        return "sem dependencias"
+
+    mut out = ""
+    mut i = 0
+    while i < len(deps)
+        if i > 0
+            out = out + ", "
+        out = out + deps[i]
+        i = i + 1
+    return out
+
+fun pkg(name, version, description, deps)
+    return {
+        "name": name,
+        "version": version,
+        "description": description,
+        "deps": deps,
+    }
+
+fun catalog()
+    return [
+        pkg("blaze", "0.2.0", "Micro web framework estilo Flask com router simples e servidor HTTP.", ["json", "os"]),
+        pkg("blaze_auth", "0.2.0", "Autenticacao local, sessoes e cookies; bom para apps web maiores.", ["blaze", "json", "os", "sfs"]),
+        pkg("colors", "0.1.3", "Cores ANSI e estilos de terminal.", []),
+        pkg("datetime", "0.1.3", "Data e hora para apps Snask.", []),
+        pkg("gui", "0.2.1", "GUI GTK3 para desktop em Snask.", []),
+        pkg("gui_app", "0.1.3", "Helpers de app em cima do GUI.", ["gui"]),
+        pkg("gui_layout", "0.1.1", "Helpers de layout para interfaces GTK.", ["gui"]),
+        pkg("gui_shaders", "0.1.0", "CSS shaders e identidade visual para GUI.", ["gui"]),
+        pkg("gui_widgets", "0.1.1", "Widgets prontos sobre o GUI.", ["gui"]),
+        pkg("json", "1.0.0", "Parse e serializacao JSON.", []),
+        pkg("log", "0.3.4", "Logging simples com niveis.", []),
+        pkg("logger", "0.1.6", "Logging estruturado simples.", []),
+        pkg("os", "1.0.0", "Helpers de sistema operacional e ambiente.", []),
+        pkg("prelude", "0.1.0", "Helpers comuns para projetos Snask.", []),
+        pkg("requests", "1.0.0", "HTTP GET, POST, PUT, DELETE e PATCH.", []),
+        pkg("sfs", "1.2.1", "Manipulacao de arquivos e diretorios.", []),
+        pkg("sjson", "0.1.0", "JSON-like seguro e helpers nativos.", ["json"]),
+        pkg("sqlite", "0.1.0", "SQLite nativo com open, exec, query e bind.", []),
+        pkg("string", "1.0.0", "Manipulacao primordial de strings.", []),
+        pkg("utils", "1.2.0", "Utilitarios e constantes comuns.", []),
+    ]
+
+mut _catalog = nil
+mut _selected_name = ""
+mut _status_msg = "Pronto para instalar libs pela GUI."
+mut _win = nil
+
+fun find_pkg(name)
+    mut i = 0
+    while i < len(_catalog)
+        let item = _catalog[i]
+        if item["name"] == name
+            return item
+        i = i + 1
+    return nil
+
+fun selected_pkg()
+    if _selected_name == ""
+        return nil
+    return find_pkg(_selected_name)
+
+fun install_package_by_name(name)
+    let item = find_pkg(name)
+    if is_nil(item)
+        _status_msg = "Pacote nao encontrado: " + name
+        return false
+
+    let deps = item["deps"]
+    mut i = 0
+    while i < len(deps)
+        let dep_name = deps[i]
+        if is_pkg_installed(dep_name) == false
+            install_package_by_name(dep_name)
+        i = i + 1
+
+    let source_file = registry_package_file(name)
+    if sfs_exists(source_file) == false
+        _status_msg = "Pacote nao encontrado no registry local: " + name
+        return false
+    let body = sfs_read(source_file)
+
+    ensure_dirs()
+    if sfs_write(package_file(name), body) == false
+        _status_msg = "Falha ao gravar " + name + " em ~/.snask/packages"
+        return false
+
+    _status_msg = "Pacote instalado: " + name
+    return true
+
+fun remove_package_by_name(name)
+    if name == ""
+        _status_msg = "Selecione uma biblioteca para remover."
+        return false
+
+    if sfs_exists(package_file(name)) == false
+        _status_msg = "A biblioteca " + name + " nao esta instalada."
+        return false
+
+    if sfs_delete(package_file(name))
+        _status_msg = "Pacote removido: " + name
+        return true
+
+    _status_msg = "Falha ao remover " + name
+    return false
+
+fun install_gui_stack()
+    install_package_by_name("gui")
+    install_package_by_name("gui_layout")
+    install_package_by_name("gui_widgets")
+    install_package_by_name("gui_shaders")
+    _status_msg = "Stack GUI instalada."
+    return true
+
+fun install_theme()
+    return true
+
+fun selected_summary()
+    let item = selected_pkg()
+    if is_nil(item)
+        return "Selecione uma biblioteca na lista."
+    let name = item["name"]
+    let version = item["version"]
+    let installed = yes_no(is_pkg_installed(_selected_name))
+    return name + "  |  v" + version + "  |  instalada: " + installed
+
+fun selected_description()
+    let item = selected_pkg()
+    if is_nil(item)
+        return "O app instala libs direto em ~/.snask/packages sem usar snask install."
+    let desc = item["description"]
+    let deps = deps_text(item)
+    return desc + "  |  deps: " + deps
+
+fun render_ui()
+    let root = g_vbox()
+    g_set_child(_win, root)
+
+    let hero = g_label("Snask Store")
+    g_add(root, hero)
+
+    let subtitle = g_label("App 100% Snask para instalar bibliotecas do SnaskPackages por GUI.")
+    g_add(root, subtitle)
+
+    let status = g_label(_status_msg)
+    g_add(root, status)
+
+    gl_spacer_h(root)
+
+    let actions = g_hbox()
+    g_add(root, actions)
+    let b_gui = g_button("Instalar Stack GUI")
+    let b_install = g_button("Instalar Selecionada")
+    let b_remove = g_button("Remover Selecionada")
+    g_on_click(b_gui, "on_install_gui_stack")
+    g_on_click(b_install, "on_install_selected")
+    g_on_click(b_remove, "on_remove_selected")
+    g_add_expand(actions, b_gui)
+    g_add_expand(actions, b_install)
+    g_add_expand(actions, b_remove)
+
+    gl_spacer_h(root)
+
+    let count_label = g_label("Pacotes disponiveis")
+    g_add(root, count_label)
+
+    let scroll = g_scrolled()
+    g_add_expand(root, scroll)
+    let pkg_list = g_listbox()
+    g_set_child(scroll, pkg_list)
+
+    mut i = 0
+    while i < len(_catalog)
+        let item = _catalog[i]
+        let name = item["name"]
+        let row = g_list_add_text(pkg_list, name)
+        g_add_class(row, "store-row")
+        i = i + 1
+
+    g_on_select_ctx(pkg_list, "on_select_pkg", "")
+
+    gl_spacer_h(root)
+    let summary = g_label(selected_summary())
+    let description = g_label(selected_description())
+    g_add(root, summary)
+    g_add(root, description)
+
+    g_show_all(_win)
+    return true
+
+fun on_select_pkg(name, _ctx)
+    _selected_name = name
+    render_ui()
+    return true
+
+fun on_install_gui_stack(_widget)
+    install_gui_stack()
+    g_msg_info("Snask Store", _status_msg)
+    render_ui()
+    return true
+
+fun on_install_selected(_widget)
+    if _selected_name == ""
+        g_msg_error("Snask Store", "Selecione uma biblioteca primeiro.")
+        return true
+
+    let ok = install_package_by_name(_selected_name)
+    if ok == false
+        g_msg_error("Snask Store", _status_msg)
+        return true
+    g_msg_info("Snask Store", "Biblioteca instalada: " + _selected_name)
+    render_ui()
+    return true
+
+fun on_remove_selected(_widget)
+    if _selected_name == ""
+        g_msg_error("Snask Store", "Selecione uma biblioteca primeiro.")
+        return true
+
+    let ok = remove_package_by_name(_selected_name)
+    if ok == false
+        g_msg_error("Snask Store", _status_msg)
+        return true
+    g_msg_info("Snask Store", "Biblioteca removida: " + _selected_name)
+    render_ui()
+    return true
+
+class main
+    fun start()
+        ensure_dirs()
+        _catalog = catalog()
+
+        if g_init() == false
+            print("Falha ao inicializar a GUI do Snask Store")
+            return nil
+
+        install_theme()
+        _win = g_window("Snask Store", 1120, 760)
+        g_set_resizable(_win, true)
+        render_ui()
+        g_run()

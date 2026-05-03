@@ -1,0 +1,5 @@
+class main
+    fun start()
+        print("Testando s_system...")
+        s_system("ls -la > test_ls.txt")
+        return true

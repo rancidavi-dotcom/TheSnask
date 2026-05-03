@@ -1,0 +1,4 @@
+import "sqlite3"
+class main
+    fun start()
+        print("re-scanning sqlite3")
