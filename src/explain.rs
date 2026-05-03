@@ -38,6 +38,8 @@ fn normalize_code(code: &str) -> &str {
         "SNASK-SEM-PROP-NOT-FOUND" => humane_code(trimmed),
         "SNASK-SEM-NOT-CALLABLE" => humane_code(trimmed),
         "SNASK-SEM-RESTRICTED-NATIVE" => humane_code(trimmed),
+        "SNASK-BUILD-STANDARD-RUNTIME" => humane_code(trimmed),
+        "SNASK-BUILD-BAREMETAL-BACKEND" => humane_code(trimmed),
         "SNASK-TINY-DISALLOWED-LIB" => humane_code(trimmed),
         _ => trimmed,
     }
@@ -144,6 +146,30 @@ Example:
 Fix:
   mut count = 0
   count = 1",
+        ),
+        "S8001" => Some(
+            "S8001: standard runtime required
+
+You are compiling with `--profile baremetal`, but the highlighted code needs Snask's normal std/runtime layer.
+
+In baremetal mode there is no default stdout, stdin, filesystem, OS process, GUI, libc, or C interop runtime.
+
+Example:
+  print(\"Hello\")
+
+Fix:
+  use a serial/VGA driver, or build with `--profile humane`
+
+For low-level work that still wants the normal runtime, use:
+  snask build app.snask --profile systems",
+        ),
+        "S8002" => Some(
+            "S8002: baremetal backend not implemented yet
+
+Snask recognizes the `baremetal` profile, but the freestanding backend still needs no_std/no_runtime support, custom entrypoints, linker scripts, and target-specific runtime rules.
+
+Temporary fix:
+  use `--profile systems` while baremetal support is being implemented.",
         ),
         "SNASK-PARSE-EXPR" => Some(
             "In Snask, when you declare a variable with 'let', you are creating a binding.

@@ -5,11 +5,11 @@ Priority: optional
 Section: devel
 Maintainer: Davi <davidev@snask.lang>
 Filename: pool/main/s/snask/snask_0.4.1_amd64.deb
-Size: 7524358
-MD5sum: 842e8138176a402400541a6b9fd6ae00
-SHA1: 7eca4a1e3a80a353c34833ee0f95b469bb24cd8b
-SHA256: 3a33d2d90c8e66b630939df3280c8b075ea67f869b558fc3edc19c201c57f010
-SHA512: 8fb0eec5493176e024ab735f649a7b7217e41cff0df5224c9e72ce756f18af6d2516561293aae6569411c1597fad623d0f0dc1c8cb2abd304a436b6390c0dd6b
+Size: 7546238
+MD5sum: 4b47622c538eacc8a4ebe47c2de15498
+SHA1: 594c53c28a4ed1a4b5f7291ede484b4979ab8eae
+SHA256: 3d1e937f9a02546aaeab7ed809f03658ac6ec0e28763db4e48be87fcad3f083b
+SHA512: b50bc67eb420c5e927fbfd91ca9a91704a9e53d10c5ce387d9289aeaed0b5aab376851ac31a5702003217d154b70b811004cf0744e0a925e3eb9908e350c061b
 Description: Snask Programming Language with Orchestrated Memory (OM)
  A high-performance systems programming language with revolutionary memory safety.
 

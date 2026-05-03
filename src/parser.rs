@@ -102,6 +102,13 @@ pub enum Token {
     Star(Location),
     Slash(Location),
     DoubleSlash(Location),
+    Percent(Location),
+    Ampersand(Location),
+    Pipe(Location),
+    Caret(Location),
+    Tilde(Location),
+    ShiftLeft(Location),
+    ShiftRight(Location),
     PlusEqual(Location),
     MinusEqual(Location),
     StarEqual(Location),
@@ -182,6 +189,13 @@ impl Token {
             | Token::Star(loc)
             | Token::Slash(loc)
             | Token::DoubleSlash(loc)
+            | Token::Percent(loc)
+            | Token::Ampersand(loc)
+            | Token::Pipe(loc)
+            | Token::Caret(loc)
+            | Token::Tilde(loc)
+            | Token::ShiftLeft(loc)
+            | Token::ShiftRight(loc)
             | Token::PlusEqual(loc)
             | Token::MinusEqual(loc)
             | Token::StarEqual(loc)
@@ -257,6 +271,13 @@ impl Token {
             Token::Star(_) => "'*'".to_string(),
             Token::Slash(_) => "'/'".to_string(),
             Token::DoubleSlash(_) => "'//'".to_string(),
+            Token::Percent(_) => "'%'".to_string(),
+            Token::Ampersand(_) => "'&'".to_string(),
+            Token::Pipe(_) => "'|'".to_string(),
+            Token::Caret(_) => "'^'".to_string(),
+            Token::Tilde(_) => "'~'".to_string(),
+            Token::ShiftLeft(_) => "'<<'".to_string(),
+            Token::ShiftRight(_) => "'>>'".to_string(),
             Token::PlusEqual(_) => "'+='".to_string(),
             Token::MinusEqual(_) => "'-='".to_string(),
             Token::StarEqual(_) => "'*='".to_string(),
@@ -487,6 +508,11 @@ impl<'a> Tokenizer<'a> {
                         Token::Star(loc)
                     }
                 }
+                '%' => Token::Percent(loc),
+                '&' => Token::Ampersand(loc),
+                '|' => Token::Pipe(loc),
+                '^' => Token::Caret(loc),
+                '~' => Token::Tilde(loc),
                 '/' => {
                     if let Some('/') = self.peek() {
                         self.advance();
@@ -523,14 +549,18 @@ impl<'a> Tokenizer<'a> {
                     }
                 }
                 '<' => {
-                    if self.match_char('=') {
+                    if self.match_char('<') {
+                        Token::ShiftLeft(loc)
+                    } else if self.match_char('=') {
                         Token::LessEqual(loc)
                     } else {
                         Token::Less(loc)
                     }
                 }
                 '>' => {
-                    if self.match_char('=') {
+                    if self.match_char('>') {
+                        Token::ShiftRight(loc)
+                    } else if self.match_char('=') {
                         Token::GreaterEqual(loc)
                     } else {
                         Token::Greater(loc)
@@ -618,6 +648,32 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn read_number(&mut self, first_char: char, loc: Location) -> Token {
+        if first_char == '0' && matches!(self.peek(), Some('x') | Some('X')) {
+            self.advance();
+            let mut hex = String::new();
+            while let Some(&c) = self.peek() {
+                if c.is_ascii_hexdigit() {
+                    hex.push(self.advance().unwrap());
+                } else {
+                    break;
+                }
+            }
+            let value = u64::from_str_radix(&hex, 16).unwrap_or(0) as f64;
+            return Token::Number(value, loc);
+        }
+        if first_char == '0' && matches!(self.peek(), Some('b') | Some('B')) {
+            self.advance();
+            let mut bits = String::new();
+            while let Some(&c) = self.peek() {
+                if c == '0' || c == '1' {
+                    bits.push(self.advance().unwrap());
+                } else {
+                    break;
+                }
+            }
+            let value = u64::from_str_radix(&bits, 2).unwrap_or(0) as f64;
+            return Token::Number(value, loc);
+        }
         let mut number = String::new();
         number.push(first_char);
         while let Some(&c) = self.peek() {
@@ -712,6 +768,10 @@ enum Precedence {
     Or,         // or
     And,        // and
     Equality,   // == !=
+    BitOr,      // |
+    BitXor,     // ^
+    BitAnd,     // &
+    Shift,      // << >>
     Comparison, // < > <= >=
     Term,       // + -
     Factor,     // * /
@@ -836,6 +896,7 @@ impl<'a> Parser<'a> {
             Token::Or(_) => 2,
             Token::Not(_) => 3,
             Token::DoubleSlash(_) => 2,
+            Token::ShiftLeft(_) | Token::ShiftRight(_) => 2,
             Token::PlusEqual(_)
             | Token::MinusEqual(_)
             | Token::StarEqual(_)
@@ -1862,6 +1923,15 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn consume_type_greater(&mut self) -> ParseResult<()> {
+        if let Token::ShiftRight(loc) = self.current_token.clone() {
+            self.current_token = Token::Greater(loc);
+            return Ok(());
+        }
+        self.consume_token(&Token::Greater(Location { line: 0, column: 0 }))?;
+        Ok(())
+    }
+
     fn parse_type_name(&mut self) -> ParseResult<Type> {
         let (type_name, loc) = match self.current_token.clone() {
             Token::Identifier(s, loc) => {
@@ -1893,14 +1963,14 @@ impl<'a> Parser<'a> {
             match normalized.as_str() {
                 "list" => {
                     let inner = self.parse_type_name()?;
-                    self.consume_token(&Token::Greater(Location { line: 0, column: 0 }))?;
+                    self.consume_type_greater()?;
                     Ok(Type::ListOf(Box::new(inner)))
                 }
                 "dict" => {
                     let key = self.parse_type_name()?;
                     self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
                     let value = self.parse_type_name()?;
-                    self.consume_token(&Token::Greater(Location { line: 0, column: 0 }))?;
+                    self.consume_type_greater()?;
                     Ok(Type::DictOf(Box::new(key), Box::new(value)))
                 }
                 _ => Err(ParseError::new(
@@ -2031,11 +2101,17 @@ impl<'a> Parser<'a> {
             Token::EqualEqual(_) | Token::TripleEqual(_) | Token::BangEqual(_) => {
                 Precedence::Equality
             }
+            Token::Pipe(_) => Precedence::BitOr,
+            Token::Caret(_) => Precedence::BitXor,
+            Token::Ampersand(_) => Precedence::BitAnd,
+            Token::ShiftLeft(_) | Token::ShiftRight(_) => Precedence::Shift,
             Token::Less(_) | Token::LessEqual(_) | Token::Greater(_) | Token::GreaterEqual(_) => {
                 Precedence::Comparison
             }
             Token::Plus(_) | Token::Minus(_) => Precedence::Term,
-            Token::Star(_) | Token::Slash(_) | Token::DoubleSlash(_) => Precedence::Factor,
+            Token::Star(_) | Token::Slash(_) | Token::DoubleSlash(_) | Token::Percent(_) => {
+                Precedence::Factor
+            }
             Token::LeftParen(_) => Precedence::Call,
             Token::LeftBracket(_) => Precedence::Index,
             Token::Dot(_) | Token::DoubleColon(_) => Precedence::Call, // Set Dot and DoubleColon precedence
@@ -2050,6 +2126,12 @@ impl<'a> Parser<'a> {
             Token::Star(_) => Ok(BinaryOp::Multiply),
             Token::Slash(_) => Ok(BinaryOp::Divide),
             Token::DoubleSlash(_) => Ok(BinaryOp::IntDivide),
+            Token::Percent(_) => Ok(BinaryOp::Modulo),
+            Token::Ampersand(_) => Ok(BinaryOp::BitAnd),
+            Token::Pipe(_) => Ok(BinaryOp::BitOr),
+            Token::Caret(_) => Ok(BinaryOp::BitXor),
+            Token::ShiftLeft(_) => Ok(BinaryOp::ShiftLeft),
+            Token::ShiftRight(_) => Ok(BinaryOp::ShiftRight),
             Token::And(_) => Ok(BinaryOp::And),
             Token::Or(_) => Ok(BinaryOp::Or),
             Token::EqualEqual(_) => Ok(BinaryOp::Equals),
@@ -2246,6 +2328,19 @@ impl<'a> Parser<'a> {
                     span,
                 ))
             }
+            Token::Tilde(_) => {
+                self.consume_token(&Token::Tilde(loc.clone()))?;
+                let expr = self.parse_expression(Precedence::Unary)?;
+                let span = Self::span1(&loc).merge(&expr.span);
+                Ok(Expr::with_span(
+                    ExprKind::Unary {
+                        op: UnaryOp::BitNot,
+                        expr: Box::new(expr),
+                    },
+                    loc,
+                    span,
+                ))
+            }
             Token::LeftParen(_) => {
                 self.consume_token(&Token::LeftParen(loc))?;
                 let expr = self.parse_expression(Precedence::Assignment)?;
@@ -2332,6 +2427,12 @@ impl<'a> Parser<'a> {
             | Token::Star(_)
             | Token::Slash(_)
             | Token::DoubleSlash(_)
+            | Token::Percent(_)
+            | Token::Ampersand(_)
+            | Token::Pipe(_)
+            | Token::Caret(_)
+            | Token::ShiftLeft(_)
+            | Token::ShiftRight(_)
             | Token::And(_)
             | Token::Or(_)
             | Token::EqualEqual(_)
@@ -2678,6 +2779,35 @@ class main
             }
             other => panic!("expected unsafe block wrapping a zone, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn parses_low_level_machine_types_and_bitwise_ops() {
+        let src = r#"
+class main
+    fun start()
+        let a: u8 = 0xF0
+        let b: u16 = 4
+        let c: usize = (a & 0x0F) << b
+        let d: i32 = ~1
+"#;
+        let mut p = Parser::new(src).unwrap();
+        let program = p
+            .parse_program()
+            .expect("parser should accept low-level systems syntax");
+
+        let StmtKind::ClassDeclaration(class_decl) = &program[0].kind else {
+            panic!("expected class declaration");
+        };
+        let body = &class_decl.methods[0].body;
+        let StmtKind::VarDeclaration(first) = &body[0].kind else {
+            panic!("expected var declaration");
+        };
+        assert_eq!(first.var_type, Some(Type::U8));
+        let StmtKind::VarDeclaration(third) = &body[2].kind else {
+            panic!("expected var declaration");
+        };
+        assert_eq!(third.var_type, Some(Type::Usize));
     }
 
     #[test]

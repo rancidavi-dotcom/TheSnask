@@ -5,9 +5,9 @@ use crate::om_contract::{OmContract, OmFunctionContract, OmResourceContract};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, StructType};
+use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, IntType, StructType};
 use inkwell::values::{
-    BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue, StructValue,
+    BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue, StructValue,
 };
 use std::collections::HashMap;
 
@@ -133,13 +133,738 @@ impl<'ctx> LLVMGenerator<'ctx> {
     fn snask_type_to_llvm(&self, ty: &crate::types::Type) -> inkwell::types::BasicTypeEnum<'ctx> {
         use crate::types::Type;
         match ty {
-            Type::Int | Type::I64 => self.i64_type.into(),
+            Type::Int | Type::I64 | Type::U64 | Type::Usize | Type::Isize => self.i64_type.into(),
             Type::I32 => self.i32_type.into(),
+            Type::U32 => self.context.i32_type().into(),
+            Type::I16 | Type::U16 => self.context.i16_type().into(),
+            Type::I8 => self.context.i8_type().into(),
             Type::U8 => self.context.i8_type().into(),
-            Type::Float => self.f64_type.into(),
+            Type::F32 => self.context.f32_type().into(),
+            Type::Float | Type::F64 => self.f64_type.into(),
             Type::Bool => self.bool_type.into(),
             Type::String | Type::Ptr | Type::User(_) => self.ptr_type.into(),
             _ => self.value_type.into(), // Fallback para Any/Complexos
+        }
+    }
+
+    fn cast_basic_value(
+        &self,
+        value: BasicValueEnum<'ctx>,
+        from: crate::types::Type,
+        to: &crate::types::Type,
+    ) -> BasicValueEnum<'ctx> {
+        if &from == to {
+            return value;
+        }
+
+        let target = self.snask_type_to_llvm(to);
+        if from.is_integer() && to.is_integer() {
+            return self
+                .builder
+                .build_int_cast(value.into_int_value(), target.into_int_type(), "int_cast")
+                .unwrap()
+                .into();
+        }
+        if from.is_integer() && to.is_float() {
+            return self
+                .builder
+                .build_signed_int_to_float(
+                    value.into_int_value(),
+                    target.into_float_type(),
+                    "int_to_float",
+                )
+                .unwrap()
+                .into();
+        }
+        if from.is_float() && to.is_integer() {
+            return self
+                .builder
+                .build_float_to_signed_int(
+                    value.into_float_value(),
+                    target.into_int_type(),
+                    "float_to_int",
+                )
+                .unwrap()
+                .into();
+        }
+        if from.is_float() && to.is_float() {
+            return self
+                .builder
+                .build_float_cast(
+                    value.into_float_value(),
+                    target.into_float_type(),
+                    "float_cast",
+                )
+                .unwrap()
+                .into();
+        }
+        value
+    }
+
+    fn int_type_for_bits(&self, bits: u32) -> IntType<'ctx> {
+        match bits {
+            1 => self.bool_type,
+            8 => self.context.i8_type(),
+            16 => self.context.i16_type(),
+            32 => self.context.i32_type(),
+            64 => self.context.i64_type(),
+            _ => self.context.custom_width_int_type(bits),
+        }
+    }
+
+    fn systems_type_from_suffix(&self, suffix: &str) -> Option<crate::types::Type> {
+        match suffix {
+            "u8" => Some(crate::types::Type::U8),
+            "u16" => Some(crate::types::Type::U16),
+            "u32" => Some(crate::types::Type::U32),
+            "u64" => Some(crate::types::Type::U64),
+            "i8" => Some(crate::types::Type::I8),
+            "i16" => Some(crate::types::Type::I16),
+            "i32" => Some(crate::types::Type::I32),
+            "i64" => Some(crate::types::Type::I64),
+            "usize" => Some(crate::types::Type::Usize),
+            "isize" => Some(crate::types::Type::Isize),
+            _ => None,
+        }
+    }
+
+    fn int_value_as(
+        &self,
+        value: BasicValueEnum<'ctx>,
+        from: crate::types::Type,
+        target_ty: &crate::types::Type,
+    ) -> IntValue<'ctx> {
+        self.cast_basic_value(value, from, target_ty)
+            .into_int_value()
+    }
+
+    fn bool_from_int_compare_zero(
+        &self,
+        value: IntValue<'ctx>,
+        pred: inkwell::IntPredicate,
+    ) -> IntValue<'ctx> {
+        self.builder
+            .build_int_compare(pred, value, value.get_type().const_zero(), "cmp_zero")
+            .unwrap()
+    }
+
+    fn malloc_function(&self) -> FunctionValue<'ctx> {
+        self.module.get_function("malloc").unwrap_or_else(|| {
+            self.module.add_function(
+                "malloc",
+                self.ptr_type.fn_type(&[self.i64_type.into()], false),
+                None,
+            )
+        })
+    }
+
+    fn free_function(&self) -> FunctionValue<'ctx> {
+        self.module.get_function("free").unwrap_or_else(|| {
+            self.module.add_function(
+                "free",
+                self.context
+                    .void_type()
+                    .fn_type(&[self.ptr_type.into()], false),
+                None,
+            )
+        })
+    }
+
+    fn memset_function(&self) -> FunctionValue<'ctx> {
+        self.module.get_function("memset").unwrap_or_else(|| {
+            self.module.add_function(
+                "memset",
+                self.ptr_type.fn_type(
+                    &[
+                        self.ptr_type.into(),
+                        self.context.i32_type().into(),
+                        self.i64_type.into(),
+                    ],
+                    false,
+                ),
+                None,
+            )
+        })
+    }
+
+    fn memcpy_function(&self) -> FunctionValue<'ctx> {
+        self.module.get_function("memcpy").unwrap_or_else(|| {
+            self.module.add_function(
+                "memcpy",
+                self.ptr_type.fn_type(
+                    &[
+                        self.ptr_type.into(),
+                        self.ptr_type.into(),
+                        self.i64_type.into(),
+                    ],
+                    false,
+                ),
+                None,
+            )
+        })
+    }
+
+    fn ptr_offset(
+        &self,
+        base: PointerValue<'ctx>,
+        offset: IntValue<'ctx>,
+        name: &str,
+    ) -> PointerValue<'ctx> {
+        let offset = self
+            .builder
+            .build_int_cast(offset, self.i64_type, "ptr_offset_i64")
+            .unwrap();
+        unsafe {
+            self.builder
+                .build_gep(self.context.i8_type(), base, &[offset], name)
+                .unwrap()
+        }
+    }
+
+    fn load_u8_at(&self, base: PointerValue<'ctx>, offset: IntValue<'ctx>) -> IntValue<'ctx> {
+        let ptr = self.ptr_offset(base, offset, "u8_ptr");
+        self.builder
+            .build_load(self.context.i8_type(), ptr, "load_u8")
+            .unwrap()
+            .into_int_value()
+    }
+
+    fn emit_systems_low_level_builtin(
+        &self,
+        name: &str,
+        args: &[Expr],
+    ) -> Result<Option<(BasicValueEnum<'ctx>, crate::types::Type)>, String> {
+        if let Some(suffix) = name.strip_prefix("as_") {
+            if let Some(target_ty) = self.systems_type_from_suffix(suffix) {
+                if args.len() != 1 {
+                    return Err(format!("{name} expects 1 argument."));
+                }
+                let (value, from_ty) = self.evaluate_expression(args[0].clone())?;
+                let casted = self.cast_basic_value(value, from_ty, &target_ty);
+                return Ok(Some((casted, target_ty)));
+            }
+        }
+
+        match name {
+            "lo_u8" | "hi_u8" => {
+                if args.len() != 1 {
+                    return Err(format!("{name} expects 1 argument."));
+                }
+                let (value, ty) = self.evaluate_expression(args[0].clone())?;
+                let v = self.int_value_as(value, ty, &crate::types::Type::U16);
+                let shifted = if name == "hi_u8" {
+                    self.builder
+                        .build_right_shift(
+                            v,
+                            self.context.i16_type().const_int(8, false),
+                            false,
+                            "hi_shift",
+                        )
+                        .unwrap()
+                } else {
+                    v
+                };
+                let out = self
+                    .builder
+                    .build_int_cast(shifted, self.context.i8_type(), "to_u8")
+                    .unwrap();
+                Ok(Some((out.into(), crate::types::Type::U8)))
+            }
+            "make_u16" => {
+                if args.len() != 2 {
+                    return Err("make_u16 expects 2 arguments.".to_string());
+                }
+                let (lo, lo_ty) = self.evaluate_expression(args[0].clone())?;
+                let (hi, hi_ty) = self.evaluate_expression(args[1].clone())?;
+                let lo = self.int_value_as(lo, lo_ty, &crate::types::Type::U16);
+                let hi = self.int_value_as(hi, hi_ty, &crate::types::Type::U16);
+                let hi = self
+                    .builder
+                    .build_left_shift(hi, self.context.i16_type().const_int(8, false), "hi")
+                    .unwrap();
+                let out = self.builder.build_or(lo, hi, "make_u16").unwrap();
+                Ok(Some((out.into(), crate::types::Type::U16)))
+            }
+            "is_zero_u8" | "is_negative_u8" => {
+                if args.len() != 1 {
+                    return Err(format!("{name} expects 1 argument."));
+                }
+                let (value, ty) = self.evaluate_expression(args[0].clone())?;
+                let v = self.int_value_as(value, ty, &crate::types::Type::U8);
+                let out = if name == "is_zero_u8" {
+                    self.bool_from_int_compare_zero(v, inkwell::IntPredicate::EQ)
+                } else {
+                    let masked = self
+                        .builder
+                        .build_and(v, self.context.i8_type().const_int(0x80, false), "neg_mask")
+                        .unwrap();
+                    self.bool_from_int_compare_zero(masked, inkwell::IntPredicate::NE)
+                };
+                Ok(Some((out.into(), crate::types::Type::Bool)))
+            }
+            "bit_test" | "bit_set" | "bit_clear" | "bit_toggle" | "bit_write" => {
+                if args.len() < 2 || (name == "bit_write" && args.len() != 3) {
+                    return Err(format!(
+                        "{name} expects {} arguments.",
+                        if name == "bit_write" { 3 } else { 2 }
+                    ));
+                }
+                let (value, value_ty) = self.evaluate_expression(args[0].clone())?;
+                let (bit, bit_ty) = self.evaluate_expression(args[1].clone())?;
+                let result_ty = if value_ty.is_integer() {
+                    value_ty.clone()
+                } else {
+                    crate::types::Type::Int
+                };
+                let bits = result_ty.bit_width().unwrap_or(64);
+                let int_ty = self.int_type_for_bits(bits);
+                let value = self.int_value_as(value, value_ty, &result_ty);
+                let bit = self.int_value_as(bit, bit_ty, &crate::types::Type::U8);
+                let bit = self
+                    .builder
+                    .build_int_cast(bit, int_ty, "bit_index")
+                    .unwrap();
+                let one = int_ty.const_int(1, false);
+                let mask = self.builder.build_left_shift(one, bit, "bit_mask").unwrap();
+                let out = match name {
+                    "bit_test" => {
+                        let masked = self
+                            .builder
+                            .build_and(value, mask, "bit_test_mask")
+                            .unwrap();
+                        return Ok(Some((
+                            self.bool_from_int_compare_zero(masked, inkwell::IntPredicate::NE)
+                                .into(),
+                            crate::types::Type::Bool,
+                        )));
+                    }
+                    "bit_set" => self.builder.build_or(value, mask, "bit_set").unwrap(),
+                    "bit_clear" => {
+                        let inv = self.builder.build_not(mask, "bit_clear_mask").unwrap();
+                        self.builder.build_and(value, inv, "bit_clear").unwrap()
+                    }
+                    "bit_toggle" => self.builder.build_xor(value, mask, "bit_toggle").unwrap(),
+                    "bit_write" => {
+                        let (enabled, enabled_ty) = self.evaluate_expression(args[2].clone())?;
+                        let enabled =
+                            self.int_value_as(enabled, enabled_ty, &crate::types::Type::Bool);
+                        let set = self.builder.build_or(value, mask, "bit_write_set").unwrap();
+                        let inv = self.builder.build_not(mask, "bit_write_inv").unwrap();
+                        let clear = self
+                            .builder
+                            .build_and(value, inv, "bit_write_clear")
+                            .unwrap();
+                        self.builder
+                            .build_select(enabled, set, clear, "bit_write")
+                            .unwrap()
+                            .into_int_value()
+                    }
+                    _ => unreachable!(),
+                };
+                Ok(Some((out.into(), result_ty)))
+            }
+            "flag_has" | "flag_set" | "flag_clear" | "flag_write" => {
+                let mapped = match name {
+                    "flag_has" => "bit_test",
+                    "flag_set" => "bit_set",
+                    "flag_clear" => "bit_clear",
+                    "flag_write" => "bit_write",
+                    _ => unreachable!(),
+                };
+                self.emit_systems_low_level_builtin(mapped, args)
+            }
+            "wrapping_add" | "wrapping_sub" | "wrapping_mul" | "saturating_add"
+            | "wrapping_inc" | "wrapping_dec" => {
+                let expected = if matches!(name, "wrapping_inc" | "wrapping_dec") {
+                    1
+                } else {
+                    2
+                };
+                if args.len() != expected {
+                    return Err(format!("{name} expects {expected} argument(s)."));
+                }
+                let (lhs, lty) = self.evaluate_expression(args[0].clone())?;
+                let result_ty = if lty.is_integer() {
+                    lty.clone()
+                } else {
+                    crate::types::Type::Int
+                };
+                let li = self.int_value_as(lhs, lty, &result_ty);
+                let ri = if expected == 1 {
+                    li.get_type().const_int(1, false)
+                } else {
+                    let (rhs, rty) = self.evaluate_expression(args[1].clone())?;
+                    self.int_value_as(rhs, rty, &result_ty)
+                };
+                let raw = match name {
+                    "wrapping_add" | "wrapping_inc" => {
+                        self.builder.build_int_add(li, ri, "wrap_add").unwrap()
+                    }
+                    "wrapping_sub" | "wrapping_dec" => {
+                        self.builder.build_int_sub(li, ri, "wrap_sub").unwrap()
+                    }
+                    "wrapping_mul" => self.builder.build_int_mul(li, ri, "wrap_mul").unwrap(),
+                    "saturating_add" => {
+                        let sum = self.builder.build_int_add(li, ri, "sat_add").unwrap();
+                        let pred = if result_ty.is_unsigned_integer() {
+                            inkwell::IntPredicate::ULT
+                        } else {
+                            inkwell::IntPredicate::SLT
+                        };
+                        let overflow = self
+                            .builder
+                            .build_int_compare(pred, sum, li, "sat_overflow")
+                            .unwrap();
+                        let max = sum.get_type().const_all_ones();
+                        self.builder
+                            .build_select(overflow, max, sum, "sat_select")
+                            .unwrap()
+                            .into_int_value()
+                    }
+                    _ => unreachable!(),
+                };
+                Ok(Some((raw.into(), result_ty)))
+            }
+            "carry_add_u8" | "borrow_sub_u8" | "overflow_add_i8" | "overflow_sub_i8" => {
+                if args.len() != 3 {
+                    return Err(format!("{name} expects 3 arguments."));
+                }
+                let (a, aty) = self.evaluate_expression(args[0].clone())?;
+                let (b, bty) = self.evaluate_expression(args[1].clone())?;
+                let (c, cty) = self.evaluate_expression(args[2].clone())?;
+                let a16 = self.int_value_as(a, aty, &crate::types::Type::U16);
+                let b16 = self.int_value_as(b, bty, &crate::types::Type::U16);
+                let c16 = self.int_value_as(c, cty, &crate::types::Type::U16);
+                let out = match name {
+                    "carry_add_u8" => {
+                        let sum = self.builder.build_int_add(a16, b16, "carry_ab").unwrap();
+                        let sum = self.builder.build_int_add(sum, c16, "carry_abc").unwrap();
+                        self.builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::UGT,
+                                sum,
+                                self.context.i16_type().const_int(0xFF, false),
+                                "carry",
+                            )
+                            .unwrap()
+                    }
+                    "borrow_sub_u8" => {
+                        let b_plus = self.builder.build_int_add(b16, c16, "borrow_bc").unwrap();
+                        self.builder
+                            .build_int_compare(inkwell::IntPredicate::ULT, a16, b_plus, "borrow")
+                            .unwrap()
+                    }
+                    "overflow_add_i8" => {
+                        let a8 = self
+                            .builder
+                            .build_int_cast(a16, self.context.i8_type(), "a8")
+                            .unwrap();
+                        let b8 = self
+                            .builder
+                            .build_int_cast(b16, self.context.i8_type(), "b8")
+                            .unwrap();
+                        let c8 = self
+                            .builder
+                            .build_int_cast(c16, self.context.i8_type(), "c8")
+                            .unwrap();
+                        let sum = self.builder.build_int_add(a8, b8, "ov_ab").unwrap();
+                        let sum = self.builder.build_int_add(sum, c8, "ov_abc").unwrap();
+                        let xor1 = self.builder.build_xor(a8, sum, "ov_x1").unwrap();
+                        let xor2 = self.builder.build_xor(a8, b8, "ov_x2").unwrap();
+                        let not_xor2 = self.builder.build_not(xor2, "ov_not").unwrap();
+                        let masked = self.builder.build_and(xor1, not_xor2, "ov_mask").unwrap();
+                        let sign = self
+                            .builder
+                            .build_and(
+                                masked,
+                                self.context.i8_type().const_int(0x80, false),
+                                "ov_sign",
+                            )
+                            .unwrap();
+                        self.bool_from_int_compare_zero(sign, inkwell::IntPredicate::NE)
+                    }
+                    "overflow_sub_i8" => {
+                        let a8 = self
+                            .builder
+                            .build_int_cast(a16, self.context.i8_type(), "a8")
+                            .unwrap();
+                        let b8 = self
+                            .builder
+                            .build_int_cast(b16, self.context.i8_type(), "b8")
+                            .unwrap();
+                        let c8 = self
+                            .builder
+                            .build_int_cast(c16, self.context.i8_type(), "c8")
+                            .unwrap();
+                        let sub = self.builder.build_int_add(b8, c8, "sub_bc").unwrap();
+                        let res = self.builder.build_int_sub(a8, sub, "sub_res").unwrap();
+                        let xor1 = self.builder.build_xor(a8, res, "sub_ov_x1").unwrap();
+                        let xor2 = self.builder.build_xor(a8, b8, "sub_ov_x2").unwrap();
+                        let masked = self.builder.build_and(xor1, xor2, "sub_ov_mask").unwrap();
+                        let sign = self
+                            .builder
+                            .build_and(
+                                masked,
+                                self.context.i8_type().const_int(0x80, false),
+                                "sub_ov_sign",
+                            )
+                            .unwrap();
+                        self.bool_from_int_compare_zero(sign, inkwell::IntPredicate::NE)
+                    }
+                    _ => unreachable!(),
+                };
+                Ok(Some((out.into(), crate::types::Type::Bool)))
+            }
+            "mem_alloc" | "mem_alloc_zero" => {
+                if args.len() != 1 {
+                    return Err(format!("{name} expects 1 argument."));
+                }
+                let (size, size_ty) = self.evaluate_expression(args[0].clone())?;
+                let size = self.int_value_as(size, size_ty, &crate::types::Type::Usize);
+                let call = self
+                    .builder
+                    .build_call(self.malloc_function(), &[size.into()], "mem_alloc")
+                    .unwrap()
+                    .try_as_basic_value()
+                    .left()
+                    .ok_or_else(|| "malloc did not return a pointer".to_string())?;
+                if name == "mem_alloc_zero" {
+                    self.builder
+                        .build_call(
+                            self.memset_function(),
+                            &[
+                                call.into_pointer_value().into(),
+                                self.context.i32_type().const_zero().into(),
+                                size.into(),
+                            ],
+                            "mem_zero",
+                        )
+                        .unwrap();
+                }
+                Ok(Some((call, crate::types::Type::Ptr)))
+            }
+            "mem_free" => {
+                if args.len() != 1 {
+                    return Err("mem_free expects 1 argument.".to_string());
+                }
+                let (ptr, ty) = self.evaluate_expression(args[0].clone())?;
+                if ty != crate::types::Type::Ptr {
+                    return Err("mem_free expects a ptr.".to_string());
+                }
+                self.builder
+                    .build_call(
+                        self.free_function(),
+                        &[ptr.into_pointer_value().into()],
+                        "mem_free",
+                    )
+                    .unwrap();
+                Ok(Some((
+                    self.i64_type.const_zero().into(),
+                    crate::types::Type::Void,
+                )))
+            }
+            "ptr_add" => {
+                if args.len() != 2 {
+                    return Err("ptr_add expects 2 arguments.".to_string());
+                }
+                let (ptr, ptr_ty) = self.evaluate_expression(args[0].clone())?;
+                if ptr_ty != crate::types::Type::Ptr {
+                    return Err("ptr_add expects ptr as first argument.".to_string());
+                }
+                let (off, off_ty) = self.evaluate_expression(args[1].clone())?;
+                let off = self.int_value_as(off, off_ty, &crate::types::Type::Isize);
+                let out = self.ptr_offset(ptr.into_pointer_value(), off, "ptr_add");
+                Ok(Some((out.into(), crate::types::Type::Ptr)))
+            }
+            "mem_read_u8" | "mem_read_u16" | "mem_read_u32" => {
+                if args.len() != 2 {
+                    return Err(format!("{name} expects 2 arguments."));
+                }
+                let (ptr, ptr_ty) = self.evaluate_expression(args[0].clone())?;
+                if ptr_ty != crate::types::Type::Ptr {
+                    return Err(format!("{name} expects ptr as first argument."));
+                }
+                let (off, off_ty) = self.evaluate_expression(args[1].clone())?;
+                let off = self.int_value_as(off, off_ty, &crate::types::Type::Isize);
+                let base = ptr.into_pointer_value();
+                let b0 = self.load_u8_at(base, off);
+                let out = match name {
+                    "mem_read_u8" => return Ok(Some((b0.into(), crate::types::Type::U8))),
+                    "mem_read_u16" => {
+                        let b1 = self.load_u8_at(
+                            base,
+                            self.builder
+                                .build_int_add(off, self.i64_type.const_int(1, false), "off1")
+                                .unwrap(),
+                        );
+                        let lo = self
+                            .builder
+                            .build_int_z_extend(b0, self.context.i16_type(), "lo16")
+                            .unwrap();
+                        let hi = self
+                            .builder
+                            .build_int_z_extend(b1, self.context.i16_type(), "hi16")
+                            .unwrap();
+                        let hi = self
+                            .builder
+                            .build_left_shift(
+                                hi,
+                                self.context.i16_type().const_int(8, false),
+                                "hi16s",
+                            )
+                            .unwrap();
+                        self.builder.build_or(lo, hi, "read_u16").unwrap().into()
+                    }
+                    "mem_read_u32" => {
+                        let mut acc = self
+                            .builder
+                            .build_int_z_extend(b0, self.context.i32_type(), "b0_32")
+                            .unwrap();
+                        for i in 1..4 {
+                            let bi = self.load_u8_at(
+                                base,
+                                self.builder
+                                    .build_int_add(off, self.i64_type.const_int(i, false), "offi")
+                                    .unwrap(),
+                            );
+                            let bi = self
+                                .builder
+                                .build_int_z_extend(bi, self.context.i32_type(), "bi32")
+                                .unwrap();
+                            let bi = self
+                                .builder
+                                .build_left_shift(
+                                    bi,
+                                    self.context.i32_type().const_int((i * 8) as u64, false),
+                                    "bis",
+                                )
+                                .unwrap();
+                            acc = self.builder.build_or(acc, bi, "read_u32_acc").unwrap();
+                        }
+                        acc.into()
+                    }
+                    _ => unreachable!(),
+                };
+                let ret_ty = if name == "mem_read_u16" {
+                    crate::types::Type::U16
+                } else {
+                    crate::types::Type::U32
+                };
+                Ok(Some((out, ret_ty)))
+            }
+            "mem_write_u8" | "mem_write_u16" | "mem_write_u32" => {
+                if args.len() != 3 {
+                    return Err(format!("{name} expects 3 arguments."));
+                }
+                let (ptr, ptr_ty) = self.evaluate_expression(args[0].clone())?;
+                if ptr_ty != crate::types::Type::Ptr {
+                    return Err(format!("{name} expects ptr as first argument."));
+                }
+                let (off, off_ty) = self.evaluate_expression(args[1].clone())?;
+                let (val, val_ty) = self.evaluate_expression(args[2].clone())?;
+                let base = ptr.into_pointer_value();
+                let off = self.int_value_as(off, off_ty, &crate::types::Type::Isize);
+                let bytes = match name {
+                    "mem_write_u8" => 1,
+                    "mem_write_u16" => 2,
+                    "mem_write_u32" => 4,
+                    _ => unreachable!(),
+                };
+                let value_ty = match bytes {
+                    1 => crate::types::Type::U8,
+                    2 => crate::types::Type::U16,
+                    _ => crate::types::Type::U32,
+                };
+                let val = self.int_value_as(val, val_ty, &value_ty);
+                for i in 0..bytes {
+                    let byte = if i == 0 {
+                        self.builder
+                            .build_int_cast(val, self.context.i8_type(), "w_b0")
+                            .unwrap()
+                    } else {
+                        let shifted = self
+                            .builder
+                            .build_right_shift(
+                                val,
+                                val.get_type().const_int((i * 8) as u64, false),
+                                false,
+                                "w_shift",
+                            )
+                            .unwrap();
+                        self.builder
+                            .build_int_cast(shifted, self.context.i8_type(), "w_b")
+                            .unwrap()
+                    };
+                    let dst = self.ptr_offset(
+                        base,
+                        self.builder
+                            .build_int_add(off, self.i64_type.const_int(i as u64, false), "w_off")
+                            .unwrap(),
+                        "w_ptr",
+                    );
+                    self.builder.build_store(dst, byte).unwrap();
+                }
+                Ok(Some((
+                    self.i64_type.const_zero().into(),
+                    crate::types::Type::Void,
+                )))
+            }
+            "mem_fill_u8" => {
+                if args.len() != 3 {
+                    return Err("mem_fill_u8 expects 3 arguments.".to_string());
+                }
+                let (ptr, ptr_ty) = self.evaluate_expression(args[0].clone())?;
+                if ptr_ty != crate::types::Type::Ptr {
+                    return Err("mem_fill_u8 expects ptr as first argument.".to_string());
+                }
+                let (value, value_ty) = self.evaluate_expression(args[1].clone())?;
+                let (len, len_ty) = self.evaluate_expression(args[2].clone())?;
+                let value = self.int_value_as(value, value_ty, &crate::types::Type::U8);
+                let value = self
+                    .builder
+                    .build_int_z_extend(value, self.context.i32_type(), "fill_i32")
+                    .unwrap();
+                let len = self.int_value_as(len, len_ty, &crate::types::Type::Usize);
+                self.builder
+                    .build_call(
+                        self.memset_function(),
+                        &[ptr.into_pointer_value().into(), value.into(), len.into()],
+                        "mem_fill",
+                    )
+                    .unwrap();
+                Ok(Some((
+                    self.i64_type.const_zero().into(),
+                    crate::types::Type::Void,
+                )))
+            }
+            "mem_copy" => {
+                if args.len() != 3 {
+                    return Err("mem_copy expects 3 arguments.".to_string());
+                }
+                let (dst, dst_ty) = self.evaluate_expression(args[0].clone())?;
+                let (src, src_ty) = self.evaluate_expression(args[1].clone())?;
+                let (len, len_ty) = self.evaluate_expression(args[2].clone())?;
+                if dst_ty != crate::types::Type::Ptr || src_ty != crate::types::Type::Ptr {
+                    return Err("mem_copy expects ptr, ptr, len.".to_string());
+                }
+                let len = self.int_value_as(len, len_ty, &crate::types::Type::Usize);
+                self.builder
+                    .build_call(
+                        self.memcpy_function(),
+                        &[
+                            dst.into_pointer_value().into(),
+                            src.into_pointer_value().into(),
+                            len.into(),
+                        ],
+                        "mem_copy",
+                    )
+                    .unwrap();
+                Ok(Some((
+                    self.i64_type.const_zero().into(),
+                    crate::types::Type::Void,
+                )))
+            }
+            _ => Ok(None),
         }
     }
 
@@ -1273,9 +1998,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     &[
                         self.ptr_type.into(),
                         self.context.i32_type().into(),
-                        self.context
-                            .ptr_type(inkwell::AddressSpace::from(0))
-                            .into(),
+                        self.context.ptr_type(inkwell::AddressSpace::from(0)).into(),
                     ],
                     false,
                 ),
@@ -2424,8 +3147,9 @@ impl<'ctx> LLVMGenerator<'ctx> {
         match stmt.kind {
             StmtKind::VarDeclaration(d) => {
                 let (v, ty) = self.evaluate_expression(d.value)?;
-                let actual_ty = d.var_type.clone().unwrap_or(ty);
+                let actual_ty = d.var_type.clone().unwrap_or(ty.clone());
                 let llvm_ty = self.snask_type_to_llvm(&actual_ty);
+                let stored_v = self.cast_basic_value(v, ty, &actual_ty);
 
                 if self.current_func.unwrap().get_name().to_str().unwrap() == "main" {
                     let gv = self
@@ -2433,18 +3157,19 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         .add_global(llvm_ty, None, &format!("g_{}", d.name));
                     gv.set_initializer(&llvm_ty.const_zero());
                     let p = gv.as_pointer_value();
-                    self.builder.build_store(p, v).unwrap();
+                    self.builder.build_store(p, stored_v).unwrap();
                     self.variables.insert(d.name, (p, actual_ty));
                 } else {
                     let a = self.create_entry_block_alloca(llvm_ty, &d.name);
-                    self.builder.build_store(a, v).unwrap();
+                    self.builder.build_store(a, stored_v).unwrap();
                     self.local_vars.insert(d.name, (a, actual_ty));
                 }
             }
             StmtKind::MutDeclaration(d) => {
                 let (v, ty) = self.evaluate_expression(d.value)?;
-                let actual_ty = d.var_type.clone().unwrap_or(ty);
+                let actual_ty = d.var_type.clone().unwrap_or(ty.clone());
                 let llvm_ty = self.snask_type_to_llvm(&actual_ty);
+                let stored_v = self.cast_basic_value(v, ty, &actual_ty);
 
                 if self.current_func.unwrap().get_name().to_str().unwrap() == "main" {
                     let gv = self
@@ -2452,18 +3177,19 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         .add_global(llvm_ty, None, &format!("g_{}", d.name));
                     gv.set_initializer(&llvm_ty.const_zero());
                     let p = gv.as_pointer_value();
-                    self.builder.build_store(p, v).unwrap();
+                    self.builder.build_store(p, stored_v).unwrap();
                     self.variables.insert(d.name, (p, actual_ty));
                 } else {
                     let a = self.create_entry_block_alloca(llvm_ty, &d.name);
-                    self.builder.build_store(a, v).unwrap();
+                    self.builder.build_store(a, stored_v).unwrap();
                     self.local_vars.insert(d.name, (a, actual_ty));
                 }
             }
             StmtKind::ConstDeclaration(d) => {
                 let (v, ty) = self.evaluate_expression(d.value)?;
-                let actual_ty = d.var_type.clone().unwrap_or(ty);
+                let actual_ty = d.var_type.clone().unwrap_or(ty.clone());
                 let llvm_ty = self.snask_type_to_llvm(&actual_ty);
+                let stored_v = self.cast_basic_value(v, ty, &actual_ty);
 
                 if self.current_func.unwrap().get_name().to_str().unwrap() == "main" {
                     let gv = self
@@ -2471,22 +3197,23 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         .add_global(llvm_ty, None, &format!("g_{}", d.name));
                     gv.set_initializer(&llvm_ty.const_zero());
                     let p = gv.as_pointer_value();
-                    self.builder.build_store(p, v).unwrap();
+                    self.builder.build_store(p, stored_v).unwrap();
                     self.variables.insert(d.name, (p, actual_ty));
                 } else {
                     let a = self.create_entry_block_alloca(llvm_ty, &d.name);
-                    self.builder.build_store(a, v).unwrap();
+                    self.builder.build_store(a, stored_v).unwrap();
                     self.local_vars.insert(d.name, (a, actual_ty));
                 }
             }
             StmtKind::VarAssignment(s) => {
-                let (v, _ty) = self.evaluate_expression(s.value)?;
-                let (p, _target_ty) = self
+                let (v, ty) = self.evaluate_expression(s.value)?;
+                let (p, target_ty) = self
                     .local_vars
                     .get(&s.name)
                     .or_else(|| self.variables.get(&s.name))
                     .ok_or_else(|| format!("Var {} not found.", s.name))?;
-                self.builder.build_store(*p, v).unwrap();
+                let stored_v = self.cast_basic_value(v, ty, target_ty);
+                self.builder.build_store(*p, stored_v).unwrap();
             }
             StmtKind::PropertyAssignment(p) => {
                 let (obj, obj_ty) = self.evaluate_expression(p.target)?;
@@ -3026,7 +3753,14 @@ impl<'ctx> LLVMGenerator<'ctx> {
             crate::types::Type::Int
             | crate::types::Type::I64
             | crate::types::Type::I32
-            | crate::types::Type::U8 => {
+            | crate::types::Type::I16
+            | crate::types::Type::I8
+            | crate::types::Type::U64
+            | crate::types::Type::U32
+            | crate::types::Type::U16
+            | crate::types::Type::U8
+            | crate::types::Type::Usize
+            | crate::types::Type::Isize => {
                 s = self
                     .builder
                     .build_insert_value(s, f64_type.const_float(TYPE_NUM as f64), 0, "t")
@@ -3047,15 +3781,43 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     .unwrap()
                     .into_struct_value();
             }
-            crate::types::Type::Float => {
+            crate::types::Type::Float | crate::types::Type::F64 => {
                 s = self
                     .builder
                     .build_insert_value(s, f64_type.const_float(TYPE_NUM as f64), 0, "t")
                     .unwrap()
                     .into_struct_value();
+                let f = if val.into_float_value().get_type() == self.f64_type {
+                    val.into_float_value()
+                } else {
+                    self.builder
+                        .build_float_cast(val.into_float_value(), self.f64_type, "f_to_f64")
+                        .unwrap()
+                };
                 s = self
                     .builder
-                    .build_insert_value(s, val.into_float_value(), 1, "v")
+                    .build_insert_value(s, f, 1, "v")
+                    .unwrap()
+                    .into_struct_value();
+                s = self
+                    .builder
+                    .build_insert_value(s, self.ptr_type.const_null(), 2, "p")
+                    .unwrap()
+                    .into_struct_value();
+            }
+            crate::types::Type::F32 => {
+                s = self
+                    .builder
+                    .build_insert_value(s, f64_type.const_float(TYPE_NUM as f64), 0, "t")
+                    .unwrap()
+                    .into_struct_value();
+                let f_val = self
+                    .builder
+                    .build_float_cast(val.into_float_value(), f64_type, "f32_to_f64")
+                    .unwrap();
+                s = self
+                    .builder
+                    .build_insert_value(s, f_val, 1, "v")
                     .unwrap()
                     .into_struct_value();
                 s = self
@@ -3117,18 +3879,45 @@ impl<'ctx> LLVMGenerator<'ctx> {
         target_ty: crate::types::Type,
     ) -> BasicValueEnum<'ctx> {
         match target_ty {
-            crate::types::Type::Int | crate::types::Type::I64 | crate::types::Type::I32 => {
+            crate::types::Type::Int
+            | crate::types::Type::I64
+            | crate::types::Type::I32
+            | crate::types::Type::I16
+            | crate::types::Type::I8
+            | crate::types::Type::U64
+            | crate::types::Type::U32
+            | crate::types::Type::U16
+            | crate::types::Type::U8
+            | crate::types::Type::Usize
+            | crate::types::Type::Isize => {
                 let f_val = self
                     .builder
                     .build_extract_value(val, 1, "f")
                     .unwrap()
                     .into_float_value();
                 self.builder
-                    .build_float_to_signed_int(f_val, self.i64_type, "to_i")
+                    .build_float_to_signed_int(
+                        f_val,
+                        self.snask_type_to_llvm(&target_ty).into_int_type(),
+                        "to_i",
+                    )
                     .unwrap()
                     .into()
             }
-            crate::types::Type::Float => self.builder.build_extract_value(val, 1, "f").unwrap(),
+            crate::types::Type::Float | crate::types::Type::F64 => {
+                self.builder.build_extract_value(val, 1, "f").unwrap()
+            }
+            crate::types::Type::F32 => {
+                let f_val = self
+                    .builder
+                    .build_extract_value(val, 1, "f")
+                    .unwrap()
+                    .into_float_value();
+                self.builder
+                    .build_float_cast(f_val, self.context.f32_type(), "to_f32")
+                    .unwrap()
+                    .into()
+            }
             crate::types::Type::Bool => {
                 let f_val = self
                     .builder
@@ -3161,11 +3950,17 @@ impl<'ctx> LLVMGenerator<'ctx> {
         match expr.kind {
             ExprKind::Literal(lit) => match lit {
                 LiteralValue::Number(n) => {
-                    // MVP: Trata como Float por padrão, a menos que o analisador diga o contrário
-                    Ok((
-                        self.f64_type.const_float(n).into(),
-                        crate::types::Type::Float,
-                    ))
+                    if n.fract() == 0.0 {
+                        Ok((
+                            self.i64_type.const_int(n as u64, true).into(),
+                            crate::types::Type::Int,
+                        ))
+                    } else {
+                        Ok((
+                            self.f64_type.const_float(n).into(),
+                            crate::types::Type::Float,
+                        ))
+                    }
                 }
                 LiteralValue::String(str_v) => {
                     let g = self.builder.build_global_string_ptr(&str_v, "s").unwrap();
@@ -3304,6 +4099,112 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 }
 
                 if lty.is_numeric() && rty.is_numeric() {
+                    if lty.is_integer() && rty.is_integer() {
+                        let result_ty = if matches!(
+                            op,
+                            BinaryOp::LessThan
+                                | BinaryOp::LessThanOrEquals
+                                | BinaryOp::GreaterThan
+                                | BinaryOp::GreaterThanOrEquals
+                                | BinaryOp::Equals
+                                | BinaryOp::StrictEquals
+                                | BinaryOp::NotEquals
+                        ) {
+                            crate::types::Type::Bool
+                        } else if lty == rty {
+                            lty.clone()
+                        } else {
+                            crate::types::Type::Int
+                        };
+                        let op_ty = if result_ty == crate::types::Type::Bool {
+                            if lty == rty {
+                                lty.clone()
+                            } else {
+                                crate::types::Type::Int
+                            }
+                        } else {
+                            result_ty.clone()
+                        };
+                        let li = self
+                            .cast_basic_value(lhs, lty.clone(), &op_ty)
+                            .into_int_value();
+                        let ri = self
+                            .cast_basic_value(rhs, rty.clone(), &op_ty)
+                            .into_int_value();
+                        let res = match op {
+                            BinaryOp::Add => {
+                                self.builder.build_int_add(li, ri, "add").unwrap().into()
+                            }
+                            BinaryOp::Subtract => {
+                                self.builder.build_int_sub(li, ri, "sub").unwrap().into()
+                            }
+                            BinaryOp::Multiply => {
+                                self.builder.build_int_mul(li, ri, "mul").unwrap().into()
+                            }
+                            BinaryOp::Divide | BinaryOp::IntDivide => self
+                                .builder
+                                .build_int_signed_div(li, ri, "div")
+                                .unwrap()
+                                .into(),
+                            BinaryOp::Modulo => self
+                                .builder
+                                .build_int_signed_rem(li, ri, "rem")
+                                .unwrap()
+                                .into(),
+                            BinaryOp::BitAnd => {
+                                self.builder.build_and(li, ri, "band").unwrap().into()
+                            }
+                            BinaryOp::BitOr => self.builder.build_or(li, ri, "bor").unwrap().into(),
+                            BinaryOp::BitXor => {
+                                self.builder.build_xor(li, ri, "bxor").unwrap().into()
+                            }
+                            BinaryOp::ShiftLeft => {
+                                self.builder.build_left_shift(li, ri, "shl").unwrap().into()
+                            }
+                            BinaryOp::ShiftRight => self
+                                .builder
+                                .build_right_shift(li, ri, true, "shr")
+                                .unwrap()
+                                .into(),
+                            BinaryOp::LessThan => self
+                                .builder
+                                .build_int_compare(inkwell::IntPredicate::SLT, li, ri, "lt")
+                                .unwrap()
+                                .into(),
+                            BinaryOp::LessThanOrEquals => self
+                                .builder
+                                .build_int_compare(inkwell::IntPredicate::SLE, li, ri, "le")
+                                .unwrap()
+                                .into(),
+                            BinaryOp::GreaterThan => self
+                                .builder
+                                .build_int_compare(inkwell::IntPredicate::SGT, li, ri, "gt")
+                                .unwrap()
+                                .into(),
+                            BinaryOp::GreaterThanOrEquals => self
+                                .builder
+                                .build_int_compare(inkwell::IntPredicate::SGE, li, ri, "ge")
+                                .unwrap()
+                                .into(),
+                            BinaryOp::Equals | BinaryOp::StrictEquals => self
+                                .builder
+                                .build_int_compare(inkwell::IntPredicate::EQ, li, ri, "eq")
+                                .unwrap()
+                                .into(),
+                            BinaryOp::NotEquals => self
+                                .builder
+                                .build_int_compare(inkwell::IntPredicate::NE, li, ri, "ne")
+                                .unwrap()
+                                .into(),
+                            _ => self
+                                .snask_type_to_llvm(&op_ty)
+                                .into_int_type()
+                                .const_zero()
+                                .into(),
+                        };
+                        return Ok((res, result_ty));
+                    }
+
                     if lty == crate::types::Type::Int && rty == crate::types::Type::Int {
                         let li = lhs.into_int_value();
                         let ri = rhs.into_int_value();
@@ -3589,6 +4490,59 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 l_args.push(r_a.into());
 
                 if let ExprKind::Variable(name) = &callee.kind {
+                    if let Some(result) = self.emit_systems_low_level_builtin(name, &args)? {
+                        return Ok(result);
+                    }
+
+                    if matches!(
+                        name.as_str(),
+                        "wrapping_add" | "wrapping_sub" | "wrapping_mul" | "saturating_add"
+                    ) && args.len() == 2
+                    {
+                        let (lhs, lty) = self.evaluate_expression(args[0].clone())?;
+                        let (rhs, rty) = self.evaluate_expression(args[1].clone())?;
+                        if lty.is_integer() && rty.is_integer() {
+                            let result_ty = if lty == rty {
+                                lty.clone()
+                            } else {
+                                crate::types::Type::Int
+                            };
+                            let li = self.cast_basic_value(lhs, lty, &result_ty).into_int_value();
+                            let ri = self.cast_basic_value(rhs, rty, &result_ty).into_int_value();
+                            let raw = match name.as_str() {
+                                "wrapping_add" => {
+                                    self.builder.build_int_add(li, ri, "wrap_add").unwrap()
+                                }
+                                "wrapping_sub" => {
+                                    self.builder.build_int_sub(li, ri, "wrap_sub").unwrap()
+                                }
+                                "wrapping_mul" => {
+                                    self.builder.build_int_mul(li, ri, "wrap_mul").unwrap()
+                                }
+                                "saturating_add" => {
+                                    let sum =
+                                        self.builder.build_int_add(li, ri, "sat_add").unwrap();
+                                    let overflow = self
+                                        .builder
+                                        .build_int_compare(
+                                            inkwell::IntPredicate::ULT,
+                                            sum,
+                                            li,
+                                            "sat_overflow",
+                                        )
+                                        .unwrap();
+                                    let max = sum.get_type().const_all_ones();
+                                    self.builder
+                                        .build_select(overflow, max, sum, "sat_select")
+                                        .unwrap()
+                                        .into_int_value()
+                                }
+                                _ => unreachable!(),
+                            };
+                            return Ok((raw.into(), result_ty));
+                        }
+                    }
+
                     let f = self
                         .module
                         .get_function(name)
@@ -3628,7 +4582,14 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         crate::types::Type::Int
                         | crate::types::Type::I64
                         | crate::types::Type::I32
-                        | crate::types::Type::U8 => Ok((
+                        | crate::types::Type::I16
+                        | crate::types::Type::I8
+                        | crate::types::Type::U64
+                        | crate::types::Type::U32
+                        | crate::types::Type::U16
+                        | crate::types::Type::U8
+                        | crate::types::Type::Usize
+                        | crate::types::Type::Isize => Ok((
                             self.builder
                                 .build_int_neg(raw.into_int_value(), "neg")
                                 .unwrap()
@@ -3648,6 +4609,19 @@ impl<'ctx> LLVMGenerator<'ctx> {
                             ))
                         }
                     },
+                    crate::ast::UnaryOp::BitNot => {
+                        if ty.is_integer() {
+                            Ok((
+                                self.builder
+                                    .build_not(raw.into_int_value(), "bitnot")
+                                    .unwrap()
+                                    .into(),
+                                ty,
+                            ))
+                        } else {
+                            Err(format!("Bitwise not not supported for {:?}", ty))
+                        }
+                    }
                     crate::ast::UnaryOp::Not => {
                         let is_true = match ty {
                             crate::types::Type::Bool => raw.into_int_value(),

@@ -5,7 +5,11 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use crate::ast::{ConstDecl, Expr, ExprKind, LiteralValue, Location, Program, Stmt, StmtKind};
+use crate::ast::{
+    ConstDecl, DictDecl, DictSet, Expr, ExprKind, IndexAssignment, ListDecl, ListPush,
+    LiteralValue, Location, LoopStmt, MutDecl, Program, PropertyAssignment, Stmt, StmtKind,
+    VarDecl, VarSet,
+};
 use crate::diagnostics::{humane_code, Annotation, Diagnostic, DiagnosticBag};
 use crate::llvm_generator::LLVMGenerator;
 use crate::modules::is_native_module;
@@ -81,10 +85,6 @@ pub fn resolve_entry_file(cli_file: Option<String>) -> Result<String, String> {
 }
 
 pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> {
-    if options.profile == BuildProfile::Baremetal {
-        return Err("error[S8002]: `baremetal` profile is recognized, but the freestanding backend is not implemented yet\n\nhelp: use `--profile systems` while no_std/no_runtime, custom entrypoints and linker scripts are being implemented.".to_string());
-    }
-
     let pb = ProgressBar::new(7);
     pb.set_style(
         ProgressStyle::with_template("{bar:40.cyan/blue} {pos}/{len} {msg}")
@@ -132,6 +132,21 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
     pb.set_message("Expanding inheritance");
     expand_inheritance(&mut resolved_program)?;
     pb.inc(1);
+
+    if options.profile == BuildProfile::Baremetal {
+        let restrictions = find_baremetal_restrictions(&resolved_program);
+        if !restrictions.is_empty() {
+            pb.finish_and_clear();
+            return Err(render_baremetal_restrictions(
+                file_path,
+                &source,
+                &restrictions,
+            ));
+        }
+
+        pb.finish_and_clear();
+        return Err("error[S8002]: `baremetal` profile is recognized, but the freestanding backend is not implemented yet\n\nhelp: use `--profile systems` while no_std/no_runtime, custom entrypoints and linker scripts are being implemented.".to_string());
+    }
 
     // Determine runtime linking strategy
     let needs_full_runtime = uses_full_runtime(&resolved_program);
@@ -481,9 +496,313 @@ fn uses_full_runtime(program: &[Stmt]) -> bool {
     false
 }
 
+#[derive(Debug, Clone)]
+struct BaremetalRestriction {
+    span: crate::span::Span,
+    message: String,
+    annotation: String,
+    help: String,
+    note: Option<String>,
+}
+
+fn find_baremetal_restrictions(program: &[Stmt]) -> Vec<BaremetalRestriction> {
+    let mut restrictions = Vec::new();
+    for stmt in program {
+        collect_baremetal_stmt_restrictions(stmt, &mut restrictions);
+    }
+    restrictions
+}
+
+fn collect_baremetal_stmt_restrictions(stmt: &Stmt, restrictions: &mut Vec<BaremetalRestriction>) {
+    match &stmt.kind {
+        StmtKind::Print(exprs) => {
+            restrictions.push(BaremetalRestriction {
+                span: stmt.span,
+                message: "print requires std runtime".to_string(),
+                annotation: "std output is not available in baremetal".to_string(),
+                help: "use a serial/VGA driver or build with `--profile humane`".to_string(),
+                note: Some(
+                    "`baremetal` starts without Snask std/runtime services by default.".to_string(),
+                ),
+            });
+            for expr in exprs {
+                collect_baremetal_expr_restrictions(expr, restrictions);
+            }
+        }
+        StmtKind::Import(lib) => {
+            if baremetal_runtime_module(lib) {
+                restrictions.push(BaremetalRestriction {
+                    span: stmt.span,
+                    message: format!("import `{lib}` requires std runtime"),
+                    annotation: "runtime-backed import".to_string(),
+                    help: "use a baremetal driver/module, or build with `--profile humane`"
+                        .to_string(),
+                    note: Some(
+                        "Baremetal code cannot assume OS, libc, GUI or filesystem services."
+                            .to_string(),
+                    ),
+                });
+            }
+        }
+        StmtKind::ImportCOm { alias, .. } => restrictions.push(BaremetalRestriction {
+            span: stmt.span,
+            message: format!("import_c_om `{alias}` requires std runtime"),
+            annotation: "OM C interop needs the native runtime/link pipeline".to_string(),
+            help: "use `--profile systems` for native C interop while baremetal support matures"
+                .to_string(),
+            note: None,
+        }),
+        StmtKind::Expression(expr)
+        | StmtKind::FuncCall(expr)
+        | StmtKind::Return(expr)
+        | StmtKind::VarDeclaration(VarDecl { value: expr, .. })
+        | StmtKind::MutDeclaration(MutDecl { value: expr, .. })
+        | StmtKind::ConstDeclaration(ConstDecl { value: expr, .. })
+        | StmtKind::VarAssignment(VarSet { value: expr, .. })
+        | StmtKind::ListDeclaration(ListDecl { value: expr, .. })
+        | StmtKind::ListPush(ListPush { value: expr, .. }) => {
+            collect_baremetal_expr_restrictions(expr, restrictions);
+        }
+        StmtKind::PropertyAssignment(PropertyAssignment { target, value, .. }) => {
+            collect_baremetal_expr_restrictions(target, restrictions);
+            collect_baremetal_expr_restrictions(value, restrictions);
+        }
+        StmtKind::IndexAssignment(IndexAssignment {
+            target,
+            index,
+            value,
+            ..
+        }) => {
+            collect_baremetal_expr_restrictions(target, restrictions);
+            collect_baremetal_expr_restrictions(index, restrictions);
+            collect_baremetal_expr_restrictions(value, restrictions);
+        }
+        StmtKind::DictDeclaration(DictDecl { value, .. }) => {
+            collect_baremetal_expr_restrictions(value, restrictions);
+        }
+        StmtKind::DictSet(DictSet { key, value, .. }) => {
+            collect_baremetal_expr_restrictions(key, restrictions);
+            collect_baremetal_expr_restrictions(value, restrictions);
+        }
+        StmtKind::FuncDeclaration(func) => {
+            for child in &func.body {
+                collect_baremetal_stmt_restrictions(child, restrictions);
+            }
+        }
+        StmtKind::ClassDeclaration(class) => {
+            for property in &class.properties {
+                collect_baremetal_expr_restrictions(&property.value, restrictions);
+            }
+            for method in &class.methods {
+                for child in &method.body {
+                    collect_baremetal_stmt_restrictions(child, restrictions);
+                }
+            }
+        }
+        StmtKind::Conditional(cond) => {
+            collect_baremetal_expr_restrictions(&cond.if_block.condition, restrictions);
+            for child in &cond.if_block.body {
+                collect_baremetal_stmt_restrictions(child, restrictions);
+            }
+            for elif in &cond.elif_blocks {
+                collect_baremetal_expr_restrictions(&elif.condition, restrictions);
+                for child in &elif.body {
+                    collect_baremetal_stmt_restrictions(child, restrictions);
+                }
+            }
+            if let Some(else_body) = &cond.else_block {
+                for child in else_body {
+                    collect_baremetal_stmt_restrictions(child, restrictions);
+                }
+            }
+        }
+        StmtKind::Loop(loop_stmt) => match loop_stmt {
+            LoopStmt::While { condition, body } => {
+                collect_baremetal_expr_restrictions(condition, restrictions);
+                for child in body {
+                    collect_baremetal_stmt_restrictions(child, restrictions);
+                }
+            }
+            LoopStmt::For { iterable, body, .. } => {
+                collect_baremetal_expr_restrictions(iterable, restrictions);
+                for child in body {
+                    collect_baremetal_stmt_restrictions(child, restrictions);
+                }
+            }
+        },
+        StmtKind::UnsafeBlock(body)
+        | StmtKind::Scope { body, .. }
+        | StmtKind::Zone { body, .. } => {
+            for child in body {
+                collect_baremetal_stmt_restrictions(child, restrictions);
+            }
+        }
+        StmtKind::Input { .. } => restrictions.push(BaremetalRestriction {
+            span: stmt.span,
+            message: "input requires std runtime".to_string(),
+            annotation: "stdin is not available in baremetal".to_string(),
+            help: "read from a device driver, serial port, or build with `--profile humane`"
+                .to_string(),
+            note: None,
+        }),
+        StmtKind::FromImport { module, .. } => {
+            if baremetal_runtime_module(module) {
+                restrictions.push(BaremetalRestriction {
+                    span: stmt.span,
+                    message: format!("import `{module}` requires std runtime"),
+                    annotation: "runtime-backed import".to_string(),
+                    help: "use a baremetal driver/module, or build with `--profile humane`"
+                        .to_string(),
+                    note: None,
+                });
+            }
+        }
+        StmtKind::Promote { .. } | StmtKind::Entangle { .. } => {}
+    }
+}
+
+fn collect_baremetal_expr_restrictions(expr: &Expr, restrictions: &mut Vec<BaremetalRestriction>) {
+    match &expr.kind {
+        ExprKind::FunctionCall { callee, args } => {
+            if let Some(name) = baremetal_runtime_call_name(callee) {
+                restrictions.push(BaremetalRestriction {
+                    span: expr.span,
+                    message: format!("{name} requires std runtime"),
+                    annotation: "runtime-backed call".to_string(),
+                    help: "use a baremetal intrinsic/driver or build with `--profile humane`"
+                        .to_string(),
+                    note: Some(
+                        "`systems` keeps the normal runtime while exposing low-level features."
+                            .to_string(),
+                    ),
+                });
+            }
+            collect_baremetal_expr_restrictions(callee, restrictions);
+            for arg in args {
+                collect_baremetal_expr_restrictions(arg, restrictions);
+            }
+        }
+        ExprKind::Unary { expr, .. } => collect_baremetal_expr_restrictions(expr, restrictions),
+        ExprKind::Binary { left, right, .. } => {
+            collect_baremetal_expr_restrictions(left, restrictions);
+            collect_baremetal_expr_restrictions(right, restrictions);
+        }
+        ExprKind::PropertyAccess { target, .. } => {
+            collect_baremetal_expr_restrictions(target, restrictions);
+        }
+        ExprKind::IndexAccess { target, index } => {
+            collect_baremetal_expr_restrictions(target, restrictions);
+            collect_baremetal_expr_restrictions(index, restrictions);
+        }
+        ExprKind::New { args, .. } => {
+            for arg in args {
+                collect_baremetal_expr_restrictions(arg, restrictions);
+            }
+        }
+        ExprKind::Literal(LiteralValue::List(items)) => {
+            for item in items {
+                collect_baremetal_expr_restrictions(item, restrictions);
+            }
+        }
+        ExprKind::Literal(LiteralValue::Dict(pairs)) => {
+            for (key, value) in pairs {
+                collect_baremetal_expr_restrictions(key, restrictions);
+                collect_baremetal_expr_restrictions(value, restrictions);
+            }
+        }
+        ExprKind::Literal(_) | ExprKind::Variable(_) => {}
+    }
+}
+
+fn baremetal_runtime_call_name(callee: &Expr) -> Option<String> {
+    match &callee.kind {
+        ExprKind::Variable(name) if baremetal_runtime_builtin(name) => Some(name.clone()),
+        ExprKind::PropertyAccess { target, property } => {
+            if let ExprKind::Variable(module) = &target.kind {
+                if baremetal_runtime_module(module) {
+                    return Some(format!("{module}.{property}"));
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn baremetal_runtime_builtin(name: &str) -> bool {
+    matches!(
+        name,
+        "read_file"
+            | "write_file"
+            | "append_file"
+            | "exists"
+            | "delete"
+            | "read_dir"
+            | "is_file"
+            | "is_dir"
+            | "create_dir"
+            | "http_get"
+            | "http_post"
+            | "time"
+            | "sleep"
+            | "exit"
+            | "args"
+            | "env"
+            | "set_env"
+            | "cwd"
+            | "platform"
+            | "arch"
+            | "json_parse"
+            | "json_stringify"
+            | "json_stringify_pretty"
+            | "json_get"
+            | "json_has"
+    )
+}
+
+fn baremetal_runtime_module(name: &str) -> bool {
+    matches!(
+        name,
+        "gui" | "sqlite" | "zlib" | "snask_skia" | "skia" | "json" | "http" | "fs" | "os" | "stdio"
+    )
+}
+
+fn render_baremetal_restrictions(
+    filename: &str,
+    source: &str,
+    restrictions: &[BaremetalRestriction],
+) -> String {
+    let mut bag = DiagnosticBag::new();
+    for restriction in restrictions.iter().take(5) {
+        let mut diagnostic = Diagnostic::error(restriction.message.clone())
+            .with_code("S8001".to_string())
+            .with_annotation(Annotation::primary(
+                restriction.span,
+                restriction.annotation.clone(),
+            ))
+            .with_help(restriction.help.clone());
+        if let Some(note) = &restriction.note {
+            diagnostic = diagnostic.with_note(note.clone());
+        }
+        bag.add(diagnostic);
+    }
+
+    let mut rendered = bag.render_all(filename, source);
+    if restrictions.len() > 5 {
+        rendered.push_str(&format!(
+            "\nnote: {} more baremetal restriction(s) were hidden. Fix the first error and run the compiler again.\n",
+            restrictions.len() - 5
+        ));
+    }
+    rendered
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{render_parser_diagnostics, render_semantic_diagnostics, validate_entrypoint};
+    use super::{
+        find_baremetal_restrictions, render_baremetal_restrictions, render_parser_diagnostics,
+        render_semantic_diagnostics, validate_entrypoint,
+    };
     use crate::ast::{ClassDecl, Location, Stmt, StmtKind};
     use crate::parser::Parser;
     use crate::semantic_analyzer::{SemanticError, SemanticErrorKind};
@@ -572,6 +891,20 @@ mod tests {
         assert!(rendered.contains("error[S2010]: expected `int`, found `str`"));
         assert!(rendered.contains("type mismatch here"));
         assert!(!rendered.contains("String"));
+    }
+
+    #[test]
+    fn baremetal_diagnostic_explains_std_runtime_requirement() {
+        let source = "class main\n    fun start()\n        print(\"Hello\")\n";
+        let mut parser = Parser::new(source).expect("source should tokenize");
+        let program = parser.parse_program().expect("source should parse");
+        let restrictions = find_baremetal_restrictions(&program);
+        let rendered = render_baremetal_restrictions("kernel.snask", source, &restrictions);
+
+        assert!(rendered.contains("error[S8001]: print requires std runtime"));
+        assert!(rendered.contains("print(\"Hello\")"));
+        assert!(rendered.contains("std output is not available in baremetal"));
+        assert!(rendered.contains("help: use a serial/VGA driver or build with `--profile humane`"));
     }
 }
 

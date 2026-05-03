@@ -211,6 +211,8 @@ pub fn humane_code(code: &str) -> &'static str {
         "SNASK-SEM-PROP-NOT-FOUND" => "S2040",
         "SNASK-SEM-NOT-CALLABLE" => "S2050",
         "SNASK-SEM-RESTRICTED-NATIVE" => "S2060",
+        "SNASK-BUILD-STANDARD-RUNTIME" => "S8001",
+        "SNASK-BUILD-BAREMETAL-BACKEND" => "S8002",
         "SNASK-TINY-DISALLOWED-LIB" => "S9001",
         _ => "S0000",
     }
@@ -244,10 +246,7 @@ mod tests {
         let span = Span::new(Position::new(3, 22, 0), Position::new(3, 22, 0));
         let diagnostic = Diagnostic::error("missing closing `)`".to_string())
             .with_code("S1002".to_string())
-            .with_annotation(Annotation::primary(
-                span,
-                "expected `)` here".to_string(),
-            ))
+            .with_annotation(Annotation::primary(span, "expected `)` here".to_string()))
             .with_help("close the function call".to_string());
         let mut bag = DiagnosticBag::new();
         bag.add(diagnostic);

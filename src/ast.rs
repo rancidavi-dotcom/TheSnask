@@ -31,12 +31,19 @@ pub enum BinaryOp {
     LessThanOrEquals,
     And,
     Or,
+    Modulo,
+    BitAnd,
+    BitOr,
+    BitXor,
+    ShiftLeft,
+    ShiftRight,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum UnaryOp {
     Negative,
     Not,
+    BitNot,
 }
 
 #[derive(Debug, PartialEq, Clone)]

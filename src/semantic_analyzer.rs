@@ -231,6 +231,8 @@ fn display_type(ty: &Type) -> String {
     match ty {
         Type::Int => "int".to_string(),
         Type::Float => "float".to_string(),
+        Type::F32 => "f32".to_string(),
+        Type::F64 => "f64".to_string(),
         Type::String => "str".to_string(),
         Type::Bool => "bool".to_string(),
         Type::List => "list".to_string(),
@@ -241,9 +243,16 @@ fn display_type(ty: &Type) -> String {
         }
         Type::Void => "void".to_string(),
         Type::Any => "any".to_string(),
+        Type::I8 => "i8".to_string(),
+        Type::I16 => "i16".to_string(),
         Type::U8 => "u8".to_string(),
+        Type::U16 => "u16".to_string(),
+        Type::U32 => "u32".to_string(),
+        Type::U64 => "u64".to_string(),
         Type::I32 => "i32".to_string(),
         Type::I64 => "i64".to_string(),
+        Type::Usize => "usize".to_string(),
+        Type::Isize => "isize".to_string(),
         Type::Ptr => "ptr".to_string(),
         Type::User(name) => name.clone(),
         Type::Function(params, ret) => {
@@ -540,6 +549,17 @@ impl SemanticAnalyzer {
         self.define_builtin("str_to_num", vec![Type::String], Type::Float, false);
         self.define_builtin("num_to_str", vec![Type::Float], Type::String, false);
         self.define_builtin("calc_eval", vec![Type::String], Type::Float, false);
+
+        self.define_builtin("wrapping_add", vec![Type::Any, Type::Any], Type::Any, false);
+        self.define_builtin("wrapping_sub", vec![Type::Any, Type::Any], Type::Any, false);
+        self.define_builtin("wrapping_mul", vec![Type::Any, Type::Any], Type::Any, false);
+        self.define_builtin(
+            "saturating_add",
+            vec![Type::Any, Type::Any],
+            Type::Any,
+            false,
+        );
+        self.register_systems_low_level_builtins();
 
         // Core natives aliased
         self.define_builtin_with_alias("os_cwd", vec![], Type::String, false);
@@ -983,6 +1003,98 @@ impl SemanticAnalyzer {
     ) {
         self.define_builtin(name, params.clone(), return_type.clone(), is_variadic);
         self.define_builtin(&format!("__{}", name), params, return_type, is_variadic);
+    }
+
+    fn register_systems_low_level_builtins(&mut self) {
+        for (name, ret) in [
+            ("as_u8", Type::U8),
+            ("as_u16", Type::U16),
+            ("as_u32", Type::U32),
+            ("as_u64", Type::U64),
+            ("as_i8", Type::I8),
+            ("as_i16", Type::I16),
+            ("as_i32", Type::I32),
+            ("as_i64", Type::I64),
+            ("as_usize", Type::Usize),
+            ("as_isize", Type::Isize),
+            ("lo_u8", Type::U8),
+            ("hi_u8", Type::U8),
+            ("is_zero_u8", Type::Bool),
+            ("is_negative_u8", Type::Bool),
+        ] {
+            self.define_builtin(name, vec![Type::Any], ret, false);
+        }
+
+        for name in [
+            "make_u16",
+            "bit_set",
+            "bit_clear",
+            "bit_toggle",
+            "bit_write",
+            "flag_set",
+            "flag_clear",
+            "flag_write",
+            "wrapping_inc",
+            "wrapping_dec",
+        ] {
+            self.define_builtin(name, vec![Type::Any, Type::Any], Type::Any, false);
+        }
+
+        for name in ["bit_test", "flag_has"] {
+            self.define_builtin(name, vec![Type::Any, Type::Any], Type::Bool, false);
+        }
+
+        for name in [
+            "carry_add_u8",
+            "borrow_sub_u8",
+            "overflow_add_i8",
+            "overflow_sub_i8",
+        ] {
+            self.define_builtin(
+                name,
+                vec![Type::Any, Type::Any, Type::Any],
+                Type::Bool,
+                false,
+            );
+        }
+
+        self.define_builtin("mem_alloc", vec![Type::Any], Type::Ptr, false);
+        self.define_builtin("mem_alloc_zero", vec![Type::Any], Type::Ptr, false);
+        self.define_builtin("mem_free", vec![Type::Ptr], Type::Void, false);
+        self.define_builtin("ptr_add", vec![Type::Ptr, Type::Any], Type::Ptr, false);
+        self.define_builtin("mem_read_u8", vec![Type::Ptr, Type::Any], Type::U8, false);
+        self.define_builtin("mem_read_u16", vec![Type::Ptr, Type::Any], Type::U16, false);
+        self.define_builtin("mem_read_u32", vec![Type::Ptr, Type::Any], Type::U32, false);
+        self.define_builtin(
+            "mem_write_u8",
+            vec![Type::Ptr, Type::Any, Type::Any],
+            Type::Void,
+            false,
+        );
+        self.define_builtin(
+            "mem_write_u16",
+            vec![Type::Ptr, Type::Any, Type::Any],
+            Type::Void,
+            false,
+        );
+        self.define_builtin(
+            "mem_write_u32",
+            vec![Type::Ptr, Type::Any, Type::Any],
+            Type::Void,
+            false,
+        );
+        self.define_builtin(
+            "mem_fill_u8",
+            vec![Type::Ptr, Type::Any, Type::Any],
+            Type::Void,
+            false,
+        );
+        self.define_builtin(
+            "mem_copy",
+            vec![Type::Ptr, Type::Ptr, Type::Any],
+            Type::Void,
+            false,
+        );
     }
 
     fn define_constant(&mut self, name: &str, const_type: Type) {
@@ -1812,10 +1924,36 @@ impl SemanticAnalyzer {
         }
         if matches!(
             expected,
-            Type::Float | Type::Int | Type::I64 | Type::I32 | Type::U8
+            Type::Float
+                | Type::F32
+                | Type::F64
+                | Type::Int
+                | Type::I8
+                | Type::I16
+                | Type::I64
+                | Type::I32
+                | Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::U64
+                | Type::Usize
+                | Type::Isize
         ) && matches!(
             found,
-            Type::Float | Type::Int | Type::I64 | Type::I32 | Type::U8
+            Type::Float
+                | Type::F32
+                | Type::F64
+                | Type::Int
+                | Type::I8
+                | Type::I16
+                | Type::I64
+                | Type::I32
+                | Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::U64
+                | Type::Usize
+                | Type::Isize
         ) {
             return true;
         }
@@ -1841,6 +1979,78 @@ impl SemanticAnalyzer {
             return true;
         }
         false
+    }
+
+    fn systems_low_level_call_type(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<Option<Type>, SemanticError> {
+        let is_raw_memory = matches!(
+            name,
+            "mem_alloc"
+                | "mem_alloc_zero"
+                | "mem_free"
+                | "ptr_add"
+                | "mem_read_u8"
+                | "mem_read_u16"
+                | "mem_read_u32"
+                | "mem_write_u8"
+                | "mem_write_u16"
+                | "mem_write_u32"
+                | "mem_fill_u8"
+                | "mem_copy"
+        );
+        if is_raw_memory && self.unsafe_depth == 0 {
+            return Err(
+                SemanticError::new(
+                    SemanticErrorKind::RestrictedNativeFunction {
+                        name: name.to_string(),
+                        help: "raw memory access belongs inside `@unsafe`.".to_string(),
+                    },
+                    span,
+                )
+                .with_help(format!(
+                    "`{name}` performs raw memory access. Wrap the smallest possible region in `@unsafe`."
+                )),
+            );
+        }
+
+        let mut arg_types = Vec::new();
+        for arg in args {
+            arg_types.push(self.type_check_expression(arg)?);
+        }
+
+        let ret = match name {
+            "as_u8" => Some(Type::U8),
+            "as_u16" => Some(Type::U16),
+            "as_u32" => Some(Type::U32),
+            "as_u64" => Some(Type::U64),
+            "as_i8" => Some(Type::I8),
+            "as_i16" => Some(Type::I16),
+            "as_i32" => Some(Type::I32),
+            "as_i64" => Some(Type::I64),
+            "as_usize" => Some(Type::Usize),
+            "as_isize" => Some(Type::Isize),
+            "lo_u8" | "hi_u8" => Some(Type::U8),
+            "make_u16" => Some(Type::U16),
+            "is_zero_u8" | "is_negative_u8" | "bit_test" | "flag_has" | "carry_add_u8"
+            | "borrow_sub_u8" | "overflow_add_i8" | "overflow_sub_i8" => Some(Type::Bool),
+            "bit_set" | "bit_clear" | "bit_toggle" | "bit_write" | "flag_set" | "flag_clear"
+            | "flag_write" | "wrapping_inc" | "wrapping_dec" => {
+                Some(arg_types.first().cloned().unwrap_or(Type::Any))
+            }
+            "mem_alloc" | "mem_alloc_zero" | "ptr_add" => Some(Type::Ptr),
+            "mem_read_u8" => Some(Type::U8),
+            "mem_read_u16" => Some(Type::U16),
+            "mem_read_u32" => Some(Type::U32),
+            "mem_free" | "mem_write_u8" | "mem_write_u16" | "mem_write_u32" | "mem_fill_u8"
+            | "mem_copy" => Some(Type::Void),
+            _ => None,
+        };
+
+        Ok(ret)
     }
 
     fn type_check_expression(&mut self, expression: &Expr) -> Result<Type, SemanticError> {
@@ -1894,8 +2104,10 @@ impl SemanticAnalyzer {
                         } else if left_type == Type::Any || right_type == Type::Any {
                             Ok(Type::Any)
                         } else if left_type.is_numeric() && right_type.is_numeric() {
-                            if left_type == Type::Float || right_type == Type::Float {
+                            if left_type.is_float() || right_type.is_float() {
                                 Ok(Type::Float)
+                            } else if left_type == right_type {
+                                Ok(left_type)
                             } else {
                                 Ok(Type::Int)
                             }
@@ -1913,15 +2125,38 @@ impl SemanticAnalyzer {
                     BinaryOp::Subtract
                     | BinaryOp::Multiply
                     | BinaryOp::Divide
-                    | BinaryOp::IntDivide => {
+                    | BinaryOp::IntDivide
+                    | BinaryOp::Modulo => {
                         if left_type == Type::Any || right_type == Type::Any {
                             Ok(Type::Any)
                         } else if left_type.is_numeric() && right_type.is_numeric() {
-                            if left_type == Type::Float || right_type == Type::Float {
+                            if left_type.is_float() || right_type.is_float() {
                                 Ok(Type::Float)
+                            } else if left_type == right_type {
+                                Ok(left_type)
                             } else {
                                 Ok(Type::Int)
                             }
+                        } else {
+                            Err(SemanticError::new(
+                                SemanticErrorKind::InvalidOperation {
+                                    op: format!("{:?}", op),
+                                    type1: left_type,
+                                    type2: Some(right_type),
+                                },
+                                expression.span.clone(),
+                            ))
+                        }
+                    }
+                    BinaryOp::BitAnd
+                    | BinaryOp::BitOr
+                    | BinaryOp::BitXor
+                    | BinaryOp::ShiftLeft
+                    | BinaryOp::ShiftRight => {
+                        if left_type == Type::Any || right_type == Type::Any {
+                            Ok(Type::Any)
+                        } else if left_type.is_integer() && right_type.is_integer() {
+                            Ok(left_type)
                         } else {
                             Err(SemanticError::new(
                                 SemanticErrorKind::InvalidOperation {
@@ -1969,6 +2204,20 @@ impl SemanticAnalyzer {
                         }
                     }
                     UnaryOp::Not => Ok(Type::Bool),
+                    UnaryOp::BitNot => {
+                        if expr_type.is_integer() {
+                            Ok(expr_type)
+                        } else {
+                            Err(SemanticError::new(
+                                SemanticErrorKind::InvalidOperation {
+                                    op: "BitNot".to_string(),
+                                    type1: expr_type,
+                                    type2: None,
+                                },
+                                expression.span.clone(),
+                            ))
+                        }
+                    }
                 }
             }
             ExprKind::FunctionCall { callee, args } => {
@@ -1993,6 +2242,12 @@ impl SemanticAnalyzer {
                             let _ = self.type_check_expression(arg)?;
                         }
                         return Ok(Type::Any);
+                    }
+
+                    if let Some(ret) =
+                        self.systems_low_level_call_type(name, args, expression.span)?
+                    {
+                        return Ok(ret);
                     }
                 }
 
@@ -2565,6 +2820,81 @@ class main
         assert!(
             analyzer.errors.is_empty(),
             "expected no semantic errors, got: {:?}",
+            analyzer.errors
+        );
+    }
+
+    #[test]
+    fn low_level_integer_types_accept_bitwise_and_wrapping_ops() {
+        let analyzer = analyze_source(
+            r#"
+class main
+    fun start()
+        let a: u8 = 0xF0
+        let b: u8 = 0x0F
+        let c: u8 = (a & b) | 1
+        let d: u8 = wrapping_add(c, 255)
+        let e: u16 = 1 << 8
+        let f: i32 = ~1
+"#,
+        );
+
+        assert!(
+            analyzer.errors.is_empty(),
+            "expected low-level integer program to type-check, got: {:?}",
+            analyzer.errors
+        );
+    }
+
+    #[test]
+    fn nes_foundation_builtins_type_check_in_unsafe_region() {
+        let analyzer = analyze_source(
+            r#"
+class main
+    fun start()
+        @unsafe:
+            let mem: ptr = mem_alloc_zero(65536)
+            mem_write_u8(mem, 0xFFFC, 0x00)
+            mem_write_u8(mem, 0xFFFD, 0x80)
+            let reset: u16 = mem_read_u16(mem, 0xFFFC)
+            let lo: u8 = lo_u8(reset)
+            let hi: u8 = hi_u8(reset)
+            let pc: u16 = make_u16(lo, hi)
+            let flags: u8 = flag_write(0, 7, true)
+            let has_n: bool = flag_has(flags, 7)
+            let z: bool = is_zero_u8(as_u8(pc))
+            let n: bool = is_negative_u8(flags)
+            let carry: bool = carry_add_u8(0xFF, 1, 0)
+            let borrow: bool = borrow_sub_u8(0, 1, 0)
+            let ov1: bool = overflow_add_i8(127, 1, 0)
+            let ov2: bool = overflow_sub_i8(128, 1, 0)
+            mem_free(mem)
+"#,
+        );
+
+        assert!(
+            analyzer.errors.is_empty(),
+            "expected NES foundation helpers to type-check, got: {:?}",
+            analyzer.errors
+        );
+    }
+
+    #[test]
+    fn raw_memory_builtins_require_unsafe() {
+        let analyzer = analyze_source(
+            r#"
+class main
+    fun start()
+        let mem: ptr = mem_alloc(65536)
+"#,
+        );
+
+        assert!(
+            analyzer.errors.iter().any(|e| matches!(
+                e.kind,
+                SemanticErrorKind::RestrictedNativeFunction { ref name, .. } if name == "mem_alloc"
+            )),
+            "expected mem_alloc to require @unsafe, got: {:?}",
             analyzer.errors
         );
     }

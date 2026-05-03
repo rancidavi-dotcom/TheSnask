@@ -125,7 +125,6 @@ pub fn run_setup(target: Option<String>) -> Result<(), String> {
         extra_flags_refs,
     )?;
 
-
     // 4. Compile Tiny Runtime
     println!("📦 Compiling tiny runtime (runtime_tiny.o, runtime_tiny.bc)...");
     let mut tiny_flags = extra_flags.clone();
