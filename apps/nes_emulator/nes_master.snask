@@ -1,0 +1,2084 @@
+// NES emulator foundation in pure Snask.
+// CPU state layout:
+// 0 A, 1 X, 2 Y, 3 SP, 4 P, 5..6 PC, 7 halted, 8..11 cycles.
+
+import "snaskgui";
+import "binfile";
+
+fun byte_int(value: u8) : int
+    mut out: int = as_i64(value)
+    if out < 0
+        out = 256 + out
+    return out
+
+fun byte_u16(value: u8) : u16
+    return as_u16(byte_int(value))
+
+fun rom_copy_to_mem(src: ptr, src_start: int, dst: ptr, dst_start: int, len_bytes: int) : bool
+    @unsafe:
+        mut i: int = 0
+        while i < len_bytes
+            mem_write_u8(dst, dst_start + i, mem_read_u8(src, src_start + i))
+            i = i + 1
+    return true
+
+fun rom_load_ines(path: str, rom: ptr, bus: ptr, chr: ptr, cart: ptr) : bool
+    let size: int = binfile::size(path)
+    if size < 16
+        return false
+
+    let read: int = binfile::read_into(path, rom, size)
+    if read < 16
+        return false
+
+    mut prg_banks: u8 = 0
+    mut chr_banks: u8 = 0
+    mut prg_offset: int = 16
+
+    @unsafe:
+        if mem_read_u8(rom, 0) != 0x4E
+            return false
+        if mem_read_u8(rom, 1) != 0x45
+            return false
+        if mem_read_u8(rom, 2) != 0x53
+            return false
+        if mem_read_u8(rom, 3) != 0x1A
+            return false
+
+        prg_banks = mem_read_u8(rom, 4)
+        chr_banks = mem_read_u8(rom, 5)
+        let flags6: u8 = mem_read_u8(rom, 6)
+        let flags7: u8 = mem_read_u8(rom, 7)
+        let mapper: u8 = (flags6 >> 4) | (flags7 & 0xF0)
+        let trainer: bool = bit_test(flags6, 2)
+        if trainer
+            prg_offset = prg_offset + 512
+        mem_write_u8(cart, 0, mapper)
+        mem_write_u8(cart, 1, prg_banks)
+        mem_write_u8(cart, 2, chr_banks)
+        mem_write_u8(cart, 3, flags6 & 1)
+
+    mut prg_len: int = as_i64(prg_banks) * 16384
+    if prg_len > 32768
+        prg_len = 32768
+    rom_copy_to_mem(rom, prg_offset, bus, 0x8000, prg_len)
+    if prg_banks == 1
+        rom_copy_to_mem(rom, prg_offset, bus, 0xC000, 16384)
+
+    let chr_offset: int = prg_offset + (as_i64(prg_banks) * 16384)
+    let chr_len: int = as_i64(chr_banks) * 8192
+    if chr_len > 0
+        rom_copy_to_mem(rom, chr_offset, chr, 0, chr_len)
+
+    @unsafe:
+        print("Loaded iNES mapper")
+        print(mem_read_u8(cart, 0))
+    return true
+
+fun ppu_put_pixel(framebuffer: ptr, x: int, y: int, color: u32) : bool
+    if x < 0
+        return false
+    if y < 0
+        return false
+    if x >= 256
+        return false
+    if y >= 240
+        return false
+    @unsafe:
+        let offset: int = ((y * 256) + x) * 4
+        mem_write_u32(framebuffer, offset, color)
+    return true
+
+fun ppu_init(ppu: ptr, vram: ptr) : bool
+    @unsafe:
+        mem_fill_u8(ppu, 0, 64)
+        mem_fill_u8(vram, 0, 16384)
+        mem_write_u8(ppu, 2, 0)
+        mem_write_u16(ppu, 10, 0)
+        mem_write_u16(ppu, 12, 261)
+        mem_write_u8(ppu, 14, 0)
+        mem_write_u16(ppu, 16, 0)
+        mem_write_u16(ppu, 18, 0)
+        mem_write_u8(ppu, 20, 0)
+    return true
+
+fun ppu_mirror_vram_addr(addr: u16) : u16
+    mut mirrored: u16 = addr & 0x3FFF
+    if mirrored >= 0x3000 and mirrored < 0x3F00
+        mirrored = mirrored - 0x1000
+    if mirrored >= 0x2000 and mirrored < 0x3000
+        mirrored = 0x2000 + ((mirrored - 0x2000) % 0x0800)
+    if mirrored >= 0x3F00
+        mirrored = 0x3F00 + ((mirrored - 0x3F00) % 32)
+        if mirrored == 0x3F10
+            return 0x3F00
+        if mirrored == 0x3F14
+            return 0x3F04
+        if mirrored == 0x3F18
+            return 0x3F08
+        if mirrored == 0x3F1C
+            return 0x3F0C
+    return mirrored
+
+fun ppu_read_vram(vram: ptr, addr: u16) : u8
+    @unsafe:
+        let mirrored: u16 = ppu_mirror_vram_addr(addr)
+        return mem_read_u8(vram, mirrored)
+
+fun ppu_write_vram(vram: ptr, addr: u16, value: u8) : bool
+    @unsafe:
+        let mirrored: u16 = ppu_mirror_vram_addr(addr)
+        mem_write_u8(vram, mirrored, value)
+    return true
+
+fun ppu_begin_visible(ppu: ptr) : bool
+    @unsafe:
+        mut status: u8 = mem_read_u8(ppu, 2)
+        status = flag_clear(status, 6)
+        status = flag_clear(status, 7)
+        mem_write_u8(ppu, 2, status)
+    return true
+
+fun ppu_mark_sprite_zero(ppu: ptr, vram: ptr) : bool
+    @unsafe:
+        let sprite_y: u8 = mem_read_u8(vram, 0x3C00)
+        let sprite_x: u8 = mem_read_u8(vram, 0x3C03)
+        if sprite_y < 0xEF and byte_int(sprite_x) < 256
+            mem_write_u8(ppu, 2, flag_set(mem_read_u8(ppu, 2), 6))
+    return true
+
+fun ppu_enter_vblank(ppu: ptr) : bool
+    @unsafe:
+        mem_write_u8(ppu, 2, flag_set(mem_read_u8(ppu, 2), 7))
+    return true
+
+fun ppu_rendering_enabled(ppu: ptr) : bool
+    @unsafe:
+        let mask: u8 = mem_read_u8(ppu, 1)
+        return bit_test(mask, 3) or bit_test(mask, 4)
+
+fun ppu_sprite_zero_scanline(vram: ptr) : int
+    @unsafe:
+        return byte_int(mem_read_u8(vram, 0x3C00)) + 1
+
+fun ppu_sprite_zero_x(vram: ptr) : int
+    @unsafe:
+        return byte_int(mem_read_u8(vram, 0x3C03))
+
+fun ppu_clock_color(idx: u8) : u32
+    let c: u8 = idx & 0x3F
+    if c == 0x0F or c == 0x0D or c == 0x1D or c == 0x2E or c == 0x2F
+        return 0x00000000
+    if c == 0x22
+        return 0x007878EC
+    if c == 0x27
+        return 0x00D48820
+    if c == 0x28
+        return 0x00A0AA00
+    if c == 0x29
+        return 0x0074C400
+    if c == 0x30
+        return 0x00ECECEC
+    if c >= 0x30
+        return 0x00ECECEC
+    if c >= 0x20
+        return 0x00A8CCEC
+    if c >= 0x10
+        return 0x00989898
+    return 0x00545454
+
+fun ppu_increment_scroll_x(ppu: ptr) : bool
+    if ppu_rendering_enabled(ppu) == false
+        return true
+    @unsafe:
+        mut v: u16 = mem_read_u16(ppu, 16)
+        if (v & 0x001F) == 31
+            v = v & 0xFFE0
+            v = v ^ 0x0400
+        else
+            v = wrapping_inc(v)
+        mem_write_u16(ppu, 16, v)
+    return true
+
+fun ppu_increment_scroll_y(ppu: ptr) : bool
+    if ppu_rendering_enabled(ppu) == false
+        return true
+    @unsafe:
+        mut v: u16 = mem_read_u16(ppu, 16)
+        if (v & 0x7000) != 0x7000
+            v = wrapping_add(v, 0x1000)
+        else
+            v = v & 0x8FFF
+            mut y: u16 = (v & 0x03E0) >> 5
+            if y == 29
+                y = 0
+                v = v ^ 0x0800
+            elif y == 31
+                y = 0
+            else
+                y = wrapping_inc(y)
+            v = (v & 0xFC1F) | (y << 5)
+        mem_write_u16(ppu, 16, v)
+    return true
+
+fun ppu_transfer_x(ppu: ptr) : bool
+    if ppu_rendering_enabled(ppu) == false
+        return true
+    @unsafe:
+        let v: u16 = mem_read_u16(ppu, 16)
+        let t: u16 = mem_read_u16(ppu, 18)
+        mem_write_u16(ppu, 16, (v & 0xFBE0) | (t & 0x041F))
+    return true
+
+fun ppu_transfer_y(ppu: ptr) : bool
+    if ppu_rendering_enabled(ppu) == false
+        return true
+    @unsafe:
+        let v: u16 = mem_read_u16(ppu, 16)
+        let t: u16 = mem_read_u16(ppu, 18)
+        mem_write_u16(ppu, 16, (v & 0x041F) | (t & 0x7BE0))
+    return true
+
+fun ppu_render_cycle_bg_pixel(ppu: ptr, vram: ptr, chr: ptr, framebuffer: ptr, cycle: int, scanline: int) : bool
+    @unsafe:
+        let mask: u8 = mem_read_u8(ppu, 1)
+        if bit_test(mask, 3) == false
+            ppu_put_pixel(framebuffer, cycle - 1, scanline, ppu_clock_color(ppu_read_vram(vram, 0x3F00)))
+            return true
+
+        let ctrl: u8 = mem_read_u8(ppu, 0)
+        mut pattern_base: int = 0
+        if bit_test(ctrl, 4)
+            pattern_base = 0x1000
+
+        let v: u16 = mem_read_u16(ppu, 16)
+        let fine_x_scroll: int = byte_int(mem_read_u8(ppu, 20))
+        let sub_x: int = (fine_x_scroll + ((cycle - 1) % 8)) % 8
+        let coarse_x: int = as_i64(v & 0x001F)
+        let coarse_y: int = as_i64((v >> 5) & 0x001F)
+        let fine_y: int = as_i64((v >> 12) & 0x0007)
+        let nametable_base: u16 = 0x2000 | (v & 0x0C00)
+        mut pixel_color: u32 = ppu_clock_color(ppu_read_vram(vram, 0x3F00))
+        let tile_id: u8 = ppu_read_vram(vram, nametable_base + as_u16((coarse_y * 32) + coarse_x))
+        let tile_addr: int = pattern_base + (byte_int(tile_id) * 16)
+        let lo: u8 = mem_read_u8(chr, tile_addr + fine_y)
+        let hi: u8 = mem_read_u8(chr, tile_addr + fine_y + 8)
+        let shift: int = 7 - sub_x
+        let bit0: u8 = (lo >> shift) & 1
+        let bit1: u8 = (hi >> shift) & 1
+        let color_id: u8 = bit0 | (bit1 << 1)
+        if color_id != 0
+            let attr_addr: u16 = nametable_base + 0x03C0 + as_u16(((coarse_y / 4) * 8) + (coarse_x / 4))
+            let attr: u8 = ppu_read_vram(vram, attr_addr)
+            let attr_shift: int = (((coarse_y % 4) / 2) * 4) + (((coarse_x % 4) / 2) * 2)
+            let palette_id: u8 = (attr >> attr_shift) & 3
+            let palette_addr: u16 = 0x3F00 + as_u16((palette_id * 4) + color_id)
+            pixel_color = ppu_clock_color(ppu_read_vram(vram, palette_addr))
+        ppu_put_pixel(framebuffer, cycle - 1, scanline, pixel_color)
+    return true
+
+fun ppu_clock(ppu: ptr, vram: ptr, chr: ptr, framebuffer: ptr) : bool
+    @unsafe:
+        let cycle: int = as_i64(mem_read_u16(ppu, 10))
+        let scanline: int = as_i64(mem_read_u16(ppu, 12))
+
+        if scanline == 261 and cycle == 1
+            mut status: u8 = mem_read_u8(ppu, 2)
+            status = flag_clear(status, 6)
+            status = flag_clear(status, 7)
+            mem_write_u8(ppu, 2, status)
+            mem_write_u8(ppu, 14, 0)
+
+        if scanline >= 0 and scanline < 240 and cycle >= 1 and cycle < 257
+            ppu_render_cycle_bg_pixel(ppu, vram, chr, framebuffer, cycle, scanline)
+            if ppu_rendering_enabled(ppu)
+                let sprite_y: int = ppu_sprite_zero_scanline(vram)
+                let sprite_x: int = ppu_sprite_zero_x(vram)
+                if scanline == sprite_y and cycle >= sprite_x and cycle < (sprite_x + 8)
+                    if bit_test(mem_read_u8(ppu, 1), 3) and bit_test(mem_read_u8(ppu, 1), 4)
+                        if cycle >= 9 or bit_test(mem_read_u8(ppu, 1), 1) or bit_test(mem_read_u8(ppu, 1), 2)
+                            mem_write_u8(ppu, 2, flag_set(mem_read_u8(ppu, 2), 6))
+
+        if scanline == 241 and cycle == 1
+            mem_write_u8(ppu, 2, flag_set(mem_read_u8(ppu, 2), 7))
+            if bit_test(mem_read_u8(ppu, 0), 7)
+                mem_write_u8(ppu, 14, 1)
+
+        if scanline < 240 or scanline == 261
+            if ((cycle >= 1 and cycle < 257) or (cycle >= 321 and cycle < 337)) and (cycle % 8) == 0
+                ppu_increment_scroll_x(ppu)
+            if cycle == 256
+                ppu_increment_scroll_y(ppu)
+            if cycle == 257
+                ppu_transfer_x(ppu)
+            if scanline == 261 and cycle >= 280 and cycle < 305
+                ppu_transfer_y(ppu)
+
+        mut next_cycle: int = cycle + 1
+        mut next_scanline: int = scanline
+        if next_cycle >= 341
+            next_cycle = 0
+            next_scanline = scanline + 1
+            if next_scanline >= 262
+                next_scanline = 0
+        mem_write_u16(ppu, 10, as_u16(next_cycle))
+        mem_write_u16(ppu, 12, as_u16(next_scanline))
+    return true
+
+fun ppu_cpu_read(ppu: ptr, vram: ptr, addr: u16) : u8
+    let reg: u16 = 0x2000 + ((addr - 0x2000) % 8)
+    if reg == 0x2002
+        @unsafe:
+            let status: u8 = mem_read_u8(ppu, 2)
+            mem_write_u8(ppu, 2, flag_clear(status, 7))
+            mem_write_u8(ppu, 4, 0)
+            return status
+    if reg == 0x2007
+        @unsafe:
+            let paddr: u16 = mem_read_u16(ppu, 7)
+            let value: u8 = ppu_read_vram(vram, paddr)
+            mut inc: u16 = 1
+            if bit_test(mem_read_u8(ppu, 0), 2)
+                inc = 32
+            mem_write_u16(ppu, 7, wrapping_add(paddr, inc))
+            return value
+    if reg == 0x2004
+        @unsafe:
+            let oam_addr: u8 = mem_read_u8(ppu, 9)
+            return mem_read_u8(vram, 0x3C00 + byte_u16(oam_addr))
+    @unsafe:
+        return mem_read_u8(ppu, reg - 0x2000)
+
+fun ppu_cpu_write(ppu: ptr, vram: ptr, addr: u16, value: u8) : bool
+    let reg: u16 = 0x2000 + ((addr - 0x2000) % 8)
+    if reg == 0x2000
+        @unsafe:
+            mem_write_u8(ppu, 0, value)
+            let t: u16 = mem_read_u16(ppu, 18)
+            mem_write_u16(ppu, 18, (t & 0xF3FF) | (byte_u16(value & 3) << 10))
+        return true
+    if reg == 0x2001
+        @unsafe:
+            mem_write_u8(ppu, 1, value)
+        return true
+    if reg == 0x2003
+        @unsafe:
+            mem_write_u8(ppu, 9, value)
+        return true
+    if reg == 0x2004
+        @unsafe:
+            let oam_addr: u8 = mem_read_u8(ppu, 9)
+            mem_write_u8(vram, 0x3C00 + byte_u16(oam_addr), value)
+            mem_write_u8(ppu, 9, wrapping_inc(oam_addr))
+        return true
+    if reg == 0x2005
+        @unsafe:
+            if mem_read_u8(ppu, 4) == 0
+                mem_write_u8(ppu, 5, value)
+                mem_write_u8(ppu, 20, value & 7)
+                let t: u16 = mem_read_u16(ppu, 18)
+                mem_write_u16(ppu, 18, (t & 0xFFE0) | byte_u16(value >> 3))
+                mem_write_u8(ppu, 4, 1)
+            else
+                mem_write_u8(ppu, 6, value)
+                let t: u16 = mem_read_u16(ppu, 18)
+                mem_write_u16(ppu, 18, (t & 0x8C1F) | (byte_u16(value & 7) << 12) | (byte_u16(value & 0xF8) << 2))
+                mem_write_u8(ppu, 4, 0)
+        return true
+    if reg == 0x2006
+        @unsafe:
+            if mem_read_u8(ppu, 4) == 0
+                mem_write_u16(ppu, 7, as_u16(value & 0x3F) << 8)
+                let t: u16 = mem_read_u16(ppu, 18)
+                mem_write_u16(ppu, 18, (t & 0x00FF) | (byte_u16(value & 0x3F) << 8))
+                mem_write_u8(ppu, 4, 1)
+            else
+                let hi: u16 = mem_read_u16(ppu, 7) & 0xFF00
+                mem_write_u16(ppu, 7, hi | as_u16(value))
+                let t: u16 = mem_read_u16(ppu, 18)
+                let next_t: u16 = (t & 0xFF00) | byte_u16(value)
+                mem_write_u16(ppu, 18, next_t)
+                mem_write_u16(ppu, 16, next_t)
+                mem_write_u8(ppu, 4, 0)
+        return true
+    if reg == 0x2007
+        @unsafe:
+            let paddr: u16 = mem_read_u16(ppu, 7)
+            ppu_write_vram(vram, paddr, value)
+            mut inc: u16 = 1
+            if bit_test(mem_read_u8(ppu, 0), 2)
+                inc = 32
+            mem_write_u16(ppu, 7, wrapping_add(paddr, inc))
+        return true
+    @unsafe:
+        mem_write_u8(ppu, reg - 0x2000, value)
+    return true
+
+fun bus_read(bus: ptr, ppu: ptr, vram: ptr, controller: ptr, addr: u16) : u8
+    if addr < 0x2000
+        @unsafe:
+            return mem_read_u8(bus, as_i64(addr % 0x0800))
+    if addr < 0x4000
+        return ppu_cpu_read(ppu, vram, addr)
+    if addr == 0x4016
+        @unsafe:
+            let latched: u8 = mem_read_u8(controller, 1)
+            let data: u8 = as_u8((latched & 0x80) != 0)
+            if mem_read_u8(controller, 0) == 0
+                mem_write_u8(controller, 1, latched << 1)
+            return data
+    mut offset: int = as_i64(addr)
+    if offset < 0
+        offset = 65536 + offset
+    @unsafe:
+        return mem_read_u8(bus, offset)
+
+fun bus_write(bus: ptr, ppu: ptr, vram: ptr, controller: ptr, addr: u16, value: u8) : bool
+    if addr < 0x2000
+        @unsafe:
+            mem_write_u8(bus, as_i64(addr % 0x0800), value)
+        return true
+    if addr < 0x4000
+        ppu_cpu_write(ppu, vram, addr, value)
+        return true
+    if addr == 0x4016
+        @unsafe:
+            mem_write_u8(controller, 0, value & 1)
+            if (value & 1) == 1
+                mem_write_u8(controller, 1, mem_read_u8(controller, 2))
+        return true
+    if addr == 0x4014
+        let base: u16 = byte_u16(value) << 8
+        mut i: int = 0
+        while i < 256
+            @unsafe:
+                mem_write_u8(vram, 0x3C00 + i, bus_read(bus, ppu, vram, controller, base + i))
+            i = i + 1
+        return true
+    mut offset: int = as_i64(addr)
+    if offset < 0
+        offset = 65536 + offset
+    @unsafe:
+        mem_write_u8(bus, offset, value)
+    return true
+
+fun controller_update(win, controller: ptr) : bool
+    mut state: u8 = 0
+    if snaskgui::key_down(win, snaskgui::key_a())
+        state = flag_set(state, 7)
+    if snaskgui::key_down(win, snaskgui::key_space())
+        state = flag_set(state, 7)
+    if snaskgui::key_down(win, snaskgui::key_b())
+        state = flag_set(state, 6)
+    if snaskgui::key_down(win, snaskgui::key_select())
+        state = flag_set(state, 5)
+    if snaskgui::key_down(win, snaskgui::key_start())
+        state = flag_set(state, 4)
+    if snaskgui::key_down(win, snaskgui::key_up())
+        state = flag_set(state, 3)
+    if snaskgui::key_down(win, snaskgui::key_down_arrow())
+        state = flag_set(state, 2)
+    if snaskgui::key_down(win, snaskgui::key_left())
+        state = flag_set(state, 1)
+    if snaskgui::key_down(win, snaskgui::key_right())
+        state = flag_set(state, 0)
+    @unsafe:
+        mem_write_u8(controller, 2, state)
+        if mem_read_u8(controller, 0) == 1
+            mem_write_u8(controller, 1, state)
+    return true
+
+fun ppu_render_boot_frame(bus: ptr, framebuffer: ptr) : bool
+    @unsafe:
+        mut y: int = 0
+        while y < 240
+            mut x: int = 0
+            while x < 256
+                mut color: u32 = 0x00181818
+                if y < 16
+                    color = 0x00404858
+                elif x < 16
+                    color = 0x00583840
+                elif mem_read_u8(bus, 0x0200) == 2 and mem_read_u8(bus, 0x0201) == 6
+                    if ((x / 16) + (y / 16)) % 2 == 0
+                        color = 0x0028A858
+                    else
+                        color = 0x00D8E8B8
+                ppu_put_pixel(framebuffer, x, y, color)
+                x = x + 1
+            y = y + 1
+    return true
+
+fun ppu_palette_color(idx: u8) : u32
+    let c: u8 = idx & 3
+    if c == 0
+        return 0x00181818
+    if c == 1
+        return 0x00686868
+    if c == 2
+        return 0x00B8B8B8
+    return 0x00F8F8F8
+
+fun ppu_nes_color(idx: u8) : u32
+    let c: u8 = idx & 0x3F
+    if c == 0x00
+        return 0x00545454
+    if c == 0x01
+        return 0x00001E74
+    if c == 0x02
+        return 0x00081090
+    if c == 0x03
+        return 0x00300088
+    if c == 0x04
+        return 0x00440064
+    if c == 0x05
+        return 0x005C0030
+    if c == 0x06
+        return 0x00540400
+    if c == 0x07
+        return 0x003C1800
+    if c == 0x08
+        return 0x00202A00
+    if c == 0x09
+        return 0x00083A00
+    if c == 0x0A
+        return 0x00004000
+    if c == 0x0B
+        return 0x00003C00
+    if c == 0x0C
+        return 0x0000323C
+    if c == 0x0D
+        return 0x00000000
+    if c == 0x0E
+        return 0x00000000
+    if c == 0x0F
+        return 0x00000000
+    if c == 0x10
+        return 0x00989898
+    if c == 0x11
+        return 0x00084CC4
+    if c == 0x12
+        return 0x003034EC
+    if c == 0x13
+        return 0x005C1EE4
+    if c == 0x14
+        return 0x008814B0
+    if c == 0x15
+        return 0x00A01464
+    if c == 0x16
+        return 0x00982C20
+    if c == 0x17
+        return 0x00784400
+    if c == 0x18
+        return 0x00545A00
+    if c == 0x19
+        return 0x00287200
+    if c == 0x1A
+        return 0x00087800
+    if c == 0x1B
+        return 0x00007428
+    if c == 0x1C
+        return 0x00006678
+    if c == 0x1D
+        return 0x00000000
+    if c == 0x1E
+        return 0x00000000
+    if c == 0x1F
+        return 0x00000000
+    if c == 0x20
+        return 0x00ECECEC
+    if c == 0x21
+        return 0x004C9AEC
+    if c == 0x22
+        return 0x007878EC
+    if c == 0x23
+        return 0x00B062EC
+    if c == 0x24
+        return 0x00E454EC
+    if c == 0x25
+        return 0x00EC58B4
+    if c == 0x26
+        return 0x00EC6A64
+    if c == 0x27
+        return 0x00D48820
+    if c == 0x28
+        return 0x00A0AA00
+    if c == 0x29
+        return 0x0074C400
+    if c == 0x2A
+        return 0x004CD020
+    if c == 0x2B
+        return 0x0038CC6C
+    if c == 0x2C
+        return 0x0038B4CC
+    if c == 0x2D
+        return 0x003C3C3C
+    if c == 0x2E
+        return 0x00000000
+    if c == 0x2F
+        return 0x00000000
+    if c == 0x30
+        return 0x00ECECEC
+    if c == 0x31
+        return 0x00A8CCEC
+    if c == 0x32
+        return 0x00BCBCEC
+    if c == 0x33
+        return 0x00D4B2EC
+    if c == 0x34
+        return 0x00ECAEEC
+    if c == 0x35
+        return 0x00ECAED4
+    if c == 0x36
+        return 0x00ECB4B0
+    if c == 0x37
+        return 0x00E4C490
+    if c == 0x38
+        return 0x00CCD278
+    if c == 0x39
+        return 0x00B4DE78
+    if c == 0x3A
+        return 0x00A8E290
+    if c == 0x3B
+        return 0x0098E2B4
+    if c == 0x3C
+        return 0x00A0D6E4
+    return 0x00000000
+
+fun ppu_bg_palette_color(vram: ptr, palette_id: u8, color_id: u8) : u32
+    if color_id == 0
+        return ppu_nes_color(ppu_read_vram(vram, 0x3F00))
+    let addr: u16 = 0x3F00 + as_u16((palette_id * 4) + color_id)
+    return ppu_nes_color(ppu_read_vram(vram, addr))
+
+fun ppu_sprite_palette_color(vram: ptr, palette_id: u8, color_id: u8) : u32
+    let addr: u16 = 0x3F10 + as_u16((palette_id * 4) + color_id)
+    return ppu_nes_color(ppu_read_vram(vram, addr))
+
+fun ppu_render_chr_tiles(chr: ptr, framebuffer: ptr) : bool
+    @unsafe:
+        mut tile: int = 0
+        while tile < 512
+            let tx: int = (tile % 32) * 8
+            let ty: int = (tile / 32) * 8
+            mut row: int = 0
+            while row < 8
+                let lo: u8 = mem_read_u8(chr, (tile * 16) + row)
+                let hi: u8 = mem_read_u8(chr, (tile * 16) + row + 8)
+                mut col: int = 0
+                while col < 8
+                    let shift: int = 7 - col
+                    let bit0: u8 = (lo >> shift) & 1
+                    let bit1: u8 = (hi >> shift) & 1
+                    let color_id: u8 = bit0 | (bit1 << 1)
+                    ppu_put_pixel(framebuffer, tx + col, ty + row, ppu_palette_color(color_id))
+                    col = col + 1
+                row = row + 1
+            tile = tile + 1
+    return true
+
+fun ppu_render_bg_pixel(vram: ptr, chr: ptr, framebuffer: ptr, pattern_base: int, nametable_base: u16, tx: int, ty: int, fine_x: int, fine_y: int, x: int, y: int) : bool
+    @unsafe:
+        mut pixel_color: u32 = ppu_nes_color(ppu_read_vram(vram, 0x3F00))
+        let tile_id: u8 = ppu_read_vram(vram, nametable_base + as_u16((ty * 32) + tx))
+        let tile_addr: int = pattern_base + (byte_int(tile_id) * 16)
+        let lo: u8 = mem_read_u8(chr, tile_addr + fine_y)
+        let hi: u8 = mem_read_u8(chr, tile_addr + fine_y + 8)
+        let shift: int = 7 - fine_x
+        let bit0: u8 = (lo >> shift) & 1
+        let bit1: u8 = (hi >> shift) & 1
+        let color_id: u8 = bit0 | (bit1 << 1)
+        if color_id != 0
+            let attr_addr: u16 = nametable_base + 0x03C0 + as_u16(((ty / 4) * 8) + (tx / 4))
+            let attr: u8 = ppu_read_vram(vram, attr_addr)
+            let attr_shift: int = (((ty % 4) / 2) * 4) + (((tx % 4) / 2) * 2)
+            let palette_id: u8 = (attr >> attr_shift) & 3
+            pixel_color = ppu_bg_palette_color(vram, palette_id, color_id)
+        ppu_put_pixel(framebuffer, x, y, pixel_color)
+    return true
+
+fun ppu_render_nametable(ppu: ptr, vram: ptr, chr: ptr, framebuffer: ptr) : bool
+    @unsafe:
+        let ctrl: u8 = mem_read_u8(ppu, 0)
+        let mask: u8 = mem_read_u8(ppu, 1)
+        mut pattern_base: int = 0
+        if bit_test(ctrl, 4)
+            pattern_base = 0x1000
+        mut nonzero_tiles: int = 0
+        let scroll_x: int = byte_int(mem_read_u8(ppu, 5))
+        let scroll_y: int = byte_int(mem_read_u8(ppu, 6))
+        let world_page: int = byte_int(ctrl & 1)
+        mut y: int = 0
+        while y < 240
+            mut x: int = 0
+            while x < 256
+                mut full_x: int = x
+                mut sample_y: int = y
+                mut page: int = 0
+                if y >= 32
+                    full_x = x + scroll_x
+                    sample_y = y + scroll_y
+                    while sample_y >= 240
+                        sample_y = sample_y - 240
+                    page = world_page
+                    if full_x >= 256
+                        full_x = full_x - 256
+                        if page == 0
+                            page = 1
+                        else
+                            page = 0
+                let sample_x: int = full_x
+                let tx: int = sample_x / 8
+                let ty: int = sample_y / 8
+                let fine_x: int = sample_x % 8
+                let fine_y: int = sample_y % 8
+                let nametable_base: u16 = 0x2000 + as_u16(page * 0x0400)
+                let tile_id: u8 = ppu_read_vram(vram, nametable_base + as_u16((ty * 32) + tx))
+                if tile_id != 0
+                    nonzero_tiles = nonzero_tiles + 1
+                if bit_test(mask, 3)
+                    ppu_render_bg_pixel(vram, chr, framebuffer, pattern_base, nametable_base, tx, ty, fine_x, fine_y, x, y)
+                else
+                    ppu_put_pixel(framebuffer, x, y, ppu_nes_color(ppu_read_vram(vram, 0x3F00)))
+                x = x + 1
+            y = y + 1
+        if nonzero_tiles == 0
+            y = 0
+            while y < 240
+                mut clear_x: int = 0
+                while clear_x < 256
+                    ppu_put_pixel(framebuffer, clear_x, y, ppu_nes_color(ppu_read_vram(vram, 0x3F00)))
+                    clear_x = clear_x + 1
+                y = y + 1
+    return true
+
+fun ppu_render_sprites(ppu: ptr, vram: ptr, chr: ptr, framebuffer: ptr) : bool
+    @unsafe:
+        let ctrl: u8 = mem_read_u8(ppu, 0)
+        let mask: u8 = mem_read_u8(ppu, 1)
+        if bit_test(mask, 4) == false
+            return true
+        mut pattern_base: int = 0
+        if bit_test(ctrl, 3)
+            pattern_base = 0x1000
+        mut sprite: int = 0
+        while sprite < 64
+            let o: int = 0x3C00 + (sprite * 4)
+            let sy: int = byte_int(mem_read_u8(vram, o)) + 1
+            let tile_id: u8 = mem_read_u8(vram, o + 1)
+            let attr: u8 = mem_read_u8(vram, o + 2)
+            let sx: int = byte_int(mem_read_u8(vram, o + 3))
+            if sy < 240
+                mut row: int = 0
+                while row < 8
+                    mut source_row: int = row
+                    if bit_test(attr, 7)
+                        source_row = 7 - row
+                    let tile_addr: int = pattern_base + (byte_int(tile_id) * 16)
+                    let lo: u8 = mem_read_u8(chr, tile_addr + source_row)
+                    let hi: u8 = mem_read_u8(chr, tile_addr + source_row + 8)
+                    mut col: int = 0
+                    while col < 8
+                        mut source_col: int = col
+                        if bit_test(attr, 6)
+                            source_col = 7 - col
+                        let shift: int = 7 - source_col
+                        let bit0: u8 = (lo >> shift) & 1
+                        let bit1: u8 = (hi >> shift) & 1
+                        let color_id: u8 = bit0 | (bit1 << 1)
+                        if color_id != 0
+                            let palette_id: u8 = attr & 3
+                            ppu_put_pixel(framebuffer, sx + col, sy + row, ppu_sprite_palette_color(vram, palette_id, color_id))
+                        col = col + 1
+                    row = row + 1
+            sprite = sprite + 1
+    return true
+
+fun cpu_set_zn(cpu: ptr, value: u8) : bool
+    @unsafe:
+        mut p: u8 = mem_read_u8(cpu, 4)
+        p = flag_write(p, 1, is_zero_u8(value))
+        p = flag_write(p, 7, is_negative_u8(value))
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_push(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr, value: u8) : bool
+    @unsafe:
+        let sp: u8 = mem_read_u8(cpu, 3)
+        let stack_offset: int = 0x0100 + byte_int(sp)
+        let addr: u16 = as_u16(stack_offset)
+        mem_write_u8(bus, stack_offset, value)
+        mem_write_u8(cpu, 3, wrapping_dec(sp))
+    return true
+
+fun cpu_pop(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : u8
+    @unsafe:
+        let sp_next: u8 = wrapping_inc(mem_read_u8(cpu, 3))
+        mem_write_u8(cpu, 3, sp_next)
+        let stack_offset: int = 0x0100 + byte_int(sp_next)
+        let addr: u16 = as_u16(stack_offset)
+        let value: u8 = mem_read_u8(bus, stack_offset)
+        return value
+
+fun cpu_fetch_u8(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : u8
+    @unsafe:
+        let pc: u16 = mem_read_u16(cpu, 5)
+        mut offset: int = as_i64(pc)
+        if offset < 0
+            offset = 65536 + offset
+        let value: u8 = mem_read_u8(bus, offset)
+        mem_write_u16(cpu, 5, wrapping_inc(pc))
+        return value
+
+fun cpu_fetch_u16(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : u16
+    let lo: u8 = cpu_fetch_u8(cpu, bus, ppu, vram, controller)
+    let hi: u8 = cpu_fetch_u8(cpu, bus, ppu, vram, controller)
+    return make_u16(lo, hi)
+
+fun cpu_addr_zp(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : u16
+    return byte_u16(cpu_fetch_u8(cpu, bus, ppu, vram, controller))
+
+fun cpu_addr_abs(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : u16
+    return cpu_fetch_u16(cpu, bus, ppu, vram, controller)
+
+fun cpu_addr_zp_x(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : u16
+    let base: u8 = cpu_fetch_u8(cpu, bus, ppu, vram, controller)
+    @unsafe:
+        let x: u8 = mem_read_u8(cpu, 1)
+    return byte_u16(wrapping_add(base, x))
+
+fun cpu_addr_zp_y(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : u16
+    let base: u8 = cpu_fetch_u8(cpu, bus, ppu, vram, controller)
+    @unsafe:
+        let y: u8 = mem_read_u8(cpu, 2)
+    return byte_u16(wrapping_add(base, y))
+
+fun cpu_addr_abs_x(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : u16
+    let base: u16 = cpu_fetch_u16(cpu, bus, ppu, vram, controller)
+    @unsafe:
+        let x: u8 = mem_read_u8(cpu, 1)
+    return wrapping_add(base, byte_u16(x))
+
+fun cpu_addr_abs_y(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : u16
+    let base: u16 = cpu_fetch_u16(cpu, bus, ppu, vram, controller)
+    @unsafe:
+        let y: u8 = mem_read_u8(cpu, 2)
+    return wrapping_add(base, byte_u16(y))
+
+fun cpu_addr_ind_x(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : u16
+    let zp: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+    @unsafe:
+        let lo: u8 = bus_read(bus, ppu, vram, controller, zp)
+        let hi: u8 = bus_read(bus, ppu, vram, controller, byte_u16(wrapping_add(as_u8(zp), 1)))
+    return make_u16(lo, hi)
+
+fun cpu_addr_ind_y(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : u16
+    let zp: u8 = cpu_fetch_u8(cpu, bus, ppu, vram, controller)
+    @unsafe:
+        let lo: u8 = bus_read(bus, ppu, vram, controller, byte_u16(zp))
+        let hi: u8 = bus_read(bus, ppu, vram, controller, byte_u16(wrapping_add(zp, 1)))
+        let y: u8 = mem_read_u8(cpu, 2)
+    return wrapping_add(make_u16(lo, hi), byte_u16(y))
+
+fun cpu_branch(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr, condition: bool) : bool
+    let rel: u8 = cpu_fetch_u8(cpu, bus, ppu, vram, controller)
+    if condition
+        @unsafe:
+            mut pc: u16 = mem_read_u16(cpu, 5)
+            if bit_test(rel, 7)
+                pc = wrapping_sub(pc, wrapping_sub(0x0100, byte_u16(rel)))
+            if bit_test(rel, 7) == false
+                pc = wrapping_add(pc, byte_u16(rel))
+            mem_write_u16(cpu, 5, pc)
+    return true
+
+fun cpu_adc(cpu: ptr, value: u8) : bool
+    @unsafe:
+        let a: u8 = mem_read_u8(cpu, 0)
+        mut p: u8 = mem_read_u8(cpu, 4)
+        let carry_in: u8 = as_u8(flag_has(p, 0))
+        let result: u8 = wrapping_add(wrapping_add(a, value), carry_in)
+        p = flag_write(p, 0, carry_add_u8(a, value, carry_in))
+        p = flag_write(p, 6, overflow_add_i8(a, value, carry_in))
+        p = flag_write(p, 1, is_zero_u8(result))
+        p = flag_write(p, 7, is_negative_u8(result))
+        mem_write_u8(cpu, 0, result)
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_sbc(cpu: ptr, value: u8) : bool
+    @unsafe:
+        let a: u8 = mem_read_u8(cpu, 0)
+        mut p: u8 = mem_read_u8(cpu, 4)
+        let borrow_in: u8 = as_u8(flag_has(p, 0) == false)
+        let result: u8 = wrapping_sub(wrapping_sub(a, value), borrow_in)
+        p = flag_write(p, 0, borrow_sub_u8(a, value, borrow_in) == false)
+        p = flag_write(p, 6, overflow_sub_i8(a, value, borrow_in))
+        p = flag_write(p, 1, is_zero_u8(result))
+        p = flag_write(p, 7, is_negative_u8(result))
+        mem_write_u8(cpu, 0, result)
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_and(cpu: ptr, value: u8) : bool
+    mut result: u8 = 0
+    @unsafe:
+        result = mem_read_u8(cpu, 0) & value
+        mem_write_u8(cpu, 0, result)
+    cpu_set_zn(cpu, result)
+    return true
+
+fun cpu_ora(cpu: ptr, value: u8) : bool
+    mut result: u8 = 0
+    @unsafe:
+        result = mem_read_u8(cpu, 0) | value
+        mem_write_u8(cpu, 0, result)
+    cpu_set_zn(cpu, result)
+    return true
+
+fun cpu_eor(cpu: ptr, value: u8) : bool
+    mut result: u8 = 0
+    @unsafe:
+        result = mem_read_u8(cpu, 0) ^ value
+        mem_write_u8(cpu, 0, result)
+    cpu_set_zn(cpu, result)
+    return true
+
+fun cpu_cmp(cpu: ptr, reg: u8, value: u8) : bool
+    @unsafe:
+        mut p: u8 = mem_read_u8(cpu, 4)
+        let result: u8 = wrapping_sub(reg, value)
+        p = flag_write(p, 0, byte_int(reg) >= byte_int(value))
+        p = flag_write(p, 1, is_zero_u8(result))
+        p = flag_write(p, 7, is_negative_u8(result))
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_load_a(cpu: ptr, value: u8) : bool
+    @unsafe:
+        mem_write_u8(cpu, 0, value)
+    cpu_set_zn(cpu, value)
+    return true
+
+fun cpu_load_x(cpu: ptr, value: u8) : bool
+    @unsafe:
+        mem_write_u8(cpu, 1, value)
+    cpu_set_zn(cpu, value)
+    return true
+
+fun cpu_load_y(cpu: ptr, value: u8) : bool
+    @unsafe:
+        mem_write_u8(cpu, 2, value)
+    cpu_set_zn(cpu, value)
+    return true
+
+fun cpu_inc_mem(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr, addr: u16) : bool
+    mut value: u8 = 0
+    @unsafe:
+        value = wrapping_inc(bus_read(bus, ppu, vram, controller, addr))
+        bus_write(bus, ppu, vram, controller, addr, value)
+    cpu_set_zn(cpu, value)
+    return true
+
+fun cpu_dec_mem(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr, addr: u16) : bool
+    mut value: u8 = 0
+    @unsafe:
+        value = wrapping_dec(bus_read(bus, ppu, vram, controller, addr))
+        bus_write(bus, ppu, vram, controller, addr, value)
+    cpu_set_zn(cpu, value)
+    return true
+
+fun cpu_bit(cpu: ptr, value: u8) : bool
+    @unsafe:
+        let a: u8 = mem_read_u8(cpu, 0)
+        mut p: u8 = mem_read_u8(cpu, 4)
+        p = flag_write(p, 1, is_zero_u8(a & value))
+        p = flag_write(p, 6, bit_test(value, 6))
+        p = flag_write(p, 7, bit_test(value, 7))
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_asl_a(cpu: ptr) : bool
+    @unsafe:
+        let old: u8 = mem_read_u8(cpu, 0)
+        let value: u8 = old << 1
+        mut p: u8 = mem_read_u8(cpu, 4)
+        p = flag_write(p, 0, bit_test(old, 7))
+        p = flag_write(p, 1, is_zero_u8(value))
+        p = flag_write(p, 7, is_negative_u8(value))
+        mem_write_u8(cpu, 0, value)
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_lsr_a(cpu: ptr) : bool
+    @unsafe:
+        let old: u8 = mem_read_u8(cpu, 0)
+        let value: u8 = old >> 1
+        mut p: u8 = mem_read_u8(cpu, 4)
+        p = flag_write(p, 0, bit_test(old, 0))
+        p = flag_write(p, 1, is_zero_u8(value))
+        p = flag_clear(p, 7)
+        mem_write_u8(cpu, 0, value)
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_rol_a(cpu: ptr) : bool
+    @unsafe:
+        let old: u8 = mem_read_u8(cpu, 0)
+        let carry_in: u8 = as_u8(flag_has(mem_read_u8(cpu, 4), 0))
+        let value: u8 = (old << 1) | carry_in
+        mut p: u8 = mem_read_u8(cpu, 4)
+        p = flag_write(p, 0, bit_test(old, 7))
+        p = flag_write(p, 1, is_zero_u8(value))
+        p = flag_write(p, 7, is_negative_u8(value))
+        mem_write_u8(cpu, 0, value)
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_ror_a(cpu: ptr) : bool
+    @unsafe:
+        let old: u8 = mem_read_u8(cpu, 0)
+        let carry_in: u8 = as_u8(flag_has(mem_read_u8(cpu, 4), 0)) << 7
+        let value: u8 = carry_in | (old >> 1)
+        mut p: u8 = mem_read_u8(cpu, 4)
+        p = flag_write(p, 0, bit_test(old, 0))
+        p = flag_write(p, 1, is_zero_u8(value))
+        p = flag_write(p, 7, is_negative_u8(value))
+        mem_write_u8(cpu, 0, value)
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_asl_mem(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr, addr: u16) : bool
+    @unsafe:
+        let old: u8 = bus_read(bus, ppu, vram, controller, addr)
+        let value: u8 = old << 1
+        mut p: u8 = mem_read_u8(cpu, 4)
+        p = flag_write(p, 0, bit_test(old, 7))
+        p = flag_write(p, 1, is_zero_u8(value))
+        p = flag_write(p, 7, is_negative_u8(value))
+        bus_write(bus, ppu, vram, controller, addr, value)
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_lsr_mem(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr, addr: u16) : bool
+    @unsafe:
+        let old: u8 = bus_read(bus, ppu, vram, controller, addr)
+        let value: u8 = old >> 1
+        mut p: u8 = mem_read_u8(cpu, 4)
+        p = flag_write(p, 0, bit_test(old, 0))
+        p = flag_write(p, 1, is_zero_u8(value))
+        p = flag_clear(p, 7)
+        bus_write(bus, ppu, vram, controller, addr, value)
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_rol_mem(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr, addr: u16) : bool
+    @unsafe:
+        let old: u8 = bus_read(bus, ppu, vram, controller, addr)
+        let carry_in: u8 = as_u8(flag_has(mem_read_u8(cpu, 4), 0))
+        let value: u8 = (old << 1) | carry_in
+        mut p: u8 = mem_read_u8(cpu, 4)
+        p = flag_write(p, 0, bit_test(old, 7))
+        p = flag_write(p, 1, is_zero_u8(value))
+        p = flag_write(p, 7, is_negative_u8(value))
+        bus_write(bus, ppu, vram, controller, addr, value)
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_ror_mem(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr, addr: u16) : bool
+    @unsafe:
+        let old: u8 = bus_read(bus, ppu, vram, controller, addr)
+        let carry_in: u8 = as_u8(flag_has(mem_read_u8(cpu, 4), 0)) << 7
+        let value: u8 = carry_in | (old >> 1)
+        mut p: u8 = mem_read_u8(cpu, 4)
+        p = flag_write(p, 0, bit_test(old, 0))
+        p = flag_write(p, 1, is_zero_u8(value))
+        p = flag_write(p, 7, is_negative_u8(value))
+        bus_write(bus, ppu, vram, controller, addr, value)
+        mem_write_u8(cpu, 4, p)
+    return true
+
+fun cpu_reset(cpu: ptr, bus: ptr) : bool
+    @unsafe:
+        mem_fill_u8(cpu, 0, 32)
+        mem_write_u8(cpu, 3, 0xFD)
+        mem_write_u8(cpu, 4, 0x24)
+        mem_write_u16(cpu, 5, mem_read_u16(bus, 0xFFFC))
+        mem_write_u8(cpu, 7, 0)
+        mem_write_u32(cpu, 8, 7)
+    return true
+
+fun cpu_nmi(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : bool
+    @unsafe:
+        let pc: u16 = mem_read_u16(cpu, 5)
+        let p: u8 = flag_set(flag_clear(mem_read_u8(cpu, 4), 4), 5)
+    cpu_push(cpu, bus, ppu, vram, controller, hi_u8(pc))
+    cpu_push(cpu, bus, ppu, vram, controller, lo_u8(pc))
+    cpu_push(cpu, bus, ppu, vram, controller, p)
+    @unsafe:
+        mem_write_u8(cpu, 4, flag_set(mem_read_u8(cpu, 4), 2))
+        mem_write_u16(cpu, 5, mem_read_u16(bus, 0xFFFA))
+    return true
+
+fun cpu_load_demo(bus: ptr) : bool
+    @unsafe:
+        // A tiny deterministic ROM image at 0x8000:
+        // LDA #1; ADC #1; STA $0200; LDX #5; INX; STX $0201; BRK
+        mem_write_u8(bus, 0x8000, 0xA9)
+        mem_write_u8(bus, 0x8001, 0x01)
+        mem_write_u8(bus, 0x8002, 0x69)
+        mem_write_u8(bus, 0x8003, 0x01)
+        mem_write_u8(bus, 0x8004, 0x8D)
+        mem_write_u8(bus, 0x8005, 0x00)
+        mem_write_u8(bus, 0x8006, 0x02)
+        mem_write_u8(bus, 0x8007, 0xA2)
+        mem_write_u8(bus, 0x8008, 0x05)
+        mem_write_u8(bus, 0x8009, 0xE8)
+        mem_write_u8(bus, 0x800A, 0x8E)
+        mem_write_u8(bus, 0x800B, 0x01)
+        mem_write_u8(bus, 0x800C, 0x02)
+        mem_write_u8(bus, 0x800D, 0x00)
+        mem_write_u8(bus, 0xFFFC, 0x00)
+        mem_write_u8(bus, 0xFFFD, 0x80)
+    return true
+
+fun cpu_step(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr) : bool
+    @unsafe:
+        if mem_read_u8(cpu, 7) == 1
+            return false
+
+    let opcode: u8 = cpu_fetch_u8(cpu, bus, ppu, vram, controller)
+
+    if opcode == 0x00
+        @unsafe:
+            let pc_after_padding: u16 = wrapping_inc(mem_read_u16(cpu, 5))
+            mem_write_u16(cpu, 5, pc_after_padding)
+            let p: u8 = flag_set(flag_set(mem_read_u8(cpu, 4), 4), 5)
+        cpu_push(cpu, bus, ppu, vram, controller, hi_u8(pc_after_padding))
+        cpu_push(cpu, bus, ppu, vram, controller, lo_u8(pc_after_padding))
+        cpu_push(cpu, bus, ppu, vram, controller, p)
+        @unsafe:
+            mem_write_u8(cpu, 4, flag_set(flag_clear(mem_read_u8(cpu, 4), 4), 2))
+            mem_write_u16(cpu, 5, make_u16(bus_read(bus, ppu, vram, controller, 0xFFFE), bus_read(bus, ppu, vram, controller, 0xFFFF)))
+        return true
+
+    if opcode == 0xEA
+        return true
+
+    if opcode == 0xA9
+        let value: u8 = cpu_fetch_u8(cpu, bus, ppu, vram, controller)
+        cpu_load_a(cpu, value)
+        return true
+
+    if opcode == 0xA2
+        let value: u8 = cpu_fetch_u8(cpu, bus, ppu, vram, controller)
+        cpu_load_x(cpu, value)
+        return true
+
+    if opcode == 0xA0
+        let value: u8 = cpu_fetch_u8(cpu, bus, ppu, vram, controller)
+        cpu_load_y(cpu, value)
+        return true
+
+    if opcode == 0xA5
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        mut value: u8 = 0
+        @unsafe:
+            value = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_a(cpu, value)
+        return true
+
+    if opcode == 0xB5
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_a(cpu, value)
+        return true
+
+    if opcode == 0xAD
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        mut value: u8 = 0
+        @unsafe:
+            value = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_a(cpu, value)
+        return true
+
+    if opcode == 0xBD
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_a(cpu, value)
+        return true
+
+    if opcode == 0xB9
+        let addr: u16 = cpu_addr_abs_y(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_a(cpu, value)
+        return true
+
+    if opcode == 0xA1
+        let addr: u16 = cpu_addr_ind_x(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_a(cpu, value)
+        return true
+
+    if opcode == 0xB1
+        let addr: u16 = cpu_addr_ind_y(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_a(cpu, value)
+        return true
+
+    if opcode == 0xA6
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_x(cpu, value)
+        return true
+
+    if opcode == 0xB6
+        let addr: u16 = cpu_addr_zp_y(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_x(cpu, value)
+        return true
+
+    if opcode == 0xAE
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_x(cpu, value)
+        return true
+
+    if opcode == 0xBE
+        let addr: u16 = cpu_addr_abs_y(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_x(cpu, value)
+        return true
+
+    if opcode == 0xA4
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_y(cpu, value)
+        return true
+
+    if opcode == 0xB4
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_y(cpu, value)
+        return true
+
+    if opcode == 0xAC
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_y(cpu, value)
+        return true
+
+    if opcode == 0xBC
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_load_y(cpu, value)
+        return true
+
+    if opcode == 0x85
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 0))
+        return true
+
+    if opcode == 0x8D
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 0))
+        return true
+
+    if opcode == 0x95
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 0))
+        return true
+
+    if opcode == 0x9D
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 0))
+        return true
+
+    if opcode == 0x99
+        let addr: u16 = cpu_addr_abs_y(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 0))
+        return true
+
+    if opcode == 0x81
+        let addr: u16 = cpu_addr_ind_x(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 0))
+        return true
+
+    if opcode == 0x91
+        let addr: u16 = cpu_addr_ind_y(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 0))
+        return true
+
+    if opcode == 0x86
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 1))
+        return true
+
+    if opcode == 0x8E
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 1))
+        return true
+
+    if opcode == 0x96
+        let addr: u16 = cpu_addr_zp_y(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 1))
+        return true
+
+    if opcode == 0x84
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 2))
+        return true
+
+    if opcode == 0x8C
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 2))
+        return true
+
+    if opcode == 0x94
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            bus_write(bus, ppu, vram, controller, addr, mem_read_u8(cpu, 2))
+        return true
+
+    if opcode == 0xAA
+        mut value: u8 = 0
+        @unsafe:
+            value = mem_read_u8(cpu, 0)
+            mem_write_u8(cpu, 1, value)
+        cpu_set_zn(cpu, value)
+        return true
+
+    if opcode == 0xA8
+        mut value: u8 = 0
+        @unsafe:
+            value = mem_read_u8(cpu, 0)
+            mem_write_u8(cpu, 2, value)
+        cpu_set_zn(cpu, value)
+        return true
+
+    if opcode == 0x8A
+        mut value: u8 = 0
+        @unsafe:
+            value = mem_read_u8(cpu, 1)
+            mem_write_u8(cpu, 0, value)
+        cpu_set_zn(cpu, value)
+        return true
+
+    if opcode == 0x98
+        mut value: u8 = 0
+        @unsafe:
+            value = mem_read_u8(cpu, 2)
+            mem_write_u8(cpu, 0, value)
+        cpu_set_zn(cpu, value)
+        return true
+
+    if opcode == 0x9A
+        @unsafe:
+            mem_write_u8(cpu, 3, mem_read_u8(cpu, 1))
+        return true
+
+    if opcode == 0xBA
+        @unsafe:
+            let value: u8 = mem_read_u8(cpu, 3)
+            mem_write_u8(cpu, 1, value)
+        cpu_set_zn(cpu, value)
+        return true
+
+    if opcode == 0x48
+        @unsafe:
+            let value: u8 = mem_read_u8(cpu, 0)
+        cpu_push(cpu, bus, ppu, vram, controller, value)
+        return true
+
+    if opcode == 0x68
+        let value: u8 = cpu_pop(cpu, bus, ppu, vram, controller)
+        cpu_load_a(cpu, value)
+        return true
+
+    if opcode == 0x08
+        @unsafe:
+            let p: u8 = flag_set(flag_set(mem_read_u8(cpu, 4), 4), 5)
+        cpu_push(cpu, bus, ppu, vram, controller, p)
+        return true
+
+    if opcode == 0x28
+        let p: u8 = cpu_pop(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            mem_write_u8(cpu, 4, flag_set(flag_clear(p, 4), 5))
+        return true
+
+    if opcode == 0xE8
+        mut value: u8 = 0
+        @unsafe:
+            value = wrapping_inc(mem_read_u8(cpu, 1))
+            mem_write_u8(cpu, 1, value)
+        cpu_set_zn(cpu, value)
+        return true
+
+    if opcode == 0xC8
+        mut value: u8 = 0
+        @unsafe:
+            value = wrapping_inc(mem_read_u8(cpu, 2))
+            mem_write_u8(cpu, 2, value)
+        cpu_set_zn(cpu, value)
+        return true
+
+    if opcode == 0xCA
+        mut value: u8 = 0
+        @unsafe:
+            value = wrapping_dec(mem_read_u8(cpu, 1))
+            mem_write_u8(cpu, 1, value)
+        cpu_set_zn(cpu, value)
+        return true
+
+    if opcode == 0x88
+        mut value: u8 = 0
+        @unsafe:
+            value = wrapping_dec(mem_read_u8(cpu, 2))
+            mem_write_u8(cpu, 2, value)
+        cpu_set_zn(cpu, value)
+        return true
+
+    if opcode == 0x69
+        cpu_adc(cpu, cpu_fetch_u8(cpu, bus, ppu, vram, controller))
+        return true
+    if opcode == 0x65
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        cpu_adc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x75
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        cpu_adc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x6D
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        cpu_adc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x7D
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        cpu_adc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x79
+        let addr: u16 = cpu_addr_abs_y(cpu, bus, ppu, vram, controller)
+        cpu_adc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x61
+        let addr: u16 = cpu_addr_ind_x(cpu, bus, ppu, vram, controller)
+        cpu_adc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x71
+        let addr: u16 = cpu_addr_ind_y(cpu, bus, ppu, vram, controller)
+        cpu_adc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+
+    if opcode == 0xE9
+        cpu_sbc(cpu, cpu_fetch_u8(cpu, bus, ppu, vram, controller))
+        return true
+    if opcode == 0xEB
+        cpu_sbc(cpu, cpu_fetch_u8(cpu, bus, ppu, vram, controller))
+        return true
+    if opcode == 0xE5
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        cpu_sbc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xF5
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        cpu_sbc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xED
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        cpu_sbc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xFD
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        cpu_sbc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xF9
+        let addr: u16 = cpu_addr_abs_y(cpu, bus, ppu, vram, controller)
+        cpu_sbc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xE1
+        let addr: u16 = cpu_addr_ind_x(cpu, bus, ppu, vram, controller)
+        cpu_sbc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xF1
+        let addr: u16 = cpu_addr_ind_y(cpu, bus, ppu, vram, controller)
+        cpu_sbc(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+
+    if opcode == 0x29
+        cpu_and(cpu, cpu_fetch_u8(cpu, bus, ppu, vram, controller))
+        return true
+    if opcode == 0x25
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        cpu_and(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x35
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        cpu_and(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x2D
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        cpu_and(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x3D
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        cpu_and(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x39
+        let addr: u16 = cpu_addr_abs_y(cpu, bus, ppu, vram, controller)
+        cpu_and(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x21
+        let addr: u16 = cpu_addr_ind_x(cpu, bus, ppu, vram, controller)
+        cpu_and(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x31
+        let addr: u16 = cpu_addr_ind_y(cpu, bus, ppu, vram, controller)
+        cpu_and(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+
+    if opcode == 0x09
+        cpu_ora(cpu, cpu_fetch_u8(cpu, bus, ppu, vram, controller))
+        return true
+    if opcode == 0x05
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        cpu_ora(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x15
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        cpu_ora(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x0D
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        cpu_ora(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x1D
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        cpu_ora(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x19
+        let addr: u16 = cpu_addr_abs_y(cpu, bus, ppu, vram, controller)
+        cpu_ora(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x01
+        let addr: u16 = cpu_addr_ind_x(cpu, bus, ppu, vram, controller)
+        cpu_ora(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x11
+        let addr: u16 = cpu_addr_ind_y(cpu, bus, ppu, vram, controller)
+        cpu_ora(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+
+    if opcode == 0x49
+        cpu_eor(cpu, cpu_fetch_u8(cpu, bus, ppu, vram, controller))
+        return true
+    if opcode == 0x45
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        cpu_eor(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x55
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        cpu_eor(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x4D
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        cpu_eor(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x5D
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        cpu_eor(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x59
+        let addr: u16 = cpu_addr_abs_y(cpu, bus, ppu, vram, controller)
+        cpu_eor(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x41
+        let addr: u16 = cpu_addr_ind_x(cpu, bus, ppu, vram, controller)
+        cpu_eor(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0x51
+        let addr: u16 = cpu_addr_ind_y(cpu, bus, ppu, vram, controller)
+        cpu_eor(cpu, bus_read(bus, ppu, vram, controller, addr))
+        return true
+
+    if opcode == 0x24
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_bit(cpu, value)
+        return true
+
+    if opcode == 0x2C
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let value: u8 = bus_read(bus, ppu, vram, controller, addr)
+        cpu_bit(cpu, value)
+        return true
+
+    if opcode == 0x0A
+        cpu_asl_a(cpu)
+        return true
+    if opcode == 0x06
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        cpu_asl_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0x16
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        cpu_asl_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0x0E
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        cpu_asl_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0x1E
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        cpu_asl_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+
+    if opcode == 0x4A
+        cpu_lsr_a(cpu)
+        return true
+    if opcode == 0x46
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        cpu_lsr_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0x56
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        cpu_lsr_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0x4E
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        cpu_lsr_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0x5E
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        cpu_lsr_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+
+    if opcode == 0x2A
+        cpu_rol_a(cpu)
+        return true
+    if opcode == 0x26
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        cpu_rol_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0x36
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        cpu_rol_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0x2E
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        cpu_rol_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0x3E
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        cpu_rol_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+
+    if opcode == 0x6A
+        cpu_ror_a(cpu)
+        return true
+    if opcode == 0x66
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        cpu_ror_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0x76
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        cpu_ror_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0x6E
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        cpu_ror_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0x7E
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        cpu_ror_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+
+    if opcode == 0xE6
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        cpu_inc_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0xF6
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        cpu_inc_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0xEE
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        cpu_inc_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0xFE
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        cpu_inc_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+
+    if opcode == 0xC6
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        cpu_dec_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0xD6
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        cpu_dec_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0xCE
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        cpu_dec_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+    if opcode == 0xDE
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        cpu_dec_mem(cpu, bus, ppu, vram, controller, addr)
+        return true
+
+    if opcode == 0xC9
+        mut reg: u8 = 0
+        @unsafe:
+            reg = mem_read_u8(cpu, 0)
+        cpu_cmp(cpu, reg, cpu_fetch_u8(cpu, bus, ppu, vram, controller))
+        return true
+    if opcode == 0xC5
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let reg: u8 = mem_read_u8(cpu, 0)
+        cpu_cmp(cpu, reg, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xD5
+        let addr: u16 = cpu_addr_zp_x(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let reg: u8 = mem_read_u8(cpu, 0)
+        cpu_cmp(cpu, reg, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xCD
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let reg: u8 = mem_read_u8(cpu, 0)
+        cpu_cmp(cpu, reg, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xDD
+        let addr: u16 = cpu_addr_abs_x(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let reg: u8 = mem_read_u8(cpu, 0)
+        cpu_cmp(cpu, reg, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xD9
+        let addr: u16 = cpu_addr_abs_y(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let reg: u8 = mem_read_u8(cpu, 0)
+        cpu_cmp(cpu, reg, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xC1
+        let addr: u16 = cpu_addr_ind_x(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let reg: u8 = mem_read_u8(cpu, 0)
+        cpu_cmp(cpu, reg, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xD1
+        let addr: u16 = cpu_addr_ind_y(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let reg: u8 = mem_read_u8(cpu, 0)
+        cpu_cmp(cpu, reg, bus_read(bus, ppu, vram, controller, addr))
+        return true
+
+    if opcode == 0xE0
+        mut reg: u8 = 0
+        @unsafe:
+            reg = mem_read_u8(cpu, 1)
+        cpu_cmp(cpu, reg, cpu_fetch_u8(cpu, bus, ppu, vram, controller))
+        return true
+    if opcode == 0xE4
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let reg: u8 = mem_read_u8(cpu, 1)
+        cpu_cmp(cpu, reg, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xEC
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let reg: u8 = mem_read_u8(cpu, 1)
+        cpu_cmp(cpu, reg, bus_read(bus, ppu, vram, controller, addr))
+        return true
+
+    if opcode == 0xC0
+        mut reg: u8 = 0
+        @unsafe:
+            reg = mem_read_u8(cpu, 2)
+        cpu_cmp(cpu, reg, cpu_fetch_u8(cpu, bus, ppu, vram, controller))
+        return true
+    if opcode == 0xC4
+        let addr: u16 = cpu_addr_zp(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let reg: u8 = mem_read_u8(cpu, 2)
+        cpu_cmp(cpu, reg, bus_read(bus, ppu, vram, controller, addr))
+        return true
+    if opcode == 0xCC
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let reg: u8 = mem_read_u8(cpu, 2)
+        cpu_cmp(cpu, reg, bus_read(bus, ppu, vram, controller, addr))
+        return true
+
+    if opcode == 0x4C
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            mem_write_u16(cpu, 5, addr)
+        return true
+
+    if opcode == 0x6C
+        let ptr_addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            let lo: u8 = bus_read(bus, ppu, vram, controller, ptr_addr)
+            let hi_addr: u16 = (ptr_addr & 0xFF00) | as_u16(wrapping_add(as_u8(ptr_addr), 1))
+            let hi: u8 = bus_read(bus, ppu, vram, controller, hi_addr)
+            mem_write_u16(cpu, 5, make_u16(lo, hi))
+        return true
+
+    if opcode == 0x20
+        let addr: u16 = cpu_addr_abs(cpu, bus, ppu, vram, controller)
+        mut ret: u16 = 0
+        @unsafe:
+            mut ret_addr: int = as_i64(mem_read_u16(cpu, 5))
+            if ret_addr < 0
+                ret_addr = 65536 + ret_addr
+            ret = as_u16(ret_addr - 1)
+        cpu_push(cpu, bus, ppu, vram, controller, hi_u8(ret))
+        cpu_push(cpu, bus, ppu, vram, controller, lo_u8(ret))
+        @unsafe:
+            mem_write_u16(cpu, 5, addr)
+        return true
+
+    if opcode == 0x60
+        let lo: u8 = cpu_pop(cpu, bus, ppu, vram, controller)
+        let hi: u8 = cpu_pop(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            mut ret_addr: int = as_i64(make_u16(lo, hi))
+            if ret_addr < 0
+                ret_addr = 65536 + ret_addr
+            mem_write_u16(cpu, 5, as_u16(ret_addr + 1))
+        return true
+
+    if opcode == 0x40
+        let p: u8 = cpu_pop(cpu, bus, ppu, vram, controller)
+        let lo: u8 = cpu_pop(cpu, bus, ppu, vram, controller)
+        let hi: u8 = cpu_pop(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            mem_write_u8(cpu, 4, flag_set(flag_clear(p, 4), 5))
+            mem_write_u16(cpu, 5, make_u16(lo, hi))
+        return true
+
+    if opcode == 0xD0
+        mut p: u8 = 0
+        @unsafe:
+            p = mem_read_u8(cpu, 4)
+        cpu_branch(cpu, bus, ppu, vram, controller, flag_has(p, 1) == false)
+        return true
+
+    if opcode == 0xF0
+        mut p: u8 = 0
+        @unsafe:
+            p = mem_read_u8(cpu, 4)
+        cpu_branch(cpu, bus, ppu, vram, controller, flag_has(p, 1))
+        return true
+
+    if opcode == 0x10
+        mut p: u8 = 0
+        @unsafe:
+            p = mem_read_u8(cpu, 4)
+        cpu_branch(cpu, bus, ppu, vram, controller, flag_has(p, 7) == false)
+        return true
+
+    if opcode == 0x30
+        mut p: u8 = 0
+        @unsafe:
+            p = mem_read_u8(cpu, 4)
+        cpu_branch(cpu, bus, ppu, vram, controller, flag_has(p, 7))
+        return true
+
+    if opcode == 0x90
+        mut p: u8 = 0
+        @unsafe:
+            p = mem_read_u8(cpu, 4)
+        cpu_branch(cpu, bus, ppu, vram, controller, flag_has(p, 0) == false)
+        return true
+
+    if opcode == 0xB0
+        mut p: u8 = 0
+        @unsafe:
+            p = mem_read_u8(cpu, 4)
+        cpu_branch(cpu, bus, ppu, vram, controller, flag_has(p, 0))
+        return true
+
+    if opcode == 0x50
+        mut p: u8 = 0
+        @unsafe:
+            p = mem_read_u8(cpu, 4)
+        cpu_branch(cpu, bus, ppu, vram, controller, flag_has(p, 6) == false)
+        return true
+
+    if opcode == 0x70
+        mut p: u8 = 0
+        @unsafe:
+            p = mem_read_u8(cpu, 4)
+        cpu_branch(cpu, bus, ppu, vram, controller, flag_has(p, 6))
+        return true
+
+    if opcode == 0x18
+        @unsafe:
+            mem_write_u8(cpu, 4, flag_clear(mem_read_u8(cpu, 4), 0))
+        return true
+
+    if opcode == 0x38
+        @unsafe:
+            mem_write_u8(cpu, 4, flag_set(mem_read_u8(cpu, 4), 0))
+        return true
+
+    if opcode == 0x58
+        @unsafe:
+            mem_write_u8(cpu, 4, flag_clear(mem_read_u8(cpu, 4), 2))
+        return true
+
+    if opcode == 0x78
+        @unsafe:
+            mem_write_u8(cpu, 4, flag_set(mem_read_u8(cpu, 4), 2))
+        return true
+
+    if opcode == 0xB8
+        @unsafe:
+            mem_write_u8(cpu, 4, flag_clear(mem_read_u8(cpu, 4), 6))
+        return true
+
+    if opcode == 0xD8
+        @unsafe:
+            mem_write_u8(cpu, 4, flag_clear(mem_read_u8(cpu, 4), 3))
+        return true
+
+    if opcode == 0xF8
+        @unsafe:
+            mem_write_u8(cpu, 4, flag_set(mem_read_u8(cpu, 4), 3))
+        return true
+
+    if opcode == 0x1A or opcode == 0x3A or opcode == 0x5A or opcode == 0x7A or opcode == 0xDA or opcode == 0xFA
+        return true
+
+    if opcode == 0x80 or opcode == 0x82 or opcode == 0x89 or opcode == 0xC2 or opcode == 0xE2
+        cpu_fetch_u8(cpu, bus, ppu, vram, controller)
+        return true
+
+    if opcode == 0x04 or opcode == 0x14 or opcode == 0x34 or opcode == 0x44 or opcode == 0x54 or opcode == 0x64 or opcode == 0x74 or opcode == 0xD4 or opcode == 0xF4
+        cpu_fetch_u8(cpu, bus, ppu, vram, controller)
+        return true
+
+    if opcode == 0x0C or opcode == 0x1C or opcode == 0x3C or opcode == 0x5C or opcode == 0x7C or opcode == 0xDC or opcode == 0xFC
+        cpu_fetch_u16(cpu, bus, ppu, vram, controller)
+        return true
+
+    @unsafe:
+        print("unsupported opcode")
+        print(opcode)
+        mem_write_u8(cpu, 7, 1)
+    return false
+
+fun nes_cpu_steps(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr, count: int) : bool
+    mut steps: int = 0
+    while steps < count
+        cpu_step(cpu, bus, ppu, vram, controller)
+        steps = steps + 1
+    return true
+
+fun nes_run_frame(cpu: ptr, bus: ptr, ppu: ptr, vram: ptr, controller: ptr, chr: ptr, framebuffer: ptr) : bool
+    mut master_clock: int = 0
+    while master_clock < 29781
+        ppu_clock(ppu, vram, chr, framebuffer)
+        ppu_clock(ppu, vram, chr, framebuffer)
+        ppu_clock(ppu, vram, chr, framebuffer)
+        if (master_clock % 4) == 0
+            cpu_step(cpu, bus, ppu, vram, controller)
+        @unsafe:
+            if mem_read_u8(ppu, 14) == 1
+                mem_write_u8(ppu, 14, 0)
+                cpu_nmi(cpu, bus, ppu, vram, controller)
+        master_clock = master_clock + 1
+    return true
+
+fun run_demo() : bool
+    @unsafe:
+        let bus: ptr = mem_alloc_zero(65536)
+        let cpu: ptr = mem_alloc_zero(32)
+        let ppu: ptr = mem_alloc_zero(64)
+        let vram: ptr = mem_alloc_zero(16384)
+        let controller: ptr = mem_alloc_zero(8)
+        let chr: ptr = mem_alloc_zero(131072)
+        let cart: ptr = mem_alloc_zero(16)
+        let rom: ptr = mem_alloc_zero(4194304)
+        let framebuffer: ptr = mem_alloc_zero(256 * 240 * 4)
+
+        let loaded_rom: bool = rom_load_ines("/home/davidev/Desktop/Emulator/roms/Super Mario Bros. (World).nes", rom, bus, chr, cart)
+        ppu_init(ppu, vram)
+        if loaded_rom == false
+            cpu_load_demo(bus)
+        cpu_reset(cpu, bus)
+
+        mut warm_frames: int = 0
+        while warm_frames < 20
+            if loaded_rom
+                nes_run_frame(cpu, bus, ppu, vram, controller, chr, framebuffer)
+            else
+                nes_cpu_steps(cpu, bus, ppu, vram, controller, 3000)
+            warm_frames = warm_frames + 1
+        if loaded_rom
+            ppu_render_sprites(ppu, vram, chr, framebuffer)
+        else
+            ppu_render_boot_frame(bus, framebuffer)
+
+        if snaskgui::init()
+            let win = snaskgui::window("Snask NES", 256, 240, 3)
+            snaskgui::present(win, framebuffer, 256, 240)
+            mut frames: int = 0
+            while frames < 3600 and snaskgui::should_close(win) == false
+                snaskgui::poll(win)
+                controller_update(win, controller)
+                if loaded_rom
+                    nes_run_frame(cpu, bus, ppu, vram, controller, chr, framebuffer)
+                    ppu_render_sprites(ppu, vram, chr, framebuffer)
+                snaskgui::present(win, framebuffer, 256, 240)
+                snaskgui::delay(16)
+                frames = frames + 1
+
+        mem_free(cpu)
+        mem_free(bus)
+        mem_free(ppu)
+        mem_free(vram)
+        mem_free(controller)
+        mem_free(chr)
+        mem_free(cart)
+        mem_free(rom)
+        mem_free(framebuffer)
+    return true
+
+class main
+    fun start()
+        run_demo()

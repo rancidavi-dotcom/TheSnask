@@ -1,0 +1,7 @@
+{
+  "name": "nes_emulator",
+  "version": "0.1.0",
+  "description": "Pure Snask NES emulator foundation using OM-safe low-level memory.",
+  "entry": "nes_master.snask",
+  "profile": "systems"
+}

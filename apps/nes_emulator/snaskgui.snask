@@ -1,0 +1,56 @@
+// snaskgui: tiny framebuffer/window facade for emulators.
+// The implementation is native, but the app surface stays pure Snask.
+
+fun init() : bool
+    return snaskgui_init()
+
+fun window(title: str, width: int, height: int, scale: int)
+    return snaskgui_window(title, width, height, scale)
+
+fun present(window_handle, framebuffer: ptr, width: int, height: int) : bool
+    return snaskgui_present_rgba(window_handle, framebuffer, width, height)
+
+fun poll(window_handle) : bool
+    return snaskgui_poll(window_handle)
+
+fun should_close(window_handle) : bool
+    return snaskgui_should_close(window_handle)
+
+fun key_down(window_handle, key: int) : bool
+    return snaskgui_key_down(window_handle, key)
+
+fun delay(ms: int)
+    snaskgui_delay(ms)
+
+fun close(window_handle)
+    snaskgui_close(window_handle)
+
+fun key_up() : int
+    return 1
+
+fun key_down_arrow() : int
+    return 2
+
+fun key_left() : int
+    return 3
+
+fun key_right() : int
+    return 4
+
+fun key_a() : int
+    return 6
+
+fun key_b() : int
+    return 5
+
+fun key_space() : int
+    return 32
+
+fun key_start() : int
+    return 7
+
+fun key_select() : int
+    return 8
+
+fun key_escape() : int
+    return 9

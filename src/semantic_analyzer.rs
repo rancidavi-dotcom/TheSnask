@@ -713,6 +713,13 @@ impl SemanticAnalyzer {
 
         // SFS (filesystem)
         self.define_builtin_with_alias("sfs_read", vec![Type::String], Type::String, false);
+        self.define_builtin_with_alias("binfile_size", vec![Type::String], Type::Float, false);
+        self.define_builtin_with_alias(
+            "binfile_read_into",
+            vec![Type::String, Type::Ptr, Type::Float],
+            Type::Float,
+            false,
+        );
         self.define_builtin_with_alias(
             "sfs_write",
             vec![Type::String, Type::String],
@@ -967,6 +974,31 @@ impl SemanticAnalyzer {
             Type::Bool,
             false,
         );
+
+        // snaskgui: framebuffer-first native surface for emulators/games.
+        self.define_builtin_with_alias("snaskgui_init", vec![], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "snaskgui_window",
+            vec![Type::String, Type::Float, Type::Float, Type::Float],
+            Type::Any,
+            false,
+        );
+        self.define_builtin_with_alias(
+            "snaskgui_present_rgba",
+            vec![Type::Any, Type::Ptr, Type::Float, Type::Float],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias("snaskgui_poll", vec![Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias(
+            "snaskgui_key_down",
+            vec![Type::Any, Type::Float],
+            Type::Bool,
+            false,
+        );
+        self.define_builtin_with_alias("snaskgui_should_close", vec![Type::Any], Type::Bool, false);
+        self.define_builtin_with_alias("snaskgui_delay", vec![Type::Float], Type::Void, false);
+        self.define_builtin_with_alias("snaskgui_close", vec![Type::Any], Type::Void, false);
     }
 
     fn define_module_as_any(&mut self, name: &str) {

@@ -24,6 +24,89 @@ static void* gui_handle_to_ptr(const char* h) {
 }
 
 typedef struct {
+    GtkWidget* window;
+    GtkWidget* area;
+    unsigned char* pixels;
+    int width;
+    int height;
+    int scale;
+    int should_close;
+    unsigned char keys[512];
+} SnaskGuiWindow;
+
+static gboolean snaskgui_draw_cb(GtkWidget* widget, cairo_t* cr, gpointer user_data) {
+    (void)widget;
+    SnaskGuiWindow* win = (SnaskGuiWindow*)user_data;
+    if (!win || !win->pixels || win->width <= 0 || win->height <= 0) return FALSE;
+
+    cairo_surface_t* surface = cairo_image_surface_create_for_data(
+        win->pixels,
+        CAIRO_FORMAT_RGB24,
+        win->width,
+        win->height,
+        win->width * 4
+    );
+    cairo_save(cr);
+    cairo_scale(cr, win->scale, win->scale);
+    cairo_set_source_surface(cr, surface, 0, 0);
+    cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_NEAREST);
+    cairo_paint(cr);
+    cairo_restore(cr);
+    cairo_surface_destroy(surface);
+    return FALSE;
+}
+
+static int snaskgui_key_index(guint keyval) {
+    switch (keyval) {
+        case GDK_KEY_Up: return 1;
+        case GDK_KEY_Down: return 2;
+        case GDK_KEY_Left: return 3;
+        case GDK_KEY_Right: return 4;
+        case GDK_KEY_z:
+        case GDK_KEY_Z: return 5;
+        case GDK_KEY_x:
+        case GDK_KEY_X: return 6;
+        case GDK_KEY_Return: return 7;
+        case GDK_KEY_Shift_L:
+        case GDK_KEY_Shift_R: return 8;
+        case GDK_KEY_Escape: return 9;
+        default: break;
+    }
+    if (keyval < 512) return (int)keyval;
+    return 0;
+}
+
+static gboolean snaskgui_key_press_cb(GtkWidget* widget, GdkEventKey* event, gpointer user_data) {
+    (void)widget;
+    SnaskGuiWindow* win = (SnaskGuiWindow*)user_data;
+    if (!win || !event) return FALSE;
+    int idx = snaskgui_key_index(event->keyval);
+    if (idx >= 0 && idx < 512) win->keys[idx] = 1;
+    if (idx == 9) win->should_close = 1;
+    return FALSE;
+}
+
+static gboolean snaskgui_key_release_cb(GtkWidget* widget, GdkEventKey* event, gpointer user_data) {
+    (void)widget;
+    SnaskGuiWindow* win = (SnaskGuiWindow*)user_data;
+    if (!win || !event) return FALSE;
+    int idx = snaskgui_key_index(event->keyval);
+    if (idx >= 0 && idx < 512) win->keys[idx] = 0;
+    return FALSE;
+}
+
+static void snaskgui_destroy_cb(GtkWidget* widget, gpointer user_data) {
+    (void)widget;
+    SnaskGuiWindow* win = (SnaskGuiWindow*)user_data;
+    if (win) win->should_close = 1;
+}
+
+static SnaskGuiWindow* snaskgui_from_handle(SnaskValue* h) {
+    if (!h || (int)h->tag != SNASK_STR) return NULL;
+    return (SnaskGuiWindow*)gui_handle_to_ptr((const char*)h->ptr);
+}
+
+typedef struct {
     char* handler_name;
     char* widget_handle;
     char* ctx;
@@ -639,10 +722,110 @@ void skia_save_png(SnaskValue* out, SnaskValue* surface_h, SnaskValue* pathv) {
     else *out = MAKE_NIL();
 }
 
+void snaskgui_init(SnaskValue* out) {
+    int argc = 0;
+    char** argv = NULL;
+    gboolean ok = gtk_init_check(&argc, &argv);
+    *out = MAKE_BOOL(ok);
+}
+
+void snaskgui_window(SnaskValue* out, SnaskValue* title, SnaskValue* w, SnaskValue* h, SnaskValue* scale) {
+    if ((int)title->tag != SNASK_STR || (int)w->tag != SNASK_NUM || (int)h->tag != SNASK_NUM || (int)scale->tag != SNASK_NUM) {
+        *out = MAKE_NIL();
+        return;
+    }
+    SnaskGuiWindow* win = (SnaskGuiWindow*)calloc(1, sizeof(SnaskGuiWindow));
+    win->width = (int)w->num;
+    win->height = (int)h->num;
+    win->scale = (int)scale->num;
+    if (win->scale <= 0) win->scale = 1;
+    win->pixels = (unsigned char*)calloc((size_t)win->width * (size_t)win->height * 4, 1);
+
+    win->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_title(GTK_WINDOW(win->window), (const char*)title->ptr);
+    gtk_window_set_default_size(GTK_WINDOW(win->window), win->width * win->scale, win->height * win->scale);
+    gtk_window_set_resizable(GTK_WINDOW(win->window), FALSE);
+
+    win->area = gtk_drawing_area_new();
+    gtk_widget_set_size_request(win->area, win->width * win->scale, win->height * win->scale);
+    gtk_container_add(GTK_CONTAINER(win->window), win->area);
+
+    gtk_widget_add_events(win->window, GDK_KEY_PRESS_MASK | GDK_KEY_RELEASE_MASK);
+    g_signal_connect(win->area, "draw", G_CALLBACK(snaskgui_draw_cb), win);
+    g_signal_connect(win->window, "key-press-event", G_CALLBACK(snaskgui_key_press_cb), win);
+    g_signal_connect(win->window, "key-release-event", G_CALLBACK(snaskgui_key_release_cb), win);
+    g_signal_connect(win->window, "destroy", G_CALLBACK(snaskgui_destroy_cb), win);
+    gtk_widget_show_all(win->window);
+
+    *out = MAKE_STR(gui_ptr_to_handle(win));
+}
+
+void snaskgui_present_rgba(SnaskValue* out, SnaskValue* win_h, SnaskValue* pixels, SnaskValue* w, SnaskValue* h) {
+    SnaskGuiWindow* win = snaskgui_from_handle(win_h);
+    if (!win || !pixels || (int)w->tag != SNASK_NUM || (int)h->tag != SNASK_NUM) {
+        *out = MAKE_BOOL(false);
+        return;
+    }
+    int pw = (int)w->num;
+    int ph = (int)h->num;
+    if (pw != win->width || ph != win->height || !pixels->ptr) {
+        *out = MAKE_BOOL(false);
+        return;
+    }
+    memcpy(win->pixels, pixels->ptr, (size_t)win->width * (size_t)win->height * 4);
+    gtk_widget_queue_draw(win->area);
+    *out = MAKE_BOOL(true);
+}
+
+void snaskgui_poll(SnaskValue* out, SnaskValue* win_h) {
+    SnaskGuiWindow* win = snaskgui_from_handle(win_h);
+    while (gtk_events_pending()) gtk_main_iteration_do(FALSE);
+    *out = MAKE_BOOL(win && !win->should_close);
+}
+
+void snaskgui_key_down(SnaskValue* out, SnaskValue* win_h, SnaskValue* key) {
+    SnaskGuiWindow* win = snaskgui_from_handle(win_h);
+    if (!win || (int)key->tag != SNASK_NUM) {
+        *out = MAKE_BOOL(false);
+        return;
+    }
+    int idx = (int)key->num;
+    *out = MAKE_BOOL(idx >= 0 && idx < 512 && win->keys[idx] != 0);
+}
+
+void snaskgui_should_close(SnaskValue* out, SnaskValue* win_h) {
+    SnaskGuiWindow* win = snaskgui_from_handle(win_h);
+    *out = MAKE_BOOL(!win || win->should_close != 0);
+}
+
+void snaskgui_delay(SnaskValue* out, SnaskValue* ms) {
+    if ((int)ms->tag == SNASK_NUM && ms->num > 0) {
+        g_usleep((gulong)(ms->num * 1000.0));
+    }
+    *out = MAKE_NIL();
+}
+
+void snaskgui_close(SnaskValue* out, SnaskValue* win_h) {
+    SnaskGuiWindow* win = snaskgui_from_handle(win_h);
+    if (win) {
+        win->should_close = 1;
+        if (win->window) gtk_widget_destroy(win->window);
+    }
+    *out = MAKE_NIL();
+}
+
 #else
 // Stubs when GTK is not enabled
 void gui_init(SnaskValue* out) { *out = MAKE_BOOL(false); }
 void gui_run(SnaskValue* out) { *out = MAKE_NIL(); }
 void gui_quit(SnaskValue* out) { *out = MAKE_NIL(); }
+void snaskgui_init(SnaskValue* out) { *out = MAKE_BOOL(false); }
+void snaskgui_window(SnaskValue* out, SnaskValue* title, SnaskValue* w, SnaskValue* h, SnaskValue* scale) { (void)title; (void)w; (void)h; (void)scale; *out = MAKE_NIL(); }
+void snaskgui_present_rgba(SnaskValue* out, SnaskValue* win_h, SnaskValue* pixels, SnaskValue* w, SnaskValue* h) { (void)win_h; (void)pixels; (void)w; (void)h; *out = MAKE_BOOL(false); }
+void snaskgui_poll(SnaskValue* out, SnaskValue* win_h) { (void)win_h; *out = MAKE_BOOL(false); }
+void snaskgui_key_down(SnaskValue* out, SnaskValue* win_h, SnaskValue* key) { (void)win_h; (void)key; *out = MAKE_BOOL(false); }
+void snaskgui_should_close(SnaskValue* out, SnaskValue* win_h) { (void)win_h; *out = MAKE_BOOL(true); }
+void snaskgui_delay(SnaskValue* out, SnaskValue* ms) { (void)ms; *out = MAKE_NIL(); }
+void snaskgui_close(SnaskValue* out, SnaskValue* win_h) { (void)win_h; *out = MAKE_NIL(); }
 // ... (rest of stubs omitted for brevity, but would be in the full file)
 #endif

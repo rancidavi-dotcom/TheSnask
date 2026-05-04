@@ -4,6 +4,8 @@
 #include "rt_base.h"
 
 void sfs_read(SnaskValue* out, SnaskValue* path);
+void binfile_size(SnaskValue* out, SnaskValue* path);
+void binfile_read_into(SnaskValue* out, SnaskValue* path, SnaskValue* dst, SnaskValue* max_bytes);
 void sfs_write(SnaskValue* out, SnaskValue* path, SnaskValue* content);
 void sfs_append(SnaskValue* out, SnaskValue* path, SnaskValue* content);
 void sfs_write_mb(SnaskValue* out, SnaskValue* path, SnaskValue* mb_val);

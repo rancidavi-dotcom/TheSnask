@@ -21,6 +21,29 @@ void sfs_read(SnaskValue* out, SnaskValue* path) {
     *out = MAKE_STR(s);
 }
 
+void binfile_size(SnaskValue* out, SnaskValue* path) {
+    if ((int)path->tag != SNASK_STR) { *out = MAKE_NUM(-1); return; }
+    FILE *f = fopen((char*)path->ptr, "rb");
+    if (!f) { *out = MAKE_NUM(-1); return; }
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fclose(f);
+    *out = MAKE_NUM((double)sz);
+}
+
+void binfile_read_into(SnaskValue* out, SnaskValue* path, SnaskValue* dst, SnaskValue* max_bytes) {
+    if ((int)path->tag != SNASK_STR || !dst || !dst->ptr || (int)max_bytes->tag != SNASK_NUM) {
+        *out = MAKE_NUM(-1);
+        return;
+    }
+    FILE *f = fopen((char*)path->ptr, "rb");
+    if (!f) { *out = MAKE_NUM(-1); return; }
+    size_t max = (size_t)max_bytes->num;
+    size_t n = fread(dst->ptr, 1, max, f);
+    fclose(f);
+    *out = MAKE_NUM((double)n);
+}
+
 void sfs_write(SnaskValue* out, SnaskValue* path, SnaskValue* content) {
     if ((int)path->tag != SNASK_STR || (int)content->tag != SNASK_STR) { *out = MAKE_BOOL(false); return; }
     FILE *f = fopen((char*)path->ptr, "w");

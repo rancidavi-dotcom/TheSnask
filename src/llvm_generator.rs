@@ -96,6 +96,7 @@ pub struct LLVMGenerator<'ctx> {
     classes: HashMap<String, crate::ast::ClassDecl>,
     active_zone_depth: usize,
     om_contracts: HashMap<String, OmContract>,
+    function_return_types: HashMap<String, crate::types::Type>,
 }
 
 impl<'ctx> LLVMGenerator<'ctx> {
@@ -127,6 +128,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
             classes: HashMap::new(),
             active_zone_depth: 0,
             om_contracts: HashMap::new(),
+            function_return_types: HashMap::new(),
         }
     }
 
@@ -159,9 +161,30 @@ impl<'ctx> LLVMGenerator<'ctx> {
 
         let target = self.snask_type_to_llvm(to);
         if from.is_integer() && to.is_integer() {
+            let raw = value.into_int_value();
+            let target_ty = target.into_int_type();
+            let from_bits = raw.get_type().get_bit_width();
+            let target_bits = target_ty.get_bit_width();
+            if from_bits == target_bits {
+                return raw.into();
+            }
+            if from_bits > target_bits {
+                return self
+                    .builder
+                    .build_int_truncate(raw, target_ty, "int_trunc")
+                    .unwrap()
+                    .into();
+            }
+            if from.is_unsigned_integer() {
+                return self
+                    .builder
+                    .build_int_z_extend(raw, target_ty, "int_zext")
+                    .unwrap()
+                    .into();
+            }
             return self
                 .builder
-                .build_int_cast(value.into_int_value(), target.into_int_type(), "int_cast")
+                .build_int_s_extend(raw, target_ty, "int_sext")
                 .unwrap()
                 .into();
         }
@@ -224,6 +247,19 @@ impl<'ctx> LLVMGenerator<'ctx> {
             "i64" => Some(crate::types::Type::I64),
             "usize" => Some(crate::types::Type::Usize),
             "isize" => Some(crate::types::Type::Isize),
+            _ => None,
+        }
+    }
+
+    fn runtime_function_return_type(&self, name: &str) -> Option<crate::types::Type> {
+        match name {
+            "binfile_size" | "binfile_read_into" => Some(crate::types::Type::Float),
+            "snaskgui_init"
+            | "snaskgui_present_rgba"
+            | "snaskgui_poll"
+            | "snaskgui_key_down"
+            | "snaskgui_should_close" => Some(crate::types::Type::Bool),
+            "snaskgui_delay" | "snaskgui_close" => Some(crate::types::Type::Void),
             _ => None,
         }
     }
@@ -1117,6 +1153,14 @@ impl<'ctx> LLVMGenerator<'ctx> {
             self.module.add_function("sfs_read", fn_1, None),
         );
         self.functions.insert(
+            "binfile_size".to_string(),
+            self.module.add_function("binfile_size", fn_1, None),
+        );
+        self.functions.insert(
+            "binfile_read_into".to_string(),
+            self.module.add_function("binfile_read_into", fn_3, None),
+        );
+        self.functions.insert(
             "sfs_write".to_string(),
             self.module.add_function("sfs_write", fn_2, None),
         );
@@ -1684,6 +1728,69 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert(
             "gui_msg_error".to_string(),
             self.module.add_function("gui_msg_error", fn_2, None),
+        );
+        self.functions.insert(
+            "snaskgui_init".to_string(),
+            self.module.add_function(
+                "snaskgui_init",
+                void_type.fn_type(&[self.ptr_type.into()], false),
+                None,
+            ),
+        );
+        self.functions.insert(
+            "snaskgui_window".to_string(),
+            self.module.add_function(
+                "snaskgui_window",
+                void_type.fn_type(
+                    &[
+                        self.ptr_type.into(),
+                        self.ptr_type.into(),
+                        self.ptr_type.into(),
+                        self.ptr_type.into(),
+                        self.ptr_type.into(),
+                    ],
+                    false,
+                ),
+                None,
+            ),
+        );
+        self.functions.insert(
+            "snaskgui_present_rgba".to_string(),
+            self.module.add_function(
+                "snaskgui_present_rgba",
+                void_type.fn_type(
+                    &[
+                        self.ptr_type.into(),
+                        self.ptr_type.into(),
+                        self.ptr_type.into(),
+                        self.ptr_type.into(),
+                        self.ptr_type.into(),
+                    ],
+                    false,
+                ),
+                None,
+            ),
+        );
+        self.functions.insert(
+            "snaskgui_poll".to_string(),
+            self.module.add_function("snaskgui_poll", fn_1, None),
+        );
+        self.functions.insert(
+            "snaskgui_key_down".to_string(),
+            self.module.add_function("snaskgui_key_down", fn_2, None),
+        );
+        self.functions.insert(
+            "snaskgui_should_close".to_string(),
+            self.module
+                .add_function("snaskgui_should_close", fn_1, None),
+        );
+        self.functions.insert(
+            "snaskgui_delay".to_string(),
+            self.module.add_function("snaskgui_delay", fn_1, None),
+        );
+        self.functions.insert(
+            "snaskgui_close".to_string(),
+            self.module.add_function("snaskgui_close", fn_1, None),
         );
 
         // Skia (experimental)
@@ -2315,6 +2422,8 @@ impl<'ctx> LLVMGenerator<'ctx> {
         for n in [
             // Filesystem / Path / OS / HTTP
             "sfs_read",
+            "binfile_size",
+            "binfile_read_into",
             "sfs_write",
             "sfs_append",
             "sfs_write_mb",
@@ -2407,6 +2516,14 @@ impl<'ctx> LLVMGenerator<'ctx> {
             "gui_separator_v",
             "gui_msg_info",
             "gui_msg_error",
+            "snaskgui_init",
+            "snaskgui_window",
+            "snaskgui_present_rgba",
+            "snaskgui_poll",
+            "snaskgui_key_down",
+            "snaskgui_should_close",
+            "snaskgui_delay",
+            "snaskgui_close",
             "skia_version",
             "skia_use_real",
             "skia_surface",
@@ -3081,6 +3198,10 @@ impl<'ctx> LLVMGenerator<'ctx> {
             None,
         );
         self.functions.insert(func.name.clone(), function);
+        if let Some(return_type) = &func.return_type {
+            self.function_return_types
+                .insert(func.name.clone(), return_type.clone());
+        }
         Ok(())
     }
 
@@ -3101,8 +3222,17 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 .get_nth_param((i + 1) as u32)
                 .unwrap()
                 .into_pointer_value();
+            let boxed = self
+                .builder
+                .build_load(self.value_type, p_ptr, "boxed_param")
+                .unwrap()
+                .into_struct_value();
+            let llvm_ty = self.snask_type_to_llvm(param_ty);
+            let local_ptr = self.create_entry_block_alloca(llvm_ty, name);
+            let unboxed = self.unbox_value(boxed, param_ty.clone());
+            self.builder.build_store(local_ptr, unboxed).unwrap();
             self.local_vars
-                .insert(name.clone(), (p_ptr, param_ty.clone()));
+                .insert(name.clone(), (local_ptr, param_ty.clone()));
         }
         for stmt in func.body {
             self.generate_statement(stmt)?;
@@ -3864,6 +3994,23 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     .unwrap()
                     .into_struct_value();
             }
+            crate::types::Type::Ptr => {
+                s = self
+                    .builder
+                    .build_insert_value(s, f64_type.const_float(TYPE_RESOURCE as f64), 0, "t")
+                    .unwrap()
+                    .into_struct_value();
+                s = self
+                    .builder
+                    .build_insert_value(s, f64_type.const_float(0.0), 1, "v")
+                    .unwrap()
+                    .into_struct_value();
+                s = self
+                    .builder
+                    .build_insert_value(s, val.into_pointer_value(), 2, "p")
+                    .unwrap()
+                    .into_struct_value();
+            }
             _ => {
                 if val.is_struct_value() {
                     return val.into_struct_value();
@@ -4096,6 +4243,32 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         self.unbox_value(res_v, crate::types::Type::String),
                         crate::types::Type::String,
                     ));
+                }
+
+                if lty == crate::types::Type::Bool && rty == crate::types::Type::Bool {
+                    let li = lhs.into_int_value();
+                    let ri = rhs.into_int_value();
+                    let res = match op {
+                        BinaryOp::Equals | BinaryOp::StrictEquals => self
+                            .builder
+                            .build_int_compare(inkwell::IntPredicate::EQ, li, ri, "bool_eq")
+                            .unwrap()
+                            .into(),
+                        BinaryOp::NotEquals => self
+                            .builder
+                            .build_int_compare(inkwell::IntPredicate::NE, li, ri, "bool_ne")
+                            .unwrap()
+                            .into(),
+                        BinaryOp::And => self.builder.build_and(li, ri, "bool_and").unwrap().into(),
+                        BinaryOp::Or => self.builder.build_or(li, ri, "bool_or").unwrap().into(),
+                        _ => {
+                            return Err(format!(
+                                "Operation {:?} not supported for bool values",
+                                op
+                            ));
+                        }
+                    };
+                    return Ok((res, crate::types::Type::Bool));
                 }
 
                 if lty.is_numeric() && rty.is_numeric() {
@@ -4564,6 +4737,22 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         .build_load(self.value_type, r_a, "r")
                         .unwrap()
                         .into_struct_value();
+                    if let Some(return_ty) = self.function_return_types.get(name).cloned() {
+                        if return_ty != crate::types::Type::Void
+                            && return_ty != crate::types::Type::Any
+                        {
+                            let raw = self.unbox_value(res_v, return_ty.clone());
+                            return Ok((raw, return_ty));
+                        }
+                    }
+                    if let Some(return_ty) = self.runtime_function_return_type(name) {
+                        if return_ty != crate::types::Type::Void
+                            && return_ty != crate::types::Type::Any
+                        {
+                            let raw = self.unbox_value(res_v, return_ty.clone());
+                            return Ok((raw, return_ty));
+                        }
+                    }
                     return Ok((res_v.into(), crate::types::Type::Any));
                 }
                 Err("Indirect not supported.".to_string())

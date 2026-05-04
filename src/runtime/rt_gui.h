@@ -63,4 +63,14 @@ void skia_draw_line(SnaskValue* out, SnaskValue* surface_h, SnaskValue* x1v, Sna
 void skia_draw_text(SnaskValue* out, SnaskValue* surface_h, SnaskValue* xv, SnaskValue* yv, SnaskValue* textv, SnaskValue* sizev);
 void skia_save_png(SnaskValue* out, SnaskValue* surface_h, SnaskValue* pathv);
 
+// snaskgui: framebuffer-first game/window API for emulators.
+void snaskgui_init(SnaskValue* out);
+void snaskgui_window(SnaskValue* out, SnaskValue* title, SnaskValue* w, SnaskValue* h, SnaskValue* scale);
+void snaskgui_present_rgba(SnaskValue* out, SnaskValue* win_h, SnaskValue* pixels, SnaskValue* w, SnaskValue* h);
+void snaskgui_poll(SnaskValue* out, SnaskValue* win_h);
+void snaskgui_key_down(SnaskValue* out, SnaskValue* win_h, SnaskValue* key);
+void snaskgui_should_close(SnaskValue* out, SnaskValue* win_h);
+void snaskgui_delay(SnaskValue* out, SnaskValue* ms);
+void snaskgui_close(SnaskValue* out, SnaskValue* win_h);
+
 #endif // RT_GUI_H

@@ -39,7 +39,7 @@ Status atual:
 
 ## O problema que o OM-Snask-System resolve
 
-Sistemas tradicionais forcam uma escolha ruim:
+Sistemas tradicionais focam uma escolha ruim:
 
 - C/C++ dao controle e performance, mas jogam ownership manual no programador.
 - Java/Go/Python reduzem erro manual, mas introduzem GC, pausas e custo de runtime.

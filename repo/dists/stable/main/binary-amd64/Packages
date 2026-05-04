@@ -1,5 +1,20 @@
 Package: snask
 Architecture: amd64
+Version: 0.4.1-emulator-app
+Priority: optional
+Section: devel
+Maintainer: Davi <davidev@snask.lang>
+Filename: pool/main/s/snask/snask_0.4.1-emulator-app_amd64.deb
+Size: 7562540
+MD5sum: c1f2f8a6d80cb62dc0d7a7153f243926
+SHA1: df2bc46aa57c0c9eb4444fcdf967c8d44ab12597
+SHA256: 3954198274bac5c8baea73d44a108e3fbe5e9e3108813bf8b8fa4fc64b7e7c36
+SHA512: 2d1c264be69006027a9070430a229772183e71fa9de4b750db2ef2c7b7768f0104b3629b35fa9a9a08fa9d4adb9baddad4d9c159389ca13b12d48944b7b179f9
+Description: Snask Programming Language with Orchestrated Memory (OM)
+ A high-performance systems programming language with revolutionary memory safety.
+
+Package: snask
+Architecture: amd64
 Version: 0.4.1
 Priority: optional
 Section: devel
