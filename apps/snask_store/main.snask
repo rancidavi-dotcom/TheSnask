@@ -1,68 +1,72 @@
+import "gui"
+import "os"
+import "sfs"
+
 fun g_init()
-    return gui_init()
+    return gui::init()
 
 fun g_run()
-    return gui_run()
+    return gui::run()
 
 fun g_window(title, w, h)
-    return gui_window(title, w, h)
+    return gui::window(title, w, h)
 
 fun g_set_resizable(win, enabled)
-    return gui_set_resizable(win, enabled)
+    return gui::set_resizable(win, enabled)
 
 fun g_vbox()
-    return gui_vbox()
+    return gui::vbox()
 
 fun g_hbox()
-    return gui_hbox()
+    return gui::hbox()
 
 fun g_scrolled()
-    return gui_scrolled()
+    return gui::scrolled()
 
 fun g_set_child(parent, child)
-    return gui_set_child(parent, child)
+    return gui::set_child(parent, child)
 
 fun g_add(parent, child)
-    return gui_add(parent, child)
+    return gui::add(parent, child)
 
 fun g_add_expand(parent, child)
-    return gui_add_expand(parent, child)
+    return gui::add_expand(parent, child)
 
 fun g_separator_h()
-    return gui_separator_h()
+    return gui::separator_h()
 
 fun g_label(text)
-    return gui_label(text)
+    return gui::label(text)
 
 fun g_button(text)
-    return gui_button(text)
+    return gui::button(text)
 
 fun g_show_all(widget)
-    return gui_show_all(widget)
+    return gui::show_all(widget)
 
 fun g_on_click(widget, handler)
-    return gui_on_click(widget, handler)
+    return gui::on_click(widget, handler)
 
 fun g_on_select_ctx(list_widget, handler, ctx)
-    return gui_on_select_ctx(list_widget, handler, ctx)
+    return gui::on_select_ctx(list_widget, handler, ctx)
 
 fun g_css(text)
-    return gui_css(text)
+    return gui::css(text)
 
 fun g_add_class(widget, class_name)
-    return gui_add_class(widget, class_name)
+    return gui::add_class(widget, class_name)
 
 fun g_listbox()
-    return gui_listbox()
+    return gui::listbox()
 
 fun g_list_add_text(list_widget, text)
-    return gui_list_add_text(list_widget, text)
+    return gui::list_add_text(list_widget, text)
 
 fun g_msg_info(title, msg)
-    return gui_msg_info(title, msg)
+    return gui::msg_info(title, msg)
 
 fun g_msg_error(title, msg)
-    return gui_msg_error(title, msg)
+    return gui::msg_error(title, msg)
 
 fun gl_section(parent, title)
     let lbl = g_label(title)
@@ -76,7 +80,7 @@ fun gl_spacer_h(parent)
     return sep
 
 fun home_dir()
-    let home = os_getenv("HOME")
+    let home = os::getenv("HOME")
     if is_nil(home) or home == ""
         return "."
     return home
@@ -97,12 +101,12 @@ fun registry_package_file(name)
     return registry_packages_dir() + "/" + name + ".snask"
 
 fun ensure_dirs()
-    sfs_mkdir(snask_home())
-    sfs_mkdir(packages_dir())
+    sfs::mkdir(snask_home())
+    sfs::mkdir(packages_dir())
     return true
 
 fun is_pkg_installed(name)
-    return sfs_exists(package_file(name))
+    return sfs::exists(package_file(name))
 
 fun yes_no(flag)
     if flag
@@ -189,13 +193,13 @@ fun install_package_by_name(name)
         i = i + 1
 
     let source_file = registry_package_file(name)
-    if sfs_exists(source_file) == false
+    if sfs::exists(source_file) == false
         _status_msg = "Pacote nao encontrado no registry local: " + name
         return false
-    let body = sfs_read(source_file)
+    let body = sfs::read(source_file)
 
     ensure_dirs()
-    if sfs_write(package_file(name), body) == false
+    if sfs::write(package_file(name), body) == false
         _status_msg = "Falha ao gravar " + name + " em ~/.snask/packages"
         return false
 
@@ -207,11 +211,11 @@ fun remove_package_by_name(name)
         _status_msg = "Selecione uma biblioteca para remover."
         return false
 
-    if sfs_exists(package_file(name)) == false
+    if sfs::exists(package_file(name)) == false
         _status_msg = "A biblioteca " + name + " nao esta instalada."
         return false
 
-    if sfs_delete(package_file(name))
+    if sfs::delete(package_file(name))
         _status_msg = "Pacote removido: " + name
         return true
 

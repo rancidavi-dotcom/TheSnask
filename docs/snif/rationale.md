@@ -1,28 +1,23 @@
-# SNIF Rationale
+# Racional do SNIF
 
-SNIF exists because JSON is great for interoperability, but weak for configuration and long-lived data modeling.
+SNIF existe porque JSON e bom para interoperabilidade, mas fraco para configuracao longa e humana.
 
-## Why SNIF is stricter than JSON-like supersets
-SNIF intentionally removes common sources of ambiguity:
-- Only `:` as member separator (no `=`).
-- Only `//` comments (no multiple comment dialects).
-- Only `null` (no `nil` alias).
-- No bareword strings (prevents silent bugs and future keyword conflicts).
+## Por que mais estrito
 
-## Why typed literals exist
-Typed literals make intent explicit and predictable:
-- `@date"..."` expresses a date/time string semantically.
-- `@dec"..."` preserves exact decimals.
-- `@bin"..."` clearly marks base64 payload.
-- `@enum"..."` provides a safe place for symbolic values without barewords.
+- apenas `:` como separador;
+- apenas comentarios `//`;
+- apenas `null`;
+- sem strings bareword;
+- virgula final permitida para diffs melhores.
 
-## Why big integers become tagged objects
-JSON’s single `number` type causes silent precision loss across ecosystems.
-SNIF keeps exact values by representing big integers as `{ "$i64": "..." }`.
+## Por que literais tipados
 
-## Why references exist
-Real configs often repeat blocks. References:
-- reduce duplication,
-- reduce copy/paste errors,
-- keep configs maintainable.
+`@date`, `@dec`, `@bin` e `@enum` expressam intencao sem inventar parser ambiguo.
 
+## Por que inteiros grandes sao preservados
+
+JSON pode perder precisao em ecossistemas que usam IEEE-754. SNIF preserva inteiros grandes com objeto marcado.
+
+## Por que referencias
+
+Configs reais repetem blocos. Referencias reduzem duplicacao e erro de copia.

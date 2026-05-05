@@ -1,17 +1,20 @@
-# SNIF Examples
+# Exemplos SNIF
 
-## Minimal object
-```
+## Objeto minimo
+
+```snif
 { name: "Snask", ok: true, }
 ```
 
-## Array with trailing comma
-```
+## Array com virgula final
+
+```snif
 ["a", "b", "c",]
 ```
 
-## Typed literals
-```
+## Literais tipados
+
+```snif
 {
   created_at: @date"2026-02-18T00:00:00Z",
   price: @dec"19.99",
@@ -19,15 +22,17 @@
 }
 ```
 
-## Big integer preservation
-```
+## Inteiro grande
+
+```snif
 { big: 9007199254740993 }
-// parses as:
-// { big: { "$i64": "9007199254740993" } }
 ```
 
-## References
-```
+O parser preserva como valor marcado quando necessario.
+
+## Referencias
+
+```snif
 {
   cfg: &x{ retries: 3, },
   a: *x,
@@ -35,15 +40,16 @@
 }
 ```
 
-## Invalid (bareword value)
-```
+## Invalidos
+
+```snif
 { name: snask }
-// ERROR: Barewords are not allowed. Use "snask".
 ```
 
-## Invalid (wrong separator)
-```
+Bareword como string nao e permitido.
+
+```snif
 { name = "snask" }
-// ERROR: Expected ':' after key.
 ```
 
+O separador correto e `:`.

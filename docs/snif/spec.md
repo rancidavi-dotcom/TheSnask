@@ -1,79 +1,61 @@
-# SNIF Specification (v1)
+# Especificacao SNIF v1
 
-SNIF (Snask Interchange Format) is a human-friendly, safe, deterministic data format designed for the Snask ecosystem.
+SNIF, Snask Interchange Format, e um formato de dados/configuracao humano, seguro e deterministico para o ecossistema Snask.
 
-## Goals
-- Human-friendly configs (comments, trailing commas, simple objects/arrays).
-- Deterministic parsing with a minimal syntax surface.
-- Safer semantics than JSON for real configs (typed literals, references, big-int preservation).
-- Easy to implement and fast to parse.
+## Objetivos
 
-## Non-goals
-- Full YAML feature parity.
-- Complex schema language built into the format.
+- configs legiveis;
+- comentarios `//`;
+- virgula final;
+- objetos e arrays simples;
+- literais tipados;
+- preservacao de inteiros grandes;
+- parse deterministico.
 
-## Canonical decisions (MUST)
-- Key/value separator is `:` only.
-- Comments are `//` line comments only.
-- Null is `null` only (`nil` is not a keyword).
-- Barewords as string values are not allowed. Strings MUST be quoted.
+## Nao objetivos
 
-## Document structure
-A SNIF document is a single value: object, array, string, number, boolean, or null.
+- copiar YAML inteiro;
+- schema complexo embutido;
+- permitir ambiguidades como bareword string.
 
-## Types
-Supported base types:
-- `null`
-- `bool` (`true`, `false`)
-- `number` (float-like)
-- `string`
-- `array`
-- `object`
+## Decisoes canonicas
 
-SNIF adds *typed literals* and *safe big integers* using tagged objects.
+- separador de chave e sempre `:`;
+- comentarios apenas `//`;
+- nulo e `null`;
+- strings devem usar aspas;
+- barewords como valor sao erro.
 
-## Typed literals
-Syntax:
-- `@type"payload"` or `@type'payload'`
+## Estrutura
 
-Built-in typed literals:
-- `@date"..."`
-- `@dec"..."`
-- `@bin"..."`
-- `@enum"..."`
+Um documento SNIF e um unico valor: objeto, array, string, numero, booleano, null, literal tipado ou referencia.
 
-Decoded representation:
-- `@date"X"` becomes `{ "$date": "X" }`
-- `@dec"X"` becomes `{ "$dec": "X" }`
-- `@bin"X"` becomes `{ "$bin": "X" }`
-- `@enum"X"` becomes `{ "$enum": "X" }`
+## Literais tipados
 
-Unknown types:
-- `@foo"X"` becomes `{ "$type": "foo", "value": "X" }`
+```text
+@date"2026-02-18T00:00:00Z"
+@dec"19.99"
+@bin"..."
+@enum"STATUS_OK"
+```
 
-## Numbers and big integers
-- Floating numbers and scientific notation parse as `number`.
-- Integer tokens outside the safe IEEE-754 range (±(2^53-1)) MUST be preserved exactly as `{ "$i64": "..." }`.
+Representacao decodificada usa objetos marcados, como `{ "$date": "..." }`.
 
-## References
-References reduce duplication and enable shared objects.
+## Inteiros grandes
 
-Syntax:
-- `&name <value>` defines a reference `name` pointing to `<value>` and evaluates to `<value>`.
-- `*name` evaluates to the previously-defined value of `name`.
+Inteiros fora do intervalo seguro IEEE-754 devem ser preservados como string marcada:
 
-Rules:
-- Reference names are identifiers.
-- Forward references are not allowed (using `*name` before `&name` is an error).
-- Cycles are not allowed (if created indirectly, behavior is an error).
+```text
+{ "$i64": "9007199254740993" }
+```
 
-## Trailing commas
-Trailing commas are allowed in objects and arrays.
+## Referencias
 
-## Errors
-A parser MUST fail on:
-- Unknown identifiers as values (barewords).
-- Missing `:` after object keys.
-- Unknown references (`*name` without a previous `&name`).
-- Excessive depth (implementation-defined limit).
+```text
+{
+  shared: &cfg{ retries: 3, },
+  service_a: { config: *cfg, },
+}
+```
 
+Forward refs e ciclos devem ser rejeitados.

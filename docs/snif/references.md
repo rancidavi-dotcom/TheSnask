@@ -1,13 +1,13 @@
-# SNIF References
+# Referencias SNIF
 
-SNIF references provide a way to reuse the same value without duplication.
+Referencias permitem reutilizar o mesmo valor sem duplicacao.
 
-## Syntax
-- Define: `&name <value>`
-- Use: `*name`
+## Sintaxe
 
-Example:
-```
+- definir: `&name <value>`
+- usar: `*name`
+
+```snif
 {
   shared: &cfg{ retries: 3, timeout_ms: 1500, },
   service_a: { config: *cfg, },
@@ -15,9 +15,9 @@ Example:
 }
 ```
 
-## Rules
-- `*name` must refer to a name previously defined with `&name` (no forward refs).
-- Reference names are identifiers.
-- Implementations should reject cycles.
-- Reference count should be limited (implementation-defined) to prevent memory abuse.
+## Regras
 
+- `*name` deve apontar para uma referencia anterior;
+- nomes sao identificadores;
+- ciclos devem ser rejeitados;
+- implementacoes podem limitar quantidade/profundidade para seguranca.

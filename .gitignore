@@ -5,3 +5,34 @@ pkg-snask/
 __pycache__/
 .aider*
 .DS_Store
+
+# Local Snask caches and generated contracts
+.snask/
+*.generated.om.snif
+*.generated.om.report.txt
+
+# Local binaries/packages produced by manual builds
+/snask
+/re_scan
+/ex8_om
+/test_*_auto
+/test_import.snask
+/*.deb
+/repo/pool/**/*.deb
+/bench/startup/snask_ok
+/examples/skia_png_demo
+/prides/llvm_performance_pride
+/apps/snask_store/main
+/apps/snask_store/snask_store
+/apps/snask_store/test_*.snask
+/apps/snask_vault/main
+/apps/snask_vault/dist/
+/examples/snask_vault/test_*.snask
+/zenith/**/main
+/zenith/**/system_monitor
+/zenith/skeleton/test_*
+/zenith/skeleton/zenith_app
+/Zenith-Framework-Export/**/main
+/Zenith-Framework-Export/**/system_monitor
+/Zenith-Framework-Export/skeleton/test_*
+/Zenith-Framework-Export/skeleton/zenith_app

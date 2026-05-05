@@ -370,6 +370,38 @@ fn library_native_help(name: &str) -> String {
     )
 }
 
+fn native_module_aliases(name: &str) -> Vec<String> {
+    let mappings = [
+        ("gui_", "gui"),
+        ("os_", "os"),
+        ("sfs_", "sfs"),
+        ("path_", "sfs"),
+        ("json_", "json"),
+        ("sjson_", "sjson"),
+        ("snif_", "snif"),
+        ("string_", "string"),
+        ("sqlite_", "sqlite"),
+        ("zlib_", "zlib"),
+        ("skia_", "snask_skia"),
+        ("blaze_", "blaze"),
+        ("auth_", "blaze_auth"),
+        ("thread_", "os"),
+        ("snaskgui_", "snaskgui"),
+    ];
+
+    if let Some(rest) = name.strip_prefix("s_http_") {
+        return vec![format!("requests::{}", rest)];
+    }
+
+    for (prefix, module) in mappings {
+        if let Some(rest) = name.strip_prefix(prefix) {
+            return vec![format!("{}::{}", module, rest)];
+        }
+    }
+
+    Vec::new()
+}
+
 impl SemanticAnalyzer {
     pub fn new() -> Self {
         let mut analyzer = SemanticAnalyzer {
@@ -1034,7 +1066,15 @@ impl SemanticAnalyzer {
         is_variadic: bool,
     ) {
         self.define_builtin(name, params.clone(), return_type.clone(), is_variadic);
-        self.define_builtin(&format!("__{}", name), params, return_type, is_variadic);
+        self.define_builtin(
+            &format!("__{}", name),
+            params.clone(),
+            return_type.clone(),
+            is_variadic,
+        );
+        for alias in native_module_aliases(name) {
+            self.define_builtin(&alias, params.clone(), return_type.clone(), is_variadic);
+        }
     }
 
     fn register_systems_low_level_builtins(&mut self) {
@@ -2874,6 +2914,29 @@ class main
         assert!(
             analyzer.errors.is_empty(),
             "expected low-level integer program to type-check, got: {:?}",
+            analyzer.errors
+        );
+    }
+
+    #[test]
+    fn native_module_aliases_type_check() {
+        let analyzer = analyze_source(
+            r#"
+import "gui"
+import "os"
+import "sfs"
+
+class main
+    fun start()
+        let ok: bool = gui::init()
+        let home: str = os::getenv("HOME")
+        let exists: bool = sfs::exists(home)
+"#,
+        );
+
+        assert!(
+            analyzer.errors.is_empty(),
+            "expected native module aliases to type-check, got: {:?}",
             analyzer.errors
         );
     }
