@@ -130,8 +130,8 @@ push_release() {
     local remote="$1"
     local label="$2"
 
-    info "Enviando para ${label} (${remote}/${RELEASE_BRANCH})..."
-    git push "$remote" "HEAD:${RELEASE_BRANCH}"
+    info "Forçando envio para ${label} (${remote}/${RELEASE_BRANCH})..."
+    git push --force-with-lease "$remote" "HEAD:${RELEASE_BRANCH}"
 }
 
 push_release_to_all() {
