@@ -1,39 +1,172 @@
-#!/bin/bash
-# 🐍 Snask Automatic Release Script (v2.0)
-# Desenvolvido para o Davi (TheSnask)
-# Uso: ./release.sh <VERSÃO> [--no-push]
+#!/usr/bin/env bash
+# Snask Automatic Release Script
+# Uso:
+#   ./release.sh <VERSAO> [--no-push]
+#
+# Publicacao:
+#   - empacota o .deb local;
+#   - atualiza repo/;
+#   - cria commit de release;
+#   - envia para GitHub e Codeberg na mesma execucao.
+#
+# Variaveis opcionais:
+#   RELEASE_BRANCH=main
+#   GITHUB_REMOTE=github
+#   GITHUB_URL=git@github.com:rancidavi-dotcom/TheSnask.git
+#   CODEBERG_REMOTE=codeberg
+#   CODEBERG_URL=git@codeberg.org:DaviVilasBoas/SnaskLang.git
 
-set -e
+set -euo pipefail
 
-# Cores
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-if [ -z "$1" ]; then
-    echo -e "${RED}Erro: Versão não informada!${NC}"
-    echo -e "Uso: ./release.sh <VERSÃO> [--no-push]"
-    exit 1
+info() { echo -e "${BLUE}==> $1${NC}"; }
+ok() { echo -e "${GREEN}✅ $1${NC}"; }
+warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
+die() { echo -e "${RED}Erro: $1${NC}"; exit 1; }
+
+usage() {
+    echo "Uso: ./release.sh <VERSAO> [--no-push]"
+}
+
+if [ "${1:-}" = "" ]; then
+    usage
+    die "Versão não informada."
 fi
 
-VERSION=$1
+VERSION="$1"
+shift || true
+
 PUSH=true
-if [[ "$*" == *"--no-push"* ]]; then
-    PUSH=false
-fi
+for arg in "$@"; do
+    case "$arg" in
+        --no-push) PUSH=false ;;
+        *) die "Argumento desconhecido: $arg" ;;
+    esac
+done
 
-# 1. Build Snask Binary
-echo -e "${BLUE}==> 1. Compilando Snask em modo Release...${NC}"
+RELEASE_BRANCH="${RELEASE_BRANCH:-main}"
+GITHUB_REMOTE_ENV="${GITHUB_REMOTE:-}"
+CODEBERG_REMOTE_ENV="${CODEBERG_REMOTE:-}"
+GITHUB_URL="${GITHUB_URL:-git@github.com:rancidavi-dotcom/TheSnask.git}"
+CODEBERG_URL="${CODEBERG_URL:-git@codeberg.org:DaviVilasBoas/SnaskLang.git}"
+
+require_tool() {
+    command -v "$1" >/dev/null 2>&1 || die "Ferramenta faltando: $1"
+}
+
+remote_exists() {
+    git remote get-url "$1" >/dev/null 2>&1
+}
+
+remote_has_url_fragment() {
+    local remote="$1"
+    local fragment="$2"
+    git remote get-url --all "$remote" 2>/dev/null | grep -qi "$fragment"
+}
+
+find_remote_by_url_fragment() {
+    local fragment="$1"
+    local remote
+
+    while IFS= read -r remote; do
+        if remote_has_url_fragment "$remote" "$fragment"; then
+            echo "$remote"
+            return 0
+        fi
+    done < <(git remote)
+
+    return 1
+}
+
+ensure_named_remote() {
+    local preferred="$1"
+    local url="$2"
+
+    if remote_exists "$preferred"; then
+        echo "$preferred"
+        return 0
+    fi
+
+    git remote add "$preferred" "$url"
+    echo "$preferred"
+}
+
+resolve_github_remote() {
+    if [ -n "$GITHUB_REMOTE_ENV" ]; then
+        remote_exists "$GITHUB_REMOTE_ENV" || git remote add "$GITHUB_REMOTE_ENV" "$GITHUB_URL"
+        echo "$GITHUB_REMOTE_ENV"
+        return 0
+    fi
+
+    if remote="$(find_remote_by_url_fragment "github.com")"; then
+        echo "$remote"
+        return 0
+    fi
+
+    ensure_named_remote "github" "$GITHUB_URL"
+}
+
+resolve_codeberg_remote() {
+    if [ -n "$CODEBERG_REMOTE_ENV" ]; then
+        remote_exists "$CODEBERG_REMOTE_ENV" || git remote add "$CODEBERG_REMOTE_ENV" "$CODEBERG_URL"
+        echo "$CODEBERG_REMOTE_ENV"
+        return 0
+    fi
+
+    if remote="$(find_remote_by_url_fragment "codeberg.org")"; then
+        echo "$remote"
+        return 0
+    fi
+
+    ensure_named_remote "codeberg" "$CODEBERG_URL"
+}
+
+push_release() {
+    local remote="$1"
+    local label="$2"
+
+    info "Enviando para ${label} (${remote}/${RELEASE_BRANCH})..."
+    git push "$remote" "HEAD:${RELEASE_BRANCH}"
+}
+
+push_release_to_all() {
+    local github_remote="$1"
+    local codeberg_remote="$2"
+    local github_pid codeberg_pid
+    local failed=0
+
+    push_release "$github_remote" "GitHub" &
+    github_pid=$!
+
+    push_release "$codeberg_remote" "Codeberg" &
+    codeberg_pid=$!
+
+    wait "$github_pid" || failed=1
+    wait "$codeberg_pid" || failed=1
+
+    if [ "$failed" -ne 0 ]; then
+        die "Falha ao enviar para um ou mais remotes."
+    fi
+}
+
+require_tool cargo
+require_tool git
+require_tool dpkg-deb
+require_tool apt-ftparchive
+require_tool gzip
+
+info "1. Compilando Snask em modo release..."
 cargo build --release
 
-# 2. Build Runtime (Local) to ensure everything is fresh
-echo -e "${BLUE}==> 2. Gerando runtimes locais para o pacote...${NC}"
+info "2. Gerando runtimes locais para o pacote..."
 ./target/release/snask setup
 
-# 3. Prepare Debian Package Structure
-echo -e "${BLUE}==> 3. Preparando estrutura do pacote Debian...${NC}"
+info "3. Preparando estrutura do pacote Debian..."
 rm -rf pkg-snask
 mkdir -p pkg-snask/DEBIAN
 mkdir -p pkg-snask/usr/bin
@@ -41,9 +174,7 @@ mkdir -p pkg-snask/usr/lib/snask/runtime
 mkdir -p pkg-snask/usr/lib/snask/stdlib
 mkdir -p pkg-snask/usr/share/doc/snask
 
-# Create control file if it doesn't exist
-if [ ! -f pkg-snask/DEBIAN/control ]; then
-    cat > pkg-snask/DEBIAN/control <<EOF
+cat > pkg-snask/DEBIAN/control <<EOF
 Package: snask
 Version: ${VERSION}
 Section: devel
@@ -53,28 +184,21 @@ Maintainer: Davi <davidev@snask.lang>
 Description: Snask Programming Language with Orchestrated Memory (OM)
  A high-performance systems programming language with revolutionary memory safety.
 EOF
-else
-    sed -i "s/^Version: .*/Version: ${VERSION}/" pkg-snask/DEBIAN/control
-fi
 
-# Copy files to package
 cp target/release/snask pkg-snask/usr/bin/
 cp -r src/runtime/* pkg-snask/usr/lib/snask/runtime/
 cp -r src/stdlib/* pkg-snask/usr/lib/snask/stdlib/
 cp src/runtime.c pkg-snask/usr/lib/snask/runtime/
 
-# Also include the pre-compiled runtimes from ~/.snask/lib for ease of use
 cp ~/.snask/lib/runtime.* pkg-snask/usr/lib/snask/runtime/
 cp ~/.snask/lib/runtime_tiny.* pkg-snask/usr/lib/snask/runtime/
 cp ~/.snask/lib/runtime_nano.* pkg-snask/usr/lib/snask/runtime/
 [ -f ~/.snask/lib/rt_extreme.o ] && cp ~/.snask/lib/rt_extreme.o pkg-snask/usr/lib/snask/runtime/
 
-# 4. Build .deb
-echo -e "${BLUE}==> 4. Construindo pacote .deb...${NC}"
+info "4. Construindo pacote .deb..."
 dpkg-deb --build pkg-snask "snask_${VERSION}_amd64.deb"
 
-# 5. Local APT Repository Management
-echo -e "${BLUE}==> 5. Atualizando Repositório APT local...${NC}"
+info "5. Atualizando repositório APT local..."
 mkdir -p repo/pool/main/s/snask
 mkdir -p repo/dists/stable/main/binary-amd64
 cp "snask_${VERSION}_amd64.deb" repo/pool/main/s/snask/
@@ -83,13 +207,22 @@ cp "snask_${VERSION}_amd64.deb" repo/pool/main/s/snask/
 gzip -fk repo/dists/stable/main/binary-amd64/Packages
 (cd repo && apt-ftparchive -o APT::FTPArchive::Release::Codename=stable release dists/stable/ > dists/stable/Release)
 
-# 6. Commit and Push
 if [ "$PUSH" = true ]; then
-    echo -e "${BLUE}==> 6. Enviando para o GitHub...${NC}"
-    git add repo/ release.sh src/tools.rs .
-    git commit -m "chore(release): version ${VERSION} [automated]"
-    git push origin main
-    echo -e "${GREEN}✅ SUCESSO! Snask v${VERSION} está on-line.${NC}"
+    info "6. Criando commit de release..."
+    git add .
+
+    if git diff --cached --quiet; then
+        warn "Nada novo para commitar. Vou apenas enviar o HEAD atual."
+    else
+        git commit -m "chore(release): version ${VERSION} [automated]"
+    fi
+
+    GITHUB_REMOTE_RESOLVED="$(resolve_github_remote)"
+    CODEBERG_REMOTE_RESOLVED="$(resolve_codeberg_remote)"
+
+    push_release_to_all "$GITHUB_REMOTE_RESOLVED" "$CODEBERG_REMOTE_RESOLVED"
+
+    ok "Snask v${VERSION} enviado para GitHub e Codeberg."
 else
-    echo -e "${YELLOW}⚠️  Aviso: Push ignorado (--no-push). Pacote gerado localmente.${NC}"
+    warn "Push ignorado (--no-push). Pacote gerado localmente."
 fi
