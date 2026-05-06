@@ -28,50 +28,70 @@
         <a href="../reference/status.html">Status</a>
       </aside>
       <main class="content">
-        <p class="eyebrow">Guia rapido</p>
-        <h1>Comecando com Snask</h1>
+        <p class="eyebrow">Capítulo 1</p>
+        <h1>Introdução ao Snask</h1>
         <p class="lead">
-          Este guia leva do zero ate um programa compilado. Ele usa apenas superficie que combina
-          com o compilador atual.
+          Snask é uma linguagem de programação moderna, compilada via LLVM, desenhada para ser 
+          <strong>"Humana por padrão, Systems quando necessário"</strong>.
         </p>
 
-        <h2>Instalar</h2>
-        <pre><code>curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
+        <section>
+          <h2>A Filosofia Snask</h2>
+          <p>
+            Diferente de linguagens que te forçam a escolher entre "produtividade com Garbage Collector" (como Python/JS) 
+            ou "controle manual perigoso" (como C/C++), o Snask introduz o conceito de <strong>Perfis Adaptativos</strong>.
+          </p>
+          <ul>
+            <li><strong>Perfil Humane:</strong> Focado na experiência do desenvolvedor. Erros amigáveis, automação de memória via zonas e segurança total.</li>
+            <li><strong>Perfil Systems:</strong> Ativa primitivas de baixo nível, acesso a ponteiros e operações de bits, ideal para emuladores e kernels.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Instalação Profissional</h2>
+          <p>O Snask depende do backend LLVM 18 para gerar código nativo de alta performance. O script de instalação oficial cuida de configurar o toolchain para você.</p>
+          <pre><code># Instalação automatizada para Linux
+curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
+
+# Configure o PATH (adicione ao seu .bashrc ou .zshrc)
 export PATH="$HOME/.snask/bin:$PATH"
-snask doctor</code></pre>
-        <p>
-          O instalador detecta distros Linux comuns, instala dependencias quando possivel e encontra
-          LLVM 18 para o backend atual.
-        </p>
 
-        <h2>Primeiro arquivo</h2>
-        <p>Crie `hello.snask`:</p>
-        <pre><code>class main {
+# Verifique a saúde da instalação
+snask doctor</code></pre>
+        </section>
+
+        <section>
+          <h2>Anatomia de um Programa Snask</h2>
+          <p>Um programa executável sempre começa em uma <code>class main</code> com uma função <code>start()</code>. Diferente de C, não usamos <code>int argc, char** argv</code> na assinatura da main; os argumentos são acessados via builtin <code>args()</code>.</p>
+          <pre><code>class main {
     fun start() {
-        print("Ola, Snask!\n")
+        print("Olá Mundo!\n")
     }
 }</code></pre>
+          <p>
+            <strong>Por que class main?</strong> Para garantir que o compilador possa orquestrar o ciclo de vida inicial 
+            do programa e as zonas de memória raiz de forma determinística.
+          </p>
+        </section>
 
-        <h2>Compilar e rodar</h2>
-        <pre><code>snask build hello.snask --output hello
-./hello</code></pre>
-        <p>
-          Sem `--profile`, Snask usa `humane`: runtime completo, mensagens de erro humanas e uma
-          experiencia mais amigavel.
-        </p>
+        <section>
+          <h2>O Ciclo de Build</h2>
+          <p>O Snask compila seu código diretamente para binários nativos (AOT - Ahead of Time). Ele não usa uma máquina virtual (VM) como Java ou um interpretador como Python.</p>
+          <pre><code># Compilação padrão (Humane)
+snask build hello.snask --output hello
 
-        <h2>Quando algo der errado</h2>
-        <pre><code>snask explain S1005</code></pre>
-        <p>
-          Diagnosticos publicos usam codigos curtos, spans, snippets e ajuda acionavel. Ainda ha
-          mensagens em ingles em algumas partes, mas o formato publico ja existe.
-        </p>
+# Compilação para sistemas (sem runtime pesado)
+snask build app.snask --profile systems --output app</code></pre>
+        </section>
 
-        <h2>Proximo passo</h2>
-        <div class="actions">
-          <a class="button primary" href="basics.html">Aprender a sintaxe basica</a>
-          <a class="button" href="projects.html">Criar um projeto SPS</a>
-        </div>
+        <section>
+          <h2>Próximos Passos</h2>
+          <p>Agora que você tem o compilador pronto, vamos mergulhar na sintaxe que torna o Snask único.</p>
+          <div class="actions">
+            <a class="button primary" href="basics.html">Capítulo 2: Variáveis e Tipos</a>
+            <a class="button" href="../reference/functions/index.html">Explorar Funções</a>
+          </div>
+        </section>
       </main>
     </div>
     <script src="../assets/site.js"></script>

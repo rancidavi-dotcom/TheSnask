@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Capítulo 6: Perfil Systems - Snask Docs</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a aria-current="page" href="getting-started.html">Aprender</a>
+        <a href="../reference/language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Aprender</h2>
+        <a href="getting-started.html">1. Introdução</a>
+        <a href="basics.html">2. Variáveis e Tipos</a>
+        <a href="control-flow.html">3. Controle de Fluxo</a>
+        <a href="functions.html">4. Funções</a>
+        <a href="memory-om.html">5. Memória (OM)</a>
+        <a href="systems-profile.html" class="active">6. Perfil Systems</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Capítulo 6</p>
+        <h1>Perfil Systems e Baixo Nível</h1>
+        <p class="lead">
+          Quando o desempenho e o controle de hardware superam a necessidade de conveniência, 
+          entra em cena o <strong>Perfil Systems</strong> do Snask.
+        </p>
+
+        <section>
+          <h2>Ativando o Perfil Systems</h2>
+          <p>
+            Por padrão, o Snask compila no perfil <code>humane</code>. Para ativar o modo de sistemas, 
+            você deve informar ao compilador via flag:
+          </p>
+          <pre><code>snask build app.snask --profile systems --output app</code></pre>
+          <p>
+            No perfil systems, o runtime pesado é removido, o binário fica menor e você ganha 
+            acesso a primitivas de hardware.
+          </p>
+        </section>
+
+        <section>
+          <h2>O Bloco @unsafe</h2>
+          <p>
+            Seguindo a filosofia de linguagens seguras modernas, operações perigosas (como aritmética de ponteiros) 
+            são isoladas em blocos <code>@unsafe</code>. Isso serve como um "contrato de consciência" para o desenvolvedor.
+          </p>
+          <pre><code>@unsafe {
+    let p: ptr = mem_alloc(1024)
+    mem_write_u8(p, 0, 0xFF)
+    mem_free(p)
+}</code></pre>
+        </section>
+
+        <section>
+          <h2>Aritmética de Bits e Casts</h2>
+          <p>
+            Em sistemas, cada bit conta. O Snask oferece funções de alta performance para manipular bits 
+            sem a verbosidade de C.
+          </p>
+          <pre><code>let flags = 0b10101010
+if bit_test(flags, 7) {
+    print("Bit de status ativo!\n")
+}
+
+let byte: u8 = as_u8(512) // Truncamento explícito para 8 bits</code></pre>
+        </section>
+
+        <section>
+          <h2>Por que usar Systems?</h2>
+          <ul>
+            <li><strong>Emuladores:</strong> Para modelar barramentos de memória e CPUs reais.</li>
+            <li><strong>Drivers:</strong> Para conversar com hardware via mapeamento de memória.</li>
+            <li><strong>Sistemas Operacionais:</strong> O Snask foi desenhado para permitir a escrita de microkernels.</li>
+            <li><strong>Binários Minimalistas:</strong> Quando você precisa de um executável de poucos KBs.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Parabéns!</h2>
+          <p>Você concluiu o guia fundamental do Snask. Agora você está pronto para construir o futuro.</p>
+          <div class="actions">
+            <a class="button primary" href="../reference/functions/index.html">Explorar Referência de API</a>
+            <a class="button" href="../index.html">Voltar ao Início</a>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

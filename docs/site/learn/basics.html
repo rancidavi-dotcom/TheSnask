@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Basico da linguagem Snask</title>
+    <title>Capítulo 2: Variáveis e Tipos - Snask Docs</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
@@ -20,98 +20,103 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="getting-started.html">Comecando</a>
-        <a href="basics.html">Basico da linguagem</a>
-        <a href="projects.html">Projetos Snask</a>
+        <a href="getting-started.html">1. Introdução</a>
+        <a href="basics.html" class="active">2. Variáveis e Tipos</a>
+        <a href="control-flow.html">3. Controle de Fluxo</a>
+        <a href="functions.html">4. Funções</a>
+        <a href="memory-om.html">5. Memória (OM)</a>
+        <a href="systems-profile.html">6. Perfil Systems</a>
       </aside>
       <main class="content">
-        <p class="eyebrow">Tutorial</p>
-        <h1>Basico da linguagem</h1>
+        <p class="eyebrow">Capítulo 2</p>
+        <h1>Variáveis e Sistema de Tipos</h1>
         <p class="lead">
-          Snask aceita blocos por chaves e tambem por indentacao. Para tutoriais copiaveis, usamos
-          chaves.
+          Snask é uma linguagem de tipagem estática com inferência poderosa. No Snask, a clareza sobre 
+          <strong>ownership</strong> e <strong>mutabilidade</strong> começa na declaração da variável.
         </p>
 
-        <h2>Variaveis</h2>
-        <pre><code>class main {
+        <section>
+          <h2>Imutabilidade por Padrão</h2>
+          <p>
+            Seguindo as melhores práticas de engenharia de software modernas, 
+            no Snask tudo é imutável por padrão. Isso evita bugs de "efeito colateral" onde uma variável 
+            muda de valor inesperadamente.
+          </p>
+          <pre><code>class main {
     fun start() {
-        let name = "Davi"
-        mut age = 25
-        age = age + 1
-        print("Nome: {name}\n")
-        print("Idade: {age}\n")
+        let pi = 3.1415
+        // pi = 3.14  <-- Erro de compilação! let é imutável.
     }
 }</code></pre>
+        </section>
 
-        <h2>Condicionais e loops</h2>
-        <pre><code>class main {
-    fun start() {
-        let score = 8
-
-        if score >= 7 {
-            print("Aprovado\n")
-        } else {
-            print("Reprovado\n")
-        }
-
-        mut i = 0
-        while i < 3 {
-            print("Passo: {i}\n")
-            i = i + 1
-        }
-    }
+        <section>
+          <h2>Mutabilidade Explícita</h2>
+          <p>
+            Se você precisa que um valor mude ao longo do tempo, 
+            deve usar a palavra-chave <code>mut</code>. Isso deixa claro para quem lê seu código 
+            que aquele estado é volátil.
+          </p>
+          <pre><code>mut contador = 0
+while contador < 10 {
+    contador = contador + 1
 }</code></pre>
+        </section>
 
-        <h2>Funcoes tipadas simples</h2>
-        <pre><code>fun add(a: int, b: int) : int {
-    return a + b
-}
+        <section>
+          <h2>Constantes de Módulo</h2>
+          <p>
+            Diferente de <code>let</code>, que é uma "ligação imutável" dentro de um escopo, 
+            <code>const</code> define valores que são conhecidos em tempo de compilação.
+          </p>
+          <pre><code>const VERSAO_API = "1.0.4"
+const MAX_CONEXOES = 100</code></pre>
+        </section>
 
-class main {
-    fun start() {
-        let value: int = add(20, 22)
-        print("Resultado: {value}\n")
-    }
-}</code></pre>
+        <section>
+          <h2>Sistema de Tipos</h2>
+          <p>
+            O Snask possui tipos primitivos robustos. Embora o compilador consiga inferir o tipo 
+            na maioria das vezes, você pode ser explícito para aumentar a segurança.
+          </p>
+          <table>
+            <thead>
+              <tr><th>Tipo</th><th>Descrição</th><th>Perfil Recomendado</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>str</code></td><td>String UTF-8 dinâmica.</td><td>Humane</td></tr>
+              <tr><td><code>float</code></td><td>Número de ponto flutuante 64-bit.</td><td>Humane / Systems</td></tr>
+              <tr><td><code>bool</code></td><td>Valor booleano (true/false).</td><td>Ambos</td></tr>
+              <tr><td><code>u8 / i8</code></td><td>Inteiros de 8-bit (Byte).</td><td>Systems</td></tr>
+              <tr><td><code>ptr</code></td><td>Ponteiro de memória crua.</td><td>Systems (@unsafe)</td></tr>
+            </tbody>
+          </table>
+          <p>
+            <strong>Anotação de Tipo:</strong> Use <code>nome: tipo</code> para declarar tipos manualmente.
+          </p>
+          <pre><code>let nome: str = "Snask"
+let idade: float = 25.0
+let raw_data: u8 = as_u8(255)</code></pre>
+        </section>
 
-        <h2>Colecoes tipadas</h2>
-        <pre><code>class main {
-    fun start() {
-        let fruits: list&lt;str&gt; = ["maca", "banana", "uva"]
-        let scores: dict&lt;str, int&gt; = { "alice": 10, "bob": 20 }
+        <section>
+          <h2>Interpolação de Strings</h2>
+          <p>
+            O Snask facilita a exibição de dados com uma sintaxe de interpolação limpa dentro de aspas duplas.
+          </p>
+          <pre><code>let user = "Davi"
+let score = 95
+print("Usuário {user} atingiu a pontuação {score}!\n")</code></pre>
+        </section>
 
-        print(fruits[0])
-        print("\n")
-        print(scores["alice"])
-        print("\n")
-    }
-}</code></pre>
-
-        <h2>Classes nominais simples</h2>
-        <pre><code>class Animal {
-    let age: int = 0
-}
-
-class Dog extends Animal {
-    let name: str = "rex"
-}
-
-fun show_age(animal: Animal) : int {
-    return animal.age
-}
-
-class main {
-    fun start() {
-        let dog: Dog = new Dog()
-        let age: int = show_age(dog)
-        print("Idade: {age}\n")
-    }
-}</code></pre>
-
-        <div class="callout">
-          Classes simples, heranca simples, <code>list&lt;T&gt;</code>, <code>dict&lt;K, V&gt;</code> e funcoes tipadas simples ja
-          tem testes semanticos dedicados. Recursos avancados continuam documentados como parciais.
-        </div>
+        <section>
+          <h2>Próximos Passos</h2>
+          <p>Agora que você domina os dados, vamos aprender como controlar o fluxo do seu programa.</p>
+          <div class="actions">
+            <a class="button primary" href="control-flow.html">Capítulo 3: Controle de Fluxo</a>
+            <a class="button" href="getting-started.html">Voltar para Introdução</a>
+          </div>
+        </section>
       </main>
     </div>
     <script src="../assets/site.js"></script>
