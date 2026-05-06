@@ -8,7 +8,14 @@
       name="description"
       content="Snask: Uma linguagem compilada via LLVM, desenhada para performance de sistemas com ergonomia humana."
     />
-    <link rel="stylesheet" href="assets/site.css" />
+    <meta name="theme-color" content="#0b7a5a">
+    <meta property="og:title" content="Snask Programming Language" />
+    <meta property="og:description" content="Snask: Uma linguagem compilada via LLVM, desenhada para performance de sistemas com ergonomia humana." />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preload" href="assets/site.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="assets/site.css"></noscript>
   </head>
   <body>
     <header class="topbar">
@@ -118,6 +125,6 @@
       </footer>
     </main>
 
-    <script src="assets/site.js"></script>
+    <script src="assets/site.js" defer></script>
   </body>
 </html>
