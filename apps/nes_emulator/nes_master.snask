@@ -23,7 +23,7 @@ fun rom_copy_to_mem(src: ptr, src_start: int, dst: ptr, dst_start: int, len_byte
     return true
 
 fun rom_load_ines(path: str, rom: ptr, bus: ptr, chr: ptr, cart: ptr) : bool
-    let size: int = binfile::size(path)
+    let size: int = binfilesize(path)
     if size < 16
         return false
 

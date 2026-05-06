@@ -47,6 +47,8 @@ Se houver uma extensao Snask local, configure para iniciar:
 target/release/snask-lsp
 ```
 
+Para Neovim, use o plugin oficial local em `editors/neovim/snask.nvim`. Veja `docs/tooling/NEOVIM.md`.
+
 ## Status
 
 `parcial`. Parser errors ja carregam linha/coluna. Alguns erros semanticos ainda podem aparecer com span incompleto e precisam evoluir junto com `docs/reference/HUMANE_DIAGNOSTICS.md`.

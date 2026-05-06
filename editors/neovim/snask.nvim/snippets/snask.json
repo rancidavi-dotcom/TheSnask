@@ -1,0 +1,79 @@
+{
+  "main class": {
+    "prefix": "main",
+    "body": [
+      "class main {",
+      "    fun start() {",
+      "        ${1:print(\"Ola, Snask!\\\\n\")}",
+      "    }",
+      "}"
+    ],
+    "description": "Classe main com start"
+  },
+  "function": {
+    "prefix": "fun",
+    "body": [
+      "fun ${1:name}(${2}) {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Funcao Snask"
+  },
+  "class": {
+    "prefix": "class",
+    "body": [
+      "class ${1:Name} {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Classe Snask"
+  },
+  "if else": {
+    "prefix": "if",
+    "body": [
+      "if ${1:condition} {",
+      "    ${2}",
+      "} else {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Condicional if/else"
+  },
+  "for in": {
+    "prefix": "for",
+    "body": [
+      "for ${1:item} in ${2:items} {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Loop for/in"
+  },
+  "unsafe block": {
+    "prefix": "unsafe",
+    "body": [
+      "@unsafe {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Bloco unsafe para memoria manual"
+  },
+  "zone": {
+    "prefix": "zone",
+    "body": [
+      "zone ${1:name} {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Zona OM"
+  },
+  "import module": {
+    "prefix": "import",
+    "body": "import \"${1:module}\"",
+    "description": "Importa modulo Snask"
+  },
+  "import C OM": {
+    "prefix": "import_c_om",
+    "body": "import_c_om \"${1:header.h}\" as ${2:library}",
+    "description": "Importa header C pelo OM-Snask-System"
+  }
+}

@@ -24,6 +24,7 @@ Esta pasta concentra todos os documentos Markdown do projeto. O unico Markdown m
 - `tooling/SPS.md`: Snask Project System.
 - `tooling/PROJECT_SNIF.md`: manifesto `snask.snif`.
 - `tooling/LSP.md`: servidor LSP.
+- `tooling/NEOVIM.md`: extensao Neovim do Snask.
 - `tooling/REPRODUCIBILITY.md`: reproducibilidade dos benchmarks.
 - `tooling/CHANGELOG_COMPILER_V1.md`: changelog do compilador.
 - `tooling/COMPARISON_2025-07_vs_2026-02.md`: comparacao historica.
