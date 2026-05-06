@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Referencia da linguagem Snask</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Referencia</h2>
+        <a href="language.html">Linguagem</a>
+        <a href="types.html">Tipos</a>
+        <a href="runtime.html">Runtime e builtins</a>
+        <a href="functions/index.html">Funcoes</a>
+        <a href="testing.html">Testes da doc</a>
+        <a href="diagnostics.html">Diagnosticos</a>
+        <a href="status.html">Status real</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Referencia</p>
+        <h1>Linguagem Snask</h1>
+        <p class="lead">
+          Esta pagina resume a superficie atual. Para detalhes extensos, veja os Markdown originais
+          em `docs/reference/`.
+        </p>
+
+        <h2>Arquivo executavel</h2>
+        <p>Um executavel usa `class main` e o metodo `start` como entrada recomendada.</p>
+        <pre><code>class main {
+    fun start() {
+        print("ok\n")
+    }
+}</code></pre>
+
+        <h2>Blocos</h2>
+        <p>Snask aceita blocos por indentacao e por chaves.</p>
+        <pre><code>if ready {
+    print("ready\n")
+}</code></pre>
+        <pre><code>if ready
+    print("ready\n")</code></pre>
+
+        <h2>Declaracoes</h2>
+        <table>
+          <thead><tr><th>Forma</th><th>Significado</th></tr></thead>
+          <tbody>
+            <tr><td><code>let</code></td><td>Variavel imutavel.</td></tr>
+            <tr><td><code>mut</code></td><td>Variavel mutavel.</td></tr>
+            <tr><td><code>const</code></td><td>Constante de modulo.</td></tr>
+            <tr><td><code>fun</code></td><td>Funcao.</td></tr>
+            <tr><td><code>class</code></td><td>Classe nominal.</td></tr>
+          </tbody>
+        </table>
+
+        <h2>Operadores</h2>
+        <p>
+          Aritmetica comum, comparacoes, operadores logicos, bitwise e shifts existem. Semantica de
+          igualdade/comparacao mista ainda esta em consolidacao.
+        </p>
+        <pre><code>let a = 10 + 2
+let b = a & 0xFF
+let ok = a >= b and b != 0</code></pre>
+
+        <h2>Modulos</h2>
+        <pre><code>import "sfs"
+from utils import math_helpers</code></pre>
+        <p>
+          Imports simples sao estaveis para arquivos e modulos nativos. `from ... import ...` ainda
+          e mais simples e deve amadurecer.
+        </p>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

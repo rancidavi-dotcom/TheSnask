@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tipos Snask</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Referencia</h2>
+        <a href="language.html">Linguagem</a>
+        <a href="types.html">Tipos</a>
+        <a href="runtime.html">Runtime e builtins</a>
+        <a href="functions/index.html">Funcoes</a>
+        <a href="testing.html">Testes da doc</a>
+        <a href="diagnostics.html">Diagnosticos</a>
+        <a href="status.html">Status real</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Type system</p>
+        <h1>Tipos</h1>
+        <p class="lead">
+          O type system da Snask esta ficando mais forte. O nucleo estavel hoje inclui primitivos,
+          colecoes genericas simples e tipos nominais simples.
+        </p>
+
+        <h2>Primitivos</h2>
+        <table>
+          <thead><tr><th>Tipo</th><th>Uso</th></tr></thead>
+          <tbody>
+            <tr><td><code>int</code></td><td>Inteiro geral.</td></tr>
+            <tr><td><code>float</code></td><td>Numero de ponto flutuante.</td></tr>
+            <tr><td><code>str</code></td><td>String.</td></tr>
+            <tr><td><code>bool</code></td><td><code>true</code> ou <code>false</code>.</td></tr>
+          </tbody>
+        </table>
+
+        <h2>Colecoes</h2>
+        <pre><code>let names: list&lt;str&gt; = ["ana", "bia"]
+let scores: dict&lt;str, int&gt; = { "ana": 10 }</code></pre>
+
+        <h2>Nominais</h2>
+        <pre><code>class Animal {
+    let age: int = 0
+}
+
+class Dog extends Animal {
+    let name: str = "rex"
+}
+
+let dog: Dog = new Dog()
+let animal: Animal = dog</code></pre>
+
+        <h2>Systems</h2>
+        <p>
+          `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64`, `usize`, `isize` e `ptr`
+          existem para baixo nivel. Eles ja sao usados por primitivas systems/NES, mas ainda
+          precisam fechamento completo de layout/ABI.
+        </p>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

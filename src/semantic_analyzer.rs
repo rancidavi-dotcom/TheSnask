@@ -1239,6 +1239,31 @@ impl SemanticAnalyzer {
         self.class_member_type_inner(class_name, member, &mut Vec::new())
     }
 
+    fn is_subclass_of(&self, child: &str, parent: &str) -> bool {
+        if child == parent {
+            return true;
+        }
+
+        let mut current = child;
+        let mut visited = Vec::new();
+        while let Some(class) = self.classes.get(current) {
+            if visited.iter().any(|seen| seen == current) {
+                return false;
+            }
+            visited.push(current.to_string());
+
+            let Some(next_parent) = class.parent.as_deref() else {
+                return false;
+            };
+            if next_parent == parent {
+                return true;
+            }
+            current = next_parent;
+        }
+
+        false
+    }
+
     fn class_member_type_inner(
         &mut self,
         class_name: &str,
@@ -2030,7 +2055,7 @@ impl SemanticAnalyzer {
             return true;
         }
         if let (Type::User(expected_name), Type::User(found_name)) = (expected, found) {
-            return expected_name == found_name;
+            return self.is_subclass_of(found_name, expected_name);
         }
         if matches!(expected, Type::List) && matches!(found, Type::ListOf(_)) {
             return true;
@@ -2693,6 +2718,61 @@ class main
                 .iter()
                 .any(|e| matches!(e.kind, SemanticErrorKind::TypeMismatch { .. })),
             "expected type mismatch on inherited property assignment, got: {:?}",
+            analyzer.errors
+        );
+    }
+
+    #[test]
+    fn subclass_value_is_compatible_with_parent_annotation() {
+        let analyzer = analyze_source(
+            r#"
+class Animal
+    let age: int = 0
+
+class Dog extends Animal
+    let name: str = "rex"
+
+fun adopt(animal: Animal) : int
+    return animal.age
+
+class main
+    fun start()
+        let d: Dog = new Dog()
+        let a: Animal = d
+        let age: int = adopt(d)
+"#,
+        );
+
+        assert!(
+            analyzer.errors.is_empty(),
+            "expected subclass values to be accepted where parent is expected, got: {:?}",
+            analyzer.errors
+        );
+    }
+
+    #[test]
+    fn parent_value_is_not_compatible_with_child_annotation() {
+        let analyzer = analyze_source(
+            r#"
+class Animal
+    let age: int = 0
+
+class Dog extends Animal
+    let name: str = "rex"
+
+class main
+    fun start()
+        let a: Animal = new Animal()
+        let d: Dog = a
+"#,
+        );
+
+        assert!(
+            analyzer
+                .errors
+                .iter()
+                .any(|e| matches!(e.kind, SemanticErrorKind::TypeMismatch { .. })),
+            "expected parent-to-child assignment to be rejected, got: {:?}",
             analyzer.errors
         );
     }

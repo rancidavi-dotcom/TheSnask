@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>print - Snask Docs</title>
+    <link rel="stylesheet" href="../../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../../index.html">Inicio</a>
+        <a href="../../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="../language.html">Referencia</a>
+        <a href="../../systems/om.html">OM</a>
+        <a href="../../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Funcoes</h2>
+        <a href="index.html">Indice de funcoes</a>
+        <a href="../language.html">Linguagem</a>
+        <a href="../types.html">Tipos</a>
+        <a href="../runtime.html">Runtime e builtins</a>
+        <a href="../diagnostics.html">Diagnosticos</a>
+      </aside>
+      <main class="content doc-page">
+        <p class="eyebrow">io</p>
+        <h1>print</h1>
+        <p class="lead">Escreve um valor na saida padrao sem adicionar quebra de linha automaticamente.</p>
+        <p>
+          <span class="status ">estavel</span>
+          <span class="meta-pill">perfil: humane</span>
+          <span class="meta-pill">seguranca: segura</span>
+        </p>
+        <h2>Assinatura</h2>
+        <pre><code>print(value: any) -&gt; void</code></pre>
+        <h2>Parametros</h2>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor a imprimir. Strings, numeros, booleanos e nil tem formatacao direta.</td></tr></tbody></table>
+        <h2>Retorno</h2>
+        <p>Nada.</p>
+        <h2>Exemplo</h2>
+        <pre><code>class main {
+    fun start() {
+        print(&quot;Ola, Snask!\n&quot;)
+    }
+}</code></pre>
+        <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/io_hello.snask</code></p><pre><code>snask build docs/examples/reference/io_hello.snask --output /tmp/snask-doc-print</code></pre>
+        <h2>Notas</h2>
+        <p>
+          Esta pagina e gerada a partir de <code>scripts/generate_docs_reference.py</code>.
+          Se a assinatura mudar no compilador, atualize a fonte de dados e regenere a referencia.
+        </p>
+      </main>
+    </div>
+    <script src="../../assets/site.js"></script>
+  </body>
+</html>

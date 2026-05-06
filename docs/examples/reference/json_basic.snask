@@ -1,0 +1,11 @@
+import "json"
+
+class main {
+    fun start() {
+        let obj = json::parse("{\"name\":\"snask\",\"version\":4}")
+        let name = json::get(obj, "name")
+        let text = json::stringify(obj)
+
+        print("json ok\n")
+    }
+}

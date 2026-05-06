@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Diagnosticos Snask</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Referencia</h2>
+        <a href="language.html">Linguagem</a>
+        <a href="types.html">Tipos</a>
+        <a href="runtime.html">Runtime e builtins</a>
+        <a href="functions/index.html">Funcoes</a>
+        <a href="testing.html">Testes da doc</a>
+        <a href="diagnostics.html">Diagnosticos</a>
+        <a href="status.html">Status real</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Humane Diagnostics</p>
+        <h1>Diagnosticos</h1>
+        <p class="lead">
+          A Snask quer que erro seja parte da experiencia de aprendizado, nao uma parede de texto.
+        </p>
+
+        <h2>Formato</h2>
+        <pre><code>error[S1002]: missing closing `)`
+ --&gt; hello.snask:3:22
+  |
+3 |         print("Hello"
+  |                      ^ expected `)` here
+note: unclosed '(' opened at 3:14
+help: You probably missed a closing ')'.</code></pre>
+
+        <h2>Faixas</h2>
+        <table>
+          <thead><tr><th>Faixa</th><th>Area</th></tr></thead>
+          <tbody>
+            <tr><td><code>S1000-S1999</code></td><td>Parser e sintaxe.</td></tr>
+            <tr><td><code>S2000-S2999</code></td><td>Semantica e tipos.</td></tr>
+            <tr><td><code>S8000-S8999</code></td><td>Perfis e restricoes de runtime.</td></tr>
+            <tr><td><code>S9000-S9999</code></td><td>Toolchain, build e politicas.</td></tr>
+          </tbody>
+        </table>
+
+        <h2>Explain</h2>
+        <pre><code>snask explain S1002
+snask explain S2002</code></pre>
+
+        <div class="callout">
+          Parser diagnostics ja tem base estavel. Diagnosticos semanticos existem, mas ainda estao
+          amadurecendo sugestoes contextuais e cobertura de OM/linker.
+        </div>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

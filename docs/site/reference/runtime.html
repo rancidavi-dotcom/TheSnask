@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Runtime e Builtins Snask</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Referencia</h2>
+        <a href="language.html">Linguagem</a>
+        <a href="types.html">Tipos</a>
+        <a href="runtime.html">Runtime e builtins</a>
+        <a href="functions/index.html">Funcoes</a>
+        <a href="testing.html">Testes da doc</a>
+        <a href="diagnostics.html">Diagnosticos</a>
+        <a href="status.html">Status real</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Referencia</p>
+        <h1>Runtime e builtins</h1>
+        <p class="lead">
+          Builtins sao funcoes fornecidas pelo compilador/runtime. Algumas existem em `humane`,
+          outras so fazem sentido no perfil `systems` e algumas exigem `@unsafe`.
+        </p>
+
+        <div class="actions">
+          <a class="button primary" href="functions/index.html">Abrir indice completo de funcoes</a>
+        </div>
+
+        <h2>IO basico</h2>
+        <table>
+          <thead><tr><th>Funcao</th><th>Perfil</th><th>Observacao</th></tr></thead>
+          <tbody>
+            <tr><td><a href="functions/print.html"><code>print(value)</code></a></td><td><code>humane</code></td><td>Saida padrao do runtime.</td></tr>
+            <tr><td><a href="functions/println.html"><code>println()</code></a></td><td><code>humane</code></td><td>Quando disponivel, imprime com quebra de linha.</td></tr>
+          </tbody>
+        </table>
+
+        <h2>Inteiros e bits</h2>
+        <table>
+          <thead><tr><th>Grupo</th><th>Funcoes</th></tr></thead>
+          <tbody>
+            <tr><td>Conversao</td><td><code>as_u8</code>, <code>as_u16</code>, <code>as_u32</code>, <code>as_i8</code>, <code>as_i16</code>, <code>as_usize</code></td></tr>
+            <tr><td>Partes</td><td><code>lo_u8</code>, <code>hi_u8</code>, <code>make_u16</code></td></tr>
+            <tr><td>Flags</td><td><code>bit_test</code>, <code>bit_set</code>, <code>bit_clear</code>, <code>flag_write</code></td></tr>
+            <tr><td>CPU</td><td><code>carry_add_u8</code>, <code>borrow_sub_u8</code>, <code>overflow_add_i8</code>, <code>overflow_sub_i8</code></td></tr>
+          </tbody>
+        </table>
+
+        <p>
+          Cada funcao acima tem pagina propria na <a href="functions/index.html">referencia de
+          funcoes</a>, com assinatura, status, exemplo e comando de teste quando existe exemplo
+          versionado.
+        </p>
+
+        <h2>Memoria crua</h2>
+        <p>
+          Funcoes de memoria crua sao para systems programming. Elas ficam protegidas por
+          `@unsafe` porque podem invalidar garantias comuns de memoria.
+        </p>
+        <table>
+          <thead><tr><th>Funcao</th><th>Uso</th></tr></thead>
+          <tbody>
+            <tr><td><code>mem_alloc(size)</code></td><td>Aloca bloco cru.</td></tr>
+            <tr><td><code>mem_alloc_zero(size)</code></td><td>Aloca bloco cru zerado.</td></tr>
+            <tr><td><code>mem_free(ptr)</code></td><td>Libera bloco alocado manualmente.</td></tr>
+            <tr><td><code>mem_read_u8(ptr, offset)</code></td><td>Le byte em offset.</td></tr>
+            <tr><td><code>mem_write_u8(ptr, offset, value)</code></td><td>Escreve byte em offset.</td></tr>
+            <tr><td><code>mem_read_u16(ptr, offset)</code></td><td>Le word little-endian.</td></tr>
+            <tr><td><code>mem_write_u16(ptr, offset, value)</code></td><td>Escreve word little-endian.</td></tr>
+          </tbody>
+        </table>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

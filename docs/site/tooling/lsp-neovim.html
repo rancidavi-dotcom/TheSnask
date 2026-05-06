@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LSP e Neovim</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a href="../reference/language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a aria-current="page" href="installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Tooling</h2>
+        <a href="installation.html">Instalacao</a>
+        <a href="cli.html">CLI</a>
+        <a href="sps.html">SPS e SNIF</a>
+        <a href="lsp-neovim.html">LSP e Neovim</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Editor</p>
+        <h1>LSP e Neovim</h1>
+        <p class="lead">
+          Snask ja tem servidor LSP parcial e plugin Neovim local com syntax, indent, comandos e
+          healthcheck.
+        </p>
+
+        <h2>Build do LSP</h2>
+        <pre><code>cargo build --release --bin snask-lsp
+mkdir -p ~/.snask/bin
+cp target/release/snask-lsp ~/.snask/bin/snask-lsp</code></pre>
+
+        <h2>Plugin Neovim local</h2>
+        <pre><code>mkdir -p ~/.local/share/nvim/site/pack/snask/start
+ln -s /home/davidev/Desktop/TheSnask/editors/neovim/snask.nvim \
+  ~/.local/share/nvim/site/pack/snask/start/snask.nvim</code></pre>
+
+        <h2>Comandos</h2>
+        <pre><code>:SnaskBuild
+:SnaskRun
+:SnaskDoctor
+:SnaskExplain S1002
+:SnaskOmScan sqlite3.h --lib sqlite3
+:checkhealth snask</code></pre>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

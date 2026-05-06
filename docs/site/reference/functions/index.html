@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Indice de funcoes - Snask Docs</title>
+    <link rel="stylesheet" href="../../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../../index.html">Inicio</a>
+        <a href="../../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="../language.html">Referencia</a>
+        <a href="../../systems/om.html">OM</a>
+        <a href="../../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Referencia</h2>
+        <a href="index.html">Indice de funcoes</a>
+        <a href="../language.html">Linguagem</a>
+        <a href="../types.html">Tipos</a>
+        <a href="../runtime.html">Runtime e builtins</a>
+        <a href="../diagnostics.html">Diagnosticos</a>
+        <a href="../status.html">Status real</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Biblioteca padrao</p>
+        <h1>Indice de funcoes</h1>
+        <p class="lead">Referencia individual de 150 funcoes e builtins da Snask, com assinatura, status, seguranca, exemplos e comandos de teste quando ha exemplo versionado.</p>
+        <div class="callout"><strong>Fonte de verdade:</strong> a lista acompanha os builtins registrados pelo analisador semantico e as superficies chamadas pelo runtime LLVM atual. Exemplos com arquivo versionado sao validados por <code>scripts/check_doc_examples.sh</code>.</div>
+        <h2>Collections</h2><div class="grid"><a class="card function-card" href="flatten.html"><h3>flatten</h3><p><code>flatten(values: list) -&gt; list</code></p><p>Achata uma lista de listas.</p></a>
+<a class="card function-card" href="range.html"><h3>range</h3><p><code>range(end: float) -&gt; list</code></p><p>Cria uma lista numerica de 0 ate `end - 1`.</p></a>
+<a class="card function-card" href="reverse.html"><h3>reverse</h3><p><code>reverse(values: list) -&gt; list</code></p><p>Inverte a ordem de uma lista.</p></a>
+<a class="card function-card" href="sort.html"><h3>sort</h3><p><code>sort(values: list) -&gt; list</code></p><p>Ordena uma lista.</p></a>
+<a class="card function-card" href="unique.html"><h3>unique</h3><p><code>unique(values: list) -&gt; list</code></p><p>Remove duplicatas de uma lista.</p></a></div>
+<h2>Conversion</h2><div class="grid"><a class="card function-card" href="calc-eval.html"><h3>calc_eval</h3><p><code>calc_eval(expr: str) -&gt; float</code></p><p>Avalia expressao numerica simples pelo runtime.</p></a>
+<a class="card function-card" href="num-to-str.html"><h3>num_to_str</h3><p><code>num_to_str(value: float) -&gt; str</code></p><p>Converte numero para string.</p></a>
+<a class="card function-card" href="str-to-num.html"><h3>str_to_num</h3><p><code>str_to_num(text: str) -&gt; float</code></p><p>Converte string numerica para numero.</p></a></div>
+<h2>Core</h2><div class="grid"><a class="card function-card" href="len.html"><h3>len</h3><p><code>len(value: any) -&gt; float</code></p><p>Retorna o tamanho de uma string, lista, objeto dinamico ou recurso suportado.</p></a></div>
+<h2>Filesystem</h2><div class="grid"><a class="card function-card" href="append-file.html"><h3>append_file</h3><p><code>append_file(path: str, content: str) -&gt; void</code></p><p>Acrescenta texto ao fim de um arquivo.</p></a>
+<a class="card function-card" href="create-dir.html"><h3>create_dir</h3><p><code>create_dir(path: str) -&gt; void</code></p><p>Cria diretorio.</p></a>
+<a class="card function-card" href="delete.html"><h3>delete</h3><p><code>delete(path: str) -&gt; void</code></p><p>Remove arquivo.</p></a>
+<a class="card function-card" href="exists.html"><h3>exists</h3><p><code>exists(path: str) -&gt; bool</code></p><p>Testa existencia de arquivo ou diretorio.</p></a>
+<a class="card function-card" href="is-dir.html"><h3>is_dir</h3><p><code>is_dir(path: str) -&gt; bool</code></p><p>Testa se o caminho aponta para diretorio.</p></a>
+<a class="card function-card" href="is-file.html"><h3>is_file</h3><p><code>is_file(path: str) -&gt; bool</code></p><p>Testa se o caminho aponta para arquivo.</p></a>
+<a class="card function-card" href="read-dir.html"><h3>read_dir</h3><p><code>read_dir(path: str) -&gt; list</code></p><p>Lista entradas de um diretorio.</p></a>
+<a class="card function-card" href="read-file.html"><h3>read_file</h3><p><code>read_file(path: str) -&gt; str</code></p><p>Le um arquivo texto inteiro.</p></a>
+<a class="card function-card" href="write-file.html"><h3>write_file</h3><p><code>write_file(path: str, content: str) -&gt; void</code></p><p>Escreve texto em arquivo, substituindo conteudo anterior.</p></a></div>
+<h2>Gui</h2><div class="grid"><a class="card function-card" href="gui-add.html"><h3>gui_add</h3><p><code>gui_add(parent: any, child: any) -&gt; bool</code></p><p>Adiciona widget a container.</p></a>
+<a class="card function-card" href="gui-button.html"><h3>gui_button</h3><p><code>gui_button(text: str) -&gt; any</code></p><p>Cria botao.</p></a>
+<a class="card function-card" href="gui-entry.html"><h3>gui_entry</h3><p><code>gui_entry() -&gt; any</code></p><p>Cria input de texto.</p></a>
+<a class="card function-card" href="gui-get-text.html"><h3>gui_get_text</h3><p><code>gui_get_text(widget: any) -&gt; str</code></p><p>Le texto de widget suportado.</p></a>
+<a class="card function-card" href="gui-hbox.html"><h3>gui_hbox</h3><p><code>gui_hbox() -&gt; any</code></p><p>Cria container horizontal.</p></a>
+<a class="card function-card" href="gui-init.html"><h3>gui_init</h3><p><code>gui_init() -&gt; bool</code></p><p>Inicializa runtime GTK.</p></a>
+<a class="card function-card" href="gui-label.html"><h3>gui_label</h3><p><code>gui_label(text: str) -&gt; any</code></p><p>Cria label.</p></a>
+<a class="card function-card" href="gui-on-click.html"><h3>gui_on_click</h3><p><code>gui_on_click(widget: any, handler: any) -&gt; bool</code></p><p>Conecta handler de clique.</p></a>
+<a class="card function-card" href="gui-quit.html"><h3>gui_quit</h3><p><code>gui_quit() -&gt; void</code></p><p>Sai do loop principal da GUI.</p></a>
+<a class="card function-card" href="gui-run.html"><h3>gui_run</h3><p><code>gui_run() -&gt; void</code></p><p>Entra no loop principal da GUI.</p></a>
+<a class="card function-card" href="gui-set-child.html"><h3>gui_set_child</h3><p><code>gui_set_child(parent: any, child: any) -&gt; bool</code></p><p>Define filho unico de container.</p></a>
+<a class="card function-card" href="gui-set-text.html"><h3>gui_set_text</h3><p><code>gui_set_text(widget: any, text: str) -&gt; bool</code></p><p>Define texto de widget suportado.</p></a>
+<a class="card function-card" href="gui-show-all.html"><h3>gui_show_all</h3><p><code>gui_show_all(widget: any) -&gt; bool</code></p><p>Mostra widget e descendentes.</p></a>
+<a class="card function-card" href="gui-textview.html"><h3>gui_textview</h3><p><code>gui_textview() -&gt; any</code></p><p>Cria area de texto.</p></a>
+<a class="card function-card" href="gui-vbox.html"><h3>gui_vbox</h3><p><code>gui_vbox() -&gt; any</code></p><p>Cria container vertical.</p></a>
+<a class="card function-card" href="gui-window.html"><h3>gui_window</h3><p><code>gui_window(title: str, width: float, height: float) -&gt; any</code></p><p>Cria janela nativa.</p></a></div>
+<h2>Io</h2><div class="grid"><a class="card function-card" href="print.html"><h3>print</h3><p><code>print(value: any) -&gt; void</code></p><p>Escreve um valor na saida padrao sem adicionar quebra de linha automaticamente.</p></a>
+<a class="card function-card" href="println.html"><h3>println</h3><p><code>println() -&gt; void</code></p><p>Emite uma quebra de linha pelo runtime. Algumas superficies antigas usam `print(&quot;\n&quot;)`.</p></a></div>
+<h2>Json</h2><div class="grid"><a class="card function-card" href="json-get.html"><h3>json_get</h3><p><code>json_get(value: any, key: str) -&gt; any</code></p><p>Le campo de objeto JSON.</p></a>
+<a class="card function-card" href="json-has.html"><h3>json_has</h3><p><code>json_has(value: any, key: str) -&gt; bool</code></p><p>Testa existencia de campo JSON.</p></a>
+<a class="card function-card" href="json-index.html"><h3>json_index</h3><p><code>json_index(value: any, index: float) -&gt; any</code></p><p>Le item de array JSON.</p></a>
+<a class="card function-card" href="json-keys.html"><h3>json_keys</h3><p><code>json_keys(value: any) -&gt; any</code></p><p>Retorna chaves de objeto JSON.</p></a>
+<a class="card function-card" href="json-len.html"><h3>json_len</h3><p><code>json_len(value: any) -&gt; float</code></p><p>Retorna tamanho de array/objeto JSON.</p></a>
+<a class="card function-card" href="json-parse.html"><h3>json_parse</h3><p><code>json_parse(text: str) -&gt; any</code></p><p>Converte texto JSON em valor dinamico.</p></a>
+<a class="card function-card" href="json-parse-ex.html"><h3>json_parse_ex</h3><p><code>json_parse_ex(text: str) -&gt; any</code></p><p>Parse JSON com superficie extendida do runtime.</p></a>
+<a class="card function-card" href="json-set.html"><h3>json_set</h3><p><code>json_set(value: any, key: str, item: any) -&gt; bool</code></p><p>Define campo JSON.</p></a>
+<a class="card function-card" href="json-stringify.html"><h3>json_stringify</h3><p><code>json_stringify(value: any) -&gt; str</code></p><p>Serializa valor dinamico para JSON compacto.</p></a>
+<a class="card function-card" href="json-stringify-pretty.html"><h3>json_stringify_pretty</h3><p><code>json_stringify_pretty(value: any) -&gt; str</code></p><p>Serializa valor dinamico para JSON formatado.</p></a></div>
+<h2>Math</h2><div class="grid"><a class="card function-card" href="abs.html"><h3>abs</h3><p><code>abs(x: float) -&gt; float</code></p><p>Retorna o valor absoluto de um numero.</p></a>
+<a class="card function-card" href="ceil.html"><h3>ceil</h3><p><code>ceil(x: float) -&gt; float</code></p><p>Arredonda para cima.</p></a>
+<a class="card function-card" href="cos.html"><h3>cos</h3><p><code>cos(x: float) -&gt; float</code></p><p>Cosseno de `x` em radianos.</p></a>
+<a class="card function-card" href="floor.html"><h3>floor</h3><p><code>floor(x: float) -&gt; float</code></p><p>Arredonda para baixo.</p></a>
+<a class="card function-card" href="max.html"><h3>max</h3><p><code>max(...values: any) -&gt; any</code></p><p>Retorna o maior valor entre os argumentos.</p></a>
+<a class="card function-card" href="min.html"><h3>min</h3><p><code>min(...values: any) -&gt; any</code></p><p>Retorna o menor valor entre os argumentos.</p></a>
+<a class="card function-card" href="pow.html"><h3>pow</h3><p><code>pow(base: float, exp: float) -&gt; float</code></p><p>Eleva `base` a potencia `exp`.</p></a>
+<a class="card function-card" href="round.html"><h3>round</h3><p><code>round(x: float) -&gt; float</code></p><p>Arredonda para o inteiro mais proximo.</p></a>
+<a class="card function-card" href="sin.html"><h3>sin</h3><p><code>sin(x: float) -&gt; float</code></p><p>Seno de `x` em radianos.</p></a>
+<a class="card function-card" href="sqrt.html"><h3>sqrt</h3><p><code>sqrt(x: float) -&gt; float</code></p><p>Calcula raiz quadrada.</p></a></div>
+<h2>Memory</h2><div class="grid"><a class="card function-card" href="mem-alloc.html"><h3>mem_alloc</h3><p><code>mem_alloc(size: any) -&gt; ptr</code></p><p>Aloca memoria crua sem zerar.</p></a>
+<a class="card function-card" href="mem-alloc-zero.html"><h3>mem_alloc_zero</h3><p><code>mem_alloc_zero(size: any) -&gt; ptr</code></p><p>Aloca memoria crua zerada.</p></a>
+<a class="card function-card" href="mem-copy.html"><h3>mem_copy</h3><p><code>mem_copy(dst: ptr, src: ptr, size: any) -&gt; void</code></p><p>Copia bytes entre blocos.</p></a>
+<a class="card function-card" href="mem-fill-u8.html"><h3>mem_fill_u8</h3><p><code>mem_fill_u8(ptr: ptr, value: any, size: any) -&gt; void</code></p><p>Preenche bloco com byte.</p></a>
+<a class="card function-card" href="mem-free.html"><h3>mem_free</h3><p><code>mem_free(ptr: ptr) -&gt; void</code></p><p>Libera bloco alocado manualmente.</p></a>
+<a class="card function-card" href="mem-read-u16.html"><h3>mem_read_u16</h3><p><code>mem_read_u16(ptr: ptr, offset: any) -&gt; u16</code></p><p>Le word little-endian em offset.</p></a>
+<a class="card function-card" href="mem-read-u32.html"><h3>mem_read_u32</h3><p><code>mem_read_u32(ptr: ptr, offset: any) -&gt; u32</code></p><p>Le dword little-endian em offset.</p></a>
+<a class="card function-card" href="mem-read-u8.html"><h3>mem_read_u8</h3><p><code>mem_read_u8(ptr: ptr, offset: any) -&gt; u8</code></p><p>Le byte em offset.</p></a>
+<a class="card function-card" href="mem-write-u16.html"><h3>mem_write_u16</h3><p><code>mem_write_u16(ptr: ptr, offset: any, value: any) -&gt; void</code></p><p>Escreve word little-endian em offset.</p></a>
+<a class="card function-card" href="mem-write-u32.html"><h3>mem_write_u32</h3><p><code>mem_write_u32(ptr: ptr, offset: any, value: any) -&gt; void</code></p><p>Escreve dword little-endian em offset.</p></a>
+<a class="card function-card" href="mem-write-u8.html"><h3>mem_write_u8</h3><p><code>mem_write_u8(ptr: ptr, offset: any, value: any) -&gt; void</code></p><p>Escreve byte em offset.</p></a>
+<a class="card function-card" href="ptr-add.html"><h3>ptr_add</h3><p><code>ptr_add(ptr: ptr, offset: any) -&gt; ptr</code></p><p>Retorna ponteiro deslocado por bytes.</p></a></div>
+<h2>Network</h2><div class="grid"><a class="card function-card" href="http-get.html"><h3>http_get</h3><p><code>http_get(url: str) -&gt; dict</code></p><p>Executa requisicao HTTP GET pelo runtime.</p></a>
+<a class="card function-card" href="http-post.html"><h3>http_post</h3><p><code>http_post(url: str, body: str) -&gt; void</code></p><p>Executa requisicao HTTP POST pelo runtime.</p></a></div>
+<h2>Os</h2><div class="grid"><a class="card function-card" href="arch.html"><h3>arch</h3><p><code>arch() -&gt; str</code></p><p>Retorna arquitetura da maquina.</p></a>
+<a class="card function-card" href="args.html"><h3>args</h3><p><code>args() -&gt; list</code></p><p>Retorna argumentos da linha de comando.</p></a>
+<a class="card function-card" href="cwd.html"><h3>cwd</h3><p><code>cwd() -&gt; str</code></p><p>Retorna diretorio atual.</p></a>
+<a class="card function-card" href="env.html"><h3>env</h3><p><code>env(name: str) -&gt; str</code></p><p>Le variavel de ambiente.</p></a>
+<a class="card function-card" href="exit.html"><h3>exit</h3><p><code>exit(code: float) -&gt; void</code></p><p>Encerra o processo com codigo de saida.</p></a>
+<a class="card function-card" href="platform.html"><h3>platform</h3><p><code>platform() -&gt; str</code></p><p>Retorna nome do sistema operacional.</p></a>
+<a class="card function-card" href="set-env.html"><h3>set_env</h3><p><code>set_env(name: str, value: str) -&gt; void</code></p><p>Define variavel de ambiente no processo atual.</p></a>
+<a class="card function-card" href="sleep.html"><h3>sleep</h3><p><code>sleep(seconds: float) -&gt; void</code></p><p>Pausa a execucao por alguns segundos.</p></a>
+<a class="card function-card" href="time.html"><h3>time</h3><p><code>time() -&gt; float</code></p><p>Retorna tempo atual do runtime.</p></a></div>
+<h2>Sfs</h2><div class="grid"><a class="card function-card" href="sfs-append.html"><h3>sfs_append</h3><p><code>sfs_append(path: str, content: str) -&gt; bool</code></p><p>Acrescenta texto em arquivo SFS.</p></a>
+<a class="card function-card" href="sfs-copy.html"><h3>sfs_copy</h3><p><code>sfs_copy(src: str, dst: str) -&gt; bool</code></p><p>Copia arquivo pelo SFS.</p></a>
+<a class="card function-card" href="sfs-delete.html"><h3>sfs_delete</h3><p><code>sfs_delete(path: str) -&gt; bool</code></p><p>Remove arquivo pelo SFS.</p></a>
+<a class="card function-card" href="sfs-exists.html"><h3>sfs_exists</h3><p><code>sfs_exists(path: str) -&gt; bool</code></p><p>Testa existencia pelo SFS.</p></a>
+<a class="card function-card" href="sfs-is-dir.html"><h3>sfs_is_dir</h3><p><code>sfs_is_dir(path: str) -&gt; bool</code></p><p>Testa diretorio pelo SFS.</p></a>
+<a class="card function-card" href="sfs-is-file.html"><h3>sfs_is_file</h3><p><code>sfs_is_file(path: str) -&gt; bool</code></p><p>Testa arquivo pelo SFS.</p></a>
+<a class="card function-card" href="sfs-listdir.html"><h3>sfs_listdir</h3><p><code>sfs_listdir(path: str) -&gt; any</code></p><p>Lista diretorio pelo SFS.</p></a>
+<a class="card function-card" href="sfs-mkdir.html"><h3>sfs_mkdir</h3><p><code>sfs_mkdir(path: str) -&gt; bool</code></p><p>Cria diretorio pelo SFS.</p></a>
+<a class="card function-card" href="sfs-move.html"><h3>sfs_move</h3><p><code>sfs_move(src: str, dst: str) -&gt; bool</code></p><p>Move arquivo pelo SFS.</p></a>
+<a class="card function-card" href="sfs-mtime.html"><h3>sfs_mtime</h3><p><code>sfs_mtime(path: str) -&gt; float</code></p><p>Tempo de modificacao.</p></a>
+<a class="card function-card" href="sfs-read.html"><h3>sfs_read</h3><p><code>sfs_read(path: str) -&gt; str</code></p><p>Le arquivo pela biblioteca SFS.</p></a>
+<a class="card function-card" href="sfs-rmdir.html"><h3>sfs_rmdir</h3><p><code>sfs_rmdir(path: str) -&gt; bool</code></p><p>Remove diretorio pelo SFS.</p></a>
+<a class="card function-card" href="sfs-size.html"><h3>sfs_size</h3><p><code>sfs_size(path: str) -&gt; float</code></p><p>Tamanho de arquivo.</p></a>
+<a class="card function-card" href="sfs-write.html"><h3>sfs_write</h3><p><code>sfs_write(path: str, content: str) -&gt; bool</code></p><p>Escreve arquivo pela biblioteca SFS.</p></a></div>
+<h2>Snaskgui</h2><div class="grid"><a class="card function-card" href="snaskgui-close.html"><h3>snaskgui_close</h3><p><code>snaskgui_close(window: any) -&gt; void</code></p><p>Fecha janela framebuffer.</p></a>
+<a class="card function-card" href="snaskgui-delay.html"><h3>snaskgui_delay</h3><p><code>snaskgui_delay(ms: float) -&gt; void</code></p><p>Pausa em milissegundos.</p></a>
+<a class="card function-card" href="snaskgui-init.html"><h3>snaskgui_init</h3><p><code>snaskgui_init() -&gt; bool</code></p><p>Inicializa API framebuffer para jogos/emuladores.</p></a>
+<a class="card function-card" href="snaskgui-key-down.html"><h3>snaskgui_key_down</h3><p><code>snaskgui_key_down(window: any, key: float) -&gt; bool</code></p><p>Consulta estado de tecla.</p></a>
+<a class="card function-card" href="snaskgui-poll.html"><h3>snaskgui_poll</h3><p><code>snaskgui_poll(window: any) -&gt; bool</code></p><p>Processa eventos pendentes.</p></a>
+<a class="card function-card" href="snaskgui-present-rgba.html"><h3>snaskgui_present_rgba</h3><p><code>snaskgui_present_rgba(window: any, pixels: ptr, width: float, height: float) -&gt; bool</code></p><p>Apresenta buffer RGBA.</p></a>
+<a class="card function-card" href="snaskgui-should-close.html"><h3>snaskgui_should_close</h3><p><code>snaskgui_should_close(window: any) -&gt; bool</code></p><p>Testa fechamento da janela.</p></a>
+<a class="card function-card" href="snaskgui-window.html"><h3>snaskgui_window</h3><p><code>snaskgui_window(title: str, width: float, height: float, scale: float) -&gt; any</code></p><p>Cria janela framebuffer.</p></a></div>
+<h2>String</h2><div class="grid"><a class="card function-card" href="chars.html"><h3>chars</h3><p><code>chars(text: str) -&gt; list</code></p><p>Converte string em lista de caracteres.</p></a>
+<a class="card function-card" href="contains.html"><h3>contains</h3><p><code>contains(text: str, needle: str) -&gt; bool</code></p><p>Testa se uma string contem outra.</p></a>
+<a class="card function-card" href="ends-with.html"><h3>ends_with</h3><p><code>ends_with(text: str, suffix: str) -&gt; bool</code></p><p>Testa sufixo de string.</p></a>
+<a class="card function-card" href="format.html"><h3>format</h3><p><code>format(template: str, ...values: any) -&gt; str</code></p><p>Formata string com valores variadicos.</p></a>
+<a class="card function-card" href="join.html"><h3>join</h3><p><code>join(parts: list, sep: str) -&gt; str</code></p><p>Junta lista de strings usando separador.</p></a>
+<a class="card function-card" href="lower.html"><h3>lower</h3><p><code>lower(text: str) -&gt; str</code></p><p>Converte texto para minusculas.</p></a>
+<a class="card function-card" href="replace.html"><h3>replace</h3><p><code>replace(text: str, old: str, new: str) -&gt; str</code></p><p>Substitui ocorrencias de `old` por `new`.</p></a>
+<a class="card function-card" href="split.html"><h3>split</h3><p><code>split(text: str, sep: str) -&gt; list</code></p><p>Divide uma string usando separador.</p></a>
+<a class="card function-card" href="starts-with.html"><h3>starts_with</h3><p><code>starts_with(text: str, prefix: str) -&gt; bool</code></p><p>Testa prefixo de string.</p></a>
+<a class="card function-card" href="substring.html"><h3>substring</h3><p><code>substring(text: str, start: float, length: float) -&gt; str</code></p><p>Extrai parte de uma string por indice inicial e tamanho.</p></a>
+<a class="card function-card" href="trim.html"><h3>trim</h3><p><code>trim(text: str) -&gt; str</code></p><p>Remove espacos no inicio e fim da string.</p></a>
+<a class="card function-card" href="upper.html"><h3>upper</h3><p><code>upper(text: str) -&gt; str</code></p><p>Converte texto para maiusculas.</p></a></div>
+<h2>Systems</h2><div class="grid"><a class="card function-card" href="as-i16.html"><h3>as_i16</h3><p><code>as_i16(value: any) -&gt; i16</code></p><p>Converte valor numerico para `i16` com semantica explicita do perfil systems.</p></a>
+<a class="card function-card" href="as-i32.html"><h3>as_i32</h3><p><code>as_i32(value: any) -&gt; i32</code></p><p>Converte valor numerico para `i32` com semantica explicita do perfil systems.</p></a>
+<a class="card function-card" href="as-i64.html"><h3>as_i64</h3><p><code>as_i64(value: any) -&gt; i64</code></p><p>Converte valor numerico para `i64` com semantica explicita do perfil systems.</p></a>
+<a class="card function-card" href="as-i8.html"><h3>as_i8</h3><p><code>as_i8(value: any) -&gt; i8</code></p><p>Converte valor numerico para `i8` com semantica explicita do perfil systems.</p></a>
+<a class="card function-card" href="as-isize.html"><h3>as_isize</h3><p><code>as_isize(value: any) -&gt; isize</code></p><p>Converte valor numerico para `isize` com semantica explicita do perfil systems.</p></a>
+<a class="card function-card" href="as-u16.html"><h3>as_u16</h3><p><code>as_u16(value: any) -&gt; u16</code></p><p>Converte valor numerico para `u16` com semantica explicita do perfil systems.</p></a>
+<a class="card function-card" href="as-u32.html"><h3>as_u32</h3><p><code>as_u32(value: any) -&gt; u32</code></p><p>Converte valor numerico para `u32` com semantica explicita do perfil systems.</p></a>
+<a class="card function-card" href="as-u64.html"><h3>as_u64</h3><p><code>as_u64(value: any) -&gt; u64</code></p><p>Converte valor numerico para `u64` com semantica explicita do perfil systems.</p></a>
+<a class="card function-card" href="as-u8.html"><h3>as_u8</h3><p><code>as_u8(value: any) -&gt; u8</code></p><p>Converte valor numerico para `u8` com semantica explicita do perfil systems.</p></a>
+<a class="card function-card" href="as-usize.html"><h3>as_usize</h3><p><code>as_usize(value: any) -&gt; usize</code></p><p>Converte valor numerico para `usize` com semantica explicita do perfil systems.</p></a>
+<a class="card function-card" href="bit-clear.html"><h3>bit_clear</h3><p><code>bit_clear(value: any, bit: any) -&gt; any</code></p><p>Desliga um bit.</p></a>
+<a class="card function-card" href="bit-set.html"><h3>bit_set</h3><p><code>bit_set(value: any, bit: any) -&gt; any</code></p><p>Liga um bit.</p></a>
+<a class="card function-card" href="bit-test.html"><h3>bit_test</h3><p><code>bit_test(value: any, bit: any) -&gt; bool</code></p><p>Testa se um bit esta ligado.</p></a>
+<a class="card function-card" href="bit-toggle.html"><h3>bit_toggle</h3><p><code>bit_toggle(value: any, bit: any) -&gt; any</code></p><p>Inverte um bit.</p></a>
+<a class="card function-card" href="bit-write.html"><h3>bit_write</h3><p><code>bit_write(value: any, bit: any, enabled: any) -&gt; any</code></p><p>Liga ou desliga bit conforme booleano/valor.</p></a>
+<a class="card function-card" href="borrow-sub-u8.html"><h3>borrow_sub_u8</h3><p><code>borrow_sub_u8(a: any, b: any, carry_or_borrow: any) -&gt; bool</code></p><p>Calcula borrow de subtracao de 8 bits.</p></a>
+<a class="card function-card" href="carry-add-u8.html"><h3>carry_add_u8</h3><p><code>carry_add_u8(a: any, b: any, carry_or_borrow: any) -&gt; bool</code></p><p>Calcula carry de soma de 8 bits, incluindo carry de entrada.</p></a>
+<a class="card function-card" href="flag-clear.html"><h3>flag_clear</h3><p><code>flag_clear(value: any, bit: any) -&gt; any</code></p><p>Alias semantico de `bit_clear` para registradores de flags.</p></a>
+<a class="card function-card" href="flag-has.html"><h3>flag_has</h3><p><code>flag_has(value: any, bit: any) -&gt; bool</code></p><p>Alias semantico de `bit_test` para registradores de flags.</p></a>
+<a class="card function-card" href="flag-set.html"><h3>flag_set</h3><p><code>flag_set(value: any, bit: any) -&gt; any</code></p><p>Alias semantico de `bit_set` para registradores de flags.</p></a>
+<a class="card function-card" href="flag-write.html"><h3>flag_write</h3><p><code>flag_write(value: any, bit: any, enabled: any) -&gt; any</code></p><p>Alias semantico de `bit_write` para flags de CPU.</p></a>
+<a class="card function-card" href="hi-u8.html"><h3>hi_u8</h3><p><code>hi_u8(value: any) -&gt; u8</code></p><p>Extrai o byte alto de uma word.</p></a>
+<a class="card function-card" href="is-negative-u8.html"><h3>is_negative_u8</h3><p><code>is_negative_u8(value: any) -&gt; bool</code></p><p>Testa bit 7 como flag negativa do 6502.</p></a>
+<a class="card function-card" href="is-zero-u8.html"><h3>is_zero_u8</h3><p><code>is_zero_u8(value: any) -&gt; bool</code></p><p>Testa flag zero para valor de 8 bits.</p></a>
+<a class="card function-card" href="lo-u8.html"><h3>lo_u8</h3><p><code>lo_u8(value: any) -&gt; u8</code></p><p>Extrai o byte baixo de uma word.</p></a>
+<a class="card function-card" href="make-u16.html"><h3>make_u16</h3><p><code>make_u16(value: any, bit: any) -&gt; any</code></p><p>Combina byte baixo e alto em word little-endian.</p></a>
+<a class="card function-card" href="overflow-add-i8.html"><h3>overflow_add_i8</h3><p><code>overflow_add_i8(a: any, b: any, carry_or_borrow: any) -&gt; bool</code></p><p>Calcula overflow assinado de soma de 8 bits.</p></a>
+<a class="card function-card" href="overflow-sub-i8.html"><h3>overflow_sub_i8</h3><p><code>overflow_sub_i8(a: any, b: any, carry_or_borrow: any) -&gt; bool</code></p><p>Calcula overflow assinado de subtracao de 8 bits.</p></a>
+<a class="card function-card" href="saturating-add.html"><h3>saturating_add</h3><p><code>saturating_add(a: any, b: any) -&gt; any</code></p><p>Soma saturando no limite do tipo.</p></a>
+<a class="card function-card" href="wrapping-add.html"><h3>wrapping_add</h3><p><code>wrapping_add(a: any, b: any) -&gt; any</code></p><p>Soma com overflow por mascara do tipo, util para CPUs reais.</p></a>
+<a class="card function-card" href="wrapping-dec.html"><h3>wrapping_dec</h3><p><code>wrapping_dec(value: any, bit: any) -&gt; any</code></p><p>Decrementa com wrap.</p></a>
+<a class="card function-card" href="wrapping-inc.html"><h3>wrapping_inc</h3><p><code>wrapping_inc(value: any, bit: any) -&gt; any</code></p><p>Incrementa com wrap.</p></a>
+<a class="card function-card" href="wrapping-mul.html"><h3>wrapping_mul</h3><p><code>wrapping_mul(a: any, b: any) -&gt; any</code></p><p>Multiplica com overflow por mascara do tipo.</p></a>
+<a class="card function-card" href="wrapping-sub.html"><h3>wrapping_sub</h3><p><code>wrapping_sub(a: any, b: any) -&gt; any</code></p><p>Subtrai com overflow por mascara do tipo.</p></a></div>
+<h2>Type</h2><div class="grid"><a class="card function-card" href="is-nil.html"><h3>is_nil</h3><p><code>is_nil(value: any) -&gt; bool</code></p><p>Testa se um valor e nil.</p></a>
+<a class="card function-card" href="is-obj.html"><h3>is_obj</h3><p><code>is_obj(value: any) -&gt; bool</code></p><p>Testa se um valor dinamico e objeto.</p></a>
+<a class="card function-card" href="is-str.html"><h3>is_str</h3><p><code>is_str(value: any) -&gt; bool</code></p><p>Testa se um valor e string.</p></a></div>
+      </main>
+    </div>
+    <script src="../../assets/site.js"></script>
+  </body>
+</html>

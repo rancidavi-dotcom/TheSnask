@@ -1,0 +1,17 @@
+class main {
+    fun start() {
+        let a = as_u8(255)
+        let b = as_u16(0x1234)
+        let lo = lo_u8(b)
+        let hi = hi_u8(b)
+        let pc = make_u16(lo, hi)
+        let status = flag_write(0, 7, true)
+        let has_n = flag_has(status, 7)
+        let wrapped = wrapping_add(255, 1)
+        let borrowed = borrow_sub_u8(0, 1, 0)
+        let carried = carry_add_u8(255, 1, 0)
+        let overflow = overflow_add_i8(127, 1, 0)
+
+        print("systems bits ok\n")
+    }
+}

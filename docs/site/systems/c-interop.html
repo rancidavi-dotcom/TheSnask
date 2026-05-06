@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Interop C via OM</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a href="../reference/language.html">Referencia</a>
+        <a aria-current="page" href="om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Systems</h2>
+        <a href="om.html">OM-Snask-System</a>
+        <a href="systems-profile.html">Perfil systems</a>
+        <a href="low-level.html">Low-level</a>
+        <a href="c-interop.html">Interop C</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">ABI nativa</p>
+        <h1>Interop C via OM</h1>
+        <p class="lead">
+          Bibliotecas C entram como ABI nativa no LLVM. O usuario escreve Snask; o OM tenta deduzir
+          contratos de recursos a partir dos headers.
+        </p>
+
+        <h2>Scanner</h2>
+        <pre><code>snask om scan SDL2/SDL.h --lib sdl2 --output /tmp/sdl2.generated.om.snif</code></pre>
+
+        <h2>Import conceitual</h2>
+        <pre><code>import_c_om "SDL2/SDL.h" as sdl2</code></pre>
+
+        <h2>Modelo</h2>
+        <ol>
+          <li>O scanner le o header com Clang.</li>
+          <li>Heuristicas classificam construtores, destruidores, metodos e funcoes seguras.</li>
+          <li>O contrato final entra no compilador.</li>
+          <li>LLVM emite chamada nativa; recursos opacos podem ser registrados no runtime OM.</li>
+        </ol>
+
+        <h2>Limites atuais</h2>
+        <p>
+          Callbacks, structs complexas por valor, ownership ambiguo e varargs avancado ainda exigem
+          novas regras ou patches `.om.snif`.
+        </p>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

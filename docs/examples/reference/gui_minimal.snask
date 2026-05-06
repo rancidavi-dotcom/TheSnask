@@ -1,0 +1,14 @@
+import "gui"
+
+class main {
+    fun start() {
+        let ok = gui::init()
+        let win = gui::window("Snask Docs", 320, 180)
+        let box = gui::vbox()
+        let label = gui::label("Hello from Snask")
+        gui::add(box, label)
+        gui::set_child(win, box)
+        gui::show_all(win)
+        gui::quit()
+    }
+}

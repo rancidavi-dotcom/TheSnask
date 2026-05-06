@@ -2,6 +2,13 @@
 
 Esta pasta concentra todos os documentos Markdown do projeto. O unico Markdown mantido fora daqui e o `README.md` da raiz.
 
+## Site
+
+- `site/`: site estatico da documentacao oficial, pronto para GitHub Pages.
+- `site/README.md`: guia de manutencao e publicacao do site.
+- `site/reference/functions/`: referencia web individual de funcoes e builtins gerada por `scripts/generate_docs_reference.py`.
+- `../docs/examples/reference/`: exemplos Snask usados pela referencia web.
+
 ## Reference
 
 - `reference/LEARN_SNASK.md`: guia de aprendizado.

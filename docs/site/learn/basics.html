@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Basico da linguagem Snask</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a aria-current="page" href="getting-started.html">Aprender</a>
+        <a href="../reference/language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Aprender</h2>
+        <a href="getting-started.html">Comecando</a>
+        <a href="basics.html">Basico da linguagem</a>
+        <a href="projects.html">Projetos Snask</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Tutorial</p>
+        <h1>Basico da linguagem</h1>
+        <p class="lead">
+          Snask aceita blocos por chaves e tambem por indentacao. Para tutoriais copiaveis, usamos
+          chaves.
+        </p>
+
+        <h2>Variaveis</h2>
+        <pre><code>class main {
+    fun start() {
+        let name = "Davi"
+        mut age = 25
+        age = age + 1
+        print("Nome: {name}\n")
+        print("Idade: {age}\n")
+    }
+}</code></pre>
+
+        <h2>Condicionais e loops</h2>
+        <pre><code>class main {
+    fun start() {
+        let score = 8
+
+        if score >= 7 {
+            print("Aprovado\n")
+        } else {
+            print("Reprovado\n")
+        }
+
+        mut i = 0
+        while i < 3 {
+            print("Passo: {i}\n")
+            i = i + 1
+        }
+    }
+}</code></pre>
+
+        <h2>Funcoes tipadas simples</h2>
+        <pre><code>fun add(a: int, b: int) : int {
+    return a + b
+}
+
+class main {
+    fun start() {
+        let value: int = add(20, 22)
+        print("Resultado: {value}\n")
+    }
+}</code></pre>
+
+        <h2>Colecoes tipadas</h2>
+        <pre><code>class main {
+    fun start() {
+        let fruits: list&lt;str&gt; = ["maca", "banana", "uva"]
+        let scores: dict&lt;str, int&gt; = { "alice": 10, "bob": 20 }
+
+        print(fruits[0])
+        print("\n")
+        print(scores["alice"])
+        print("\n")
+    }
+}</code></pre>
+
+        <h2>Classes nominais simples</h2>
+        <pre><code>class Animal {
+    let age: int = 0
+}
+
+class Dog extends Animal {
+    let name: str = "rex"
+}
+
+fun show_age(animal: Animal) : int {
+    return animal.age
+}
+
+class main {
+    fun start() {
+        let dog: Dog = new Dog()
+        let age: int = show_age(dog)
+        print("Idade: {age}\n")
+    }
+}</code></pre>
+
+        <div class="callout">
+          Classes simples, heranca simples, <code>list&lt;T&gt;</code>, <code>dict&lt;K, V&gt;</code> e funcoes tipadas simples ja
+          tem testes semanticos dedicados. Recursos avancados continuam documentados como parciais.
+        </div>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

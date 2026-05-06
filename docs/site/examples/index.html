@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Exemplos Snask</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a href="../reference/language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+        <a aria-current="page" href="index.html">Exemplos</a>
+      </nav>
+    </header>
+    <main class="content">
+      <p class="eyebrow">Cookbook</p>
+      <h1>Exemplos</h1>
+      <p class="lead">
+        Exemplos pequenos e copiaveis para aprender a superficie atual da Snask.
+      </p>
+
+      <h2>CLI simples</h2>
+      <pre><code>class main {
+    fun start() {
+        let name = "Snask"
+        print("Ola, {name}!\n")
+    }
+}</code></pre>
+
+      <h2>Leitura de arquivo via modulo nativo</h2>
+      <pre><code>import "sfs"
+
+class main {
+    fun start() {
+        let text: str = sfs::read("README.md")
+        print(text)
+    }
+}</code></pre>
+
+      <h2>Flags de CPU</h2>
+      <pre><code>class main {
+    fun start() {
+        let flags: u8 = flag_write(0, 7, true)
+        let negative: bool = flag_has(flags, 7)
+        print("N={negative}\n")
+    }
+}</code></pre>
+
+      <h2>Memoria crua</h2>
+      <pre><code>class main {
+    fun start() {
+        @unsafe {
+            let mem: ptr = mem_alloc_zero(256)
+            mem_write_u8(mem, 0, 42)
+            let value: u8 = mem_read_u8(mem, 0)
+            mem_free(mem)
+            print("Valor: {value}\n")
+        }
+    }
+}</code></pre>
+
+      <h2>Apps no repositorio</h2>
+      <div class="grid">
+        <article class="card"><h3>NES emulator</h3><p>`apps/nes_emulator` e laboratorio real do perfil systems.</p></article>
+        <article class="card"><h3>Snask Store</h3><p>`apps/snask_store` exercita GUI nativa experimental.</p></article>
+        <article class="card"><h3>Snask Vault</h3><p>`apps/snask_vault` exercita storage e app UI.</p></article>
+      </div>
+    </main>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

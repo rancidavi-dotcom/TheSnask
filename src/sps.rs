@@ -988,3 +988,130 @@ pub fn pin_from_lock(dir: &std::path::Path, manifest: &SpsManifest) -> Result<()
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        load_manifest_from, read_lockfile, write_lockfile, LockedDep, PackageSection, SpsManifest,
+    };
+    use std::collections::BTreeMap;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_project_dir(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("snask_sps_test_{name}_{nonce}"));
+        fs::create_dir_all(&dir).expect("temp project dir should be created");
+        dir
+    }
+
+    #[test]
+    fn snif_manifest_loads_package_build_deps_scripts_and_app() {
+        let dir = temp_project_dir("manifest");
+        fs::write(
+            dir.join("snask.snif"),
+            r#"{
+  package: { name: "demo", version: "0.2.0", entry: "src/main.snask" },
+  dependencies: { json: "1.0.0", sqlite: "*" },
+  build: {
+    opt_level: 3,
+    profile: "systems",
+    strip: true,
+    lto: "thin",
+    opt: "O3",
+    features: { gui: true, flavor: "dev", level: 2 },
+  },
+  scripts: { run: "snask run" },
+  app: { id: "dev.snask.demo", name: "Demo", terminal: false },
+}"#,
+        )
+        .expect("manifest should be written");
+
+        let (manifest, path) = load_manifest_from(&dir).expect("manifest should load");
+
+        assert_eq!(path, dir.join("snask.snif"));
+        assert_eq!(manifest.package.name, "demo");
+        assert_eq!(manifest.package.version, "0.2.0");
+        assert_eq!(manifest.package.entry, "src/main.snask");
+        assert_eq!(
+            manifest.dependencies.get("json").map(String::as_str),
+            Some("1.0.0")
+        );
+        assert_eq!(
+            manifest.dependencies.get("sqlite").map(String::as_str),
+            Some("*")
+        );
+        assert_eq!(manifest.build.opt_level, 3);
+        assert_eq!(manifest.build.profile.as_deref(), Some("systems"));
+        assert_eq!(manifest.build.strip, Some(true));
+        assert_eq!(manifest.build.lto.as_deref(), Some("thin"));
+        assert_eq!(manifest.build.opt.as_deref(), Some("O3"));
+        assert_eq!(
+            manifest.scripts.get("run").map(String::as_str),
+            Some("snask run")
+        );
+        assert_eq!(
+            manifest.app.as_ref().map(|a| a.id.as_str()),
+            Some("dev.snask.demo")
+        );
+    }
+
+    #[test]
+    fn snif_manifest_rejects_invalid_build_profile() {
+        let dir = temp_project_dir("bad_profile");
+        fs::write(
+            dir.join("snask.snif"),
+            r#"{ package: { name: "demo", version: "0.1.0", entry: "main.snask" }, build: { profile: "weird" } }"#,
+        )
+        .expect("manifest should be written");
+
+        let err = load_manifest_from(&dir).expect_err("invalid profile should be rejected");
+        assert!(
+            err.contains("build.profile"),
+            "expected profile validation error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn lockfile_roundtrip_preserves_package_and_dependency_hashes() {
+        let dir = temp_project_dir("lock");
+        let manifest = SpsManifest {
+            package: PackageSection {
+                name: "demo".to_string(),
+                version: "0.1.0".to_string(),
+                entry: "main.snask".to_string(),
+            },
+            dependencies: BTreeMap::new(),
+            build: Default::default(),
+            scripts: BTreeMap::new(),
+            profile: Default::default(),
+            app: None,
+        };
+        let mut deps = BTreeMap::new();
+        deps.insert(
+            "json".to_string(),
+            LockedDep {
+                version: "1.2.3".to_string(),
+                sha256: "abc123".to_string(),
+                url: Some("https://example.test/json.snask".to_string()),
+            },
+        );
+
+        write_lockfile(&dir, &manifest, deps).expect("lockfile should be written");
+        let lock = read_lockfile(&dir).expect("lockfile should be read");
+
+        assert_eq!(lock.package.name, "demo");
+        assert_eq!(lock.package.version, "0.1.0");
+        let dep = lock
+            .dependencies
+            .get("json")
+            .expect("json dep should exist");
+        assert_eq!(dep.version, "1.2.3");
+        assert_eq!(dep.sha256, "abc123");
+        assert_eq!(dep.url.as_deref(), Some("https://example.test/json.snask"));
+    }
+}

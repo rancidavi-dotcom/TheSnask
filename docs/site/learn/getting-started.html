@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Comecando com Snask</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a aria-current="page" href="getting-started.html">Aprender</a>
+        <a href="../reference/language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Aprender</h2>
+        <a href="getting-started.html">Comecando</a>
+        <a href="basics.html">Basico da linguagem</a>
+        <a href="projects.html">Projetos Snask</a>
+        <h2>Referencia</h2>
+        <a href="../reference/language.html">Linguagem</a>
+        <a href="../reference/status.html">Status</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Guia rapido</p>
+        <h1>Comecando com Snask</h1>
+        <p class="lead">
+          Este guia leva do zero ate um programa compilado. Ele usa apenas superficie que combina
+          com o compilador atual.
+        </p>
+
+        <h2>Instalar</h2>
+        <pre><code>curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
+export PATH="$HOME/.snask/bin:$PATH"
+snask doctor</code></pre>
+        <p>
+          O instalador detecta distros Linux comuns, instala dependencias quando possivel e encontra
+          LLVM 18 para o backend atual.
+        </p>
+
+        <h2>Primeiro arquivo</h2>
+        <p>Crie `hello.snask`:</p>
+        <pre><code>class main {
+    fun start() {
+        print("Ola, Snask!\n")
+    }
+}</code></pre>
+
+        <h2>Compilar e rodar</h2>
+        <pre><code>snask build hello.snask --output hello
+./hello</code></pre>
+        <p>
+          Sem `--profile`, Snask usa `humane`: runtime completo, mensagens de erro humanas e uma
+          experiencia mais amigavel.
+        </p>
+
+        <h2>Quando algo der errado</h2>
+        <pre><code>snask explain S1005</code></pre>
+        <p>
+          Diagnosticos publicos usam codigos curtos, spans, snippets e ajuda acionavel. Ainda ha
+          mensagens em ingles em algumas partes, mas o formato publico ja existe.
+        </p>
+
+        <h2>Proximo passo</h2>
+        <div class="actions">
+          <a class="button primary" href="basics.html">Aprender a sintaxe basica</a>
+          <a class="button" href="projects.html">Criar um projeto SPS</a>
+        </div>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

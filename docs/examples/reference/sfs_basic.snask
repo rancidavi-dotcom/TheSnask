@@ -1,0 +1,13 @@
+import "sfs"
+
+class main {
+    fun start() {
+        let path = "/tmp/snask-doc-sfs.txt"
+        let written = sfs::write(path, "Snask docs\n")
+        let exists = sfs::exists(path)
+        let text = sfs::read(path)
+        let deleted = sfs::delete(path)
+
+        print("sfs ok\n")
+    }
+}

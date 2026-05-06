@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Instalacao Snask</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a href="../reference/language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a aria-current="page" href="installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Tooling</h2>
+        <a href="installation.html">Instalacao</a>
+        <a href="cli.html">CLI</a>
+        <a href="sps.html">SPS e SNIF</a>
+        <a href="lsp-neovim.html">LSP e Neovim</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Toolchain</p>
+        <h1>Instalacao</h1>
+        <p class="lead">
+          O instalador Linux prepara dependencias, compila Snask e instala o binario em
+          `~/.snask/bin/snask`.
+        </p>
+
+        <h2>Instalador universal Linux</h2>
+        <pre><code>curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash</code></pre>
+
+        <h2>Arch Linux</h2>
+        <pre><code>sudo pacman -Syu --needed base-devel git rust cargo llvm18 llvm18-libs clang18 lld18 pkgconf gtk3 zlib sqlite</code></pre>
+
+        <h2>Ubuntu/Debian</h2>
+        <pre><code>sudo apt update
+sudo apt install build-essential git curl ca-certificates pkg-config rustc cargo \
+  clang-18 llvm-18 llvm-18-dev lld-18 libclang-18-dev \
+  libgtk-3-dev zlib1g-dev libsqlite3-dev</code></pre>
+
+        <h2>LLVM 18</h2>
+        <p>
+          O backend atual usa `inkwell`/`llvm-sys` ligado ao LLVM 18. Se sua distro instala em
+          caminho diferente:
+        </p>
+        <pre><code>export LLVM_CONFIG_PATH=/caminho/para/llvm-config-18
+export LLVM_SYS_180_PREFIX=/prefixo/do/llvm18
+export SNASK_CLANG=/caminho/para/clang-18
+export SNASK_LLC=/caminho/para/llc-18</code></pre>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

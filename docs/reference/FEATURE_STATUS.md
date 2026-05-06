@@ -18,16 +18,20 @@ Legenda:
 | Feature | Status | Observações |
 | --- | --- | --- |
 | `let`, `mut`, `const` | `estavel` | Parsing, semântica básica e codegen presentes. |
-| Funções | `parcial` | Parâmetros, retorno e chamadas funcionam; o analisador agora valida tipos desconhecidos, chamadas variádicas básicas e missing return em funções tipadas, mas ainda há bastante `Any`. |
-| Classes | `parcial` | Existem no parser e codegen, mas o type system ainda não modela instâncias de forma forte. |
-| Herança | `parcial` | Funciona via expansão de membros e agora também tem resolução semântica básica de membros herdados. |
+| Funções tipadas simples | `estavel` | Parâmetros tipados, retorno tipado, chamada, aridade, tipo de argumento e missing return em funções tipadas são validados por testes semânticos. |
+| Funções dinâmicas/avançadas | `parcial` | Funções sem anotação ainda podem cair em `Any`; ainda não há overloads, generics de função ou closures maduras. |
+| Classes nominais simples | `estavel` | `new Class()`, anotação com nome de classe, propriedades declaradas e métodos como membros são reconhecidos semanticamente. |
+| Classes avançadas | `parcial` | Ainda faltam visibilidade, construtores formais, inicialização obrigatória, imutabilidade de propriedades no modelo de classe e ergonomia OOP completa. |
+| Herança simples | `estavel` | Membros herdados são resolvidos e subtipo filho -> pai é aceito em anotações e chamadas; pai -> filho é rejeitado. |
+| Herança avançada | `parcial` | Ainda não há interfaces, múltipla herança, override checking, `super` ou regras formais de inicialização herdada. |
 | `if` / `elif` / `else` | `estavel` | Parsing, semântica e codegen presentes. |
 | `while` | `estavel` | Parsing, semântica e codegen presentes. |
 | `for in` | `estavel` | Lowering LLVM implementado e validado em execução real para listas, dicionários e strings. |
 | `return` | `estavel` | Validado semânticamente. |
-| Listas e dicionários | `parcial` | O analisador infere tipo homogêneo básico de elementos/chaves/valores e aceita anotações públicas `list<T>` / `dict<K, V>` para coleções. |
-| Acesso por índice | `parcial` | O analisador propaga tipo de elemento/valor em listas e dicionários homogêneos, incluindo coleções anotadas com `list<T>` / `dict<K, V>`. |
-| Acesso por propriedade | `parcial` | Instâncias nominais já resolvem propriedades e métodos básicos, incluindo herança simples. |
+| Listas e dicionários homogêneos | `estavel` | Literais homogêneos inferem `list<T>` / `dict<K, V>` básicos e anotações públicas são validadas. |
+| Coleções avançadas | `parcial` | Ainda faltam APIs de coleção fortemente tipadas, coleções heterogêneas formais, iteradores customizados e generics definidos por usuário. |
+| Acesso por índice em `str`, `list<T>` e `dict<K, V>` | `estavel` | O analisador valida tipo de índice/chave e propaga tipo de elemento/valor para atribuições e leituras. |
+| Acesso por propriedade nominal | `estavel` | Instâncias nominais resolvem propriedades e métodos básicos, incluindo membros herdados. |
 | Operadores aritméticos | `estavel` | Com coerção numérica básica. |
 | Igualdade / comparação | `parcial` | Existe, mas ainda precisa semântica mais formal. |
 | Strings interpoladas | `estavel` | Suportadas no parser. |
@@ -40,12 +44,13 @@ Legenda:
 | Feature | Status | Observações |
 | --- | --- | --- |
 | Tipos primitivos (`int`, `float`, `str`, `bool`) | `estavel` | Funcionam no parser e na semântica básica. |
-| `list` e `dict` como tipos | `parcial` | Existem nas formas abertas `list` / `dict` e parametrizadas `list<T>` / `dict<K, V>`. |
-| Tipos exatos de sistema (`u8`, `i32`, `i64`, `ptr`) | `experimental` | Existem no enum de tipos, ainda sem modelo completo de linguagem. |
+| `list` e `dict` como tipos | `estavel` | Formas abertas `list` / `dict` e parametrizadas `list<T>` / `dict<K, V>` são parseadas e validadas para coleções homogêneas. |
+| Tipos exatos de sistema (`u8`, `i32`, `i64`, `ptr`) | `parcial` | Existem no parser, enum de tipos, semântica e builtins de systems; ainda precisam fechar layout/ABI completo para todos os usos. |
 | Tipos de função | `parcial` | Existem internamente, mas sem ergonomia e cobertura amplas. |
 | Inferência local | `parcial` | Melhorou para classes, coleções homogêneas e alguns fluxos de indexação/iteração, mas ainda cai em `Any` em várias superfícies. |
-| Tipos nominais de instância | `parcial` | `new Class(...)` agora produz `Type::User(Class)` no analisador semântico, mas o type system ainda não cobre tudo. |
-| Generics | `parcial` | Existem apenas para coleções (`list<T>` e `dict<K, V>`); ainda não há generics definidos por usuário, constraints ou inferência avançada. |
+| Tipos nominais de instância | `estavel` | `new Class(...)` produz `Type::User(Class)`, aceita anotação nominal e respeita subtipo filho -> pai em herança simples. |
+| Generics de coleção | `estavel` | `list<T>` e `dict<K, V>` têm parsing e checagem semântica para literais, indexação e atribuição. |
+| Generics definidos por usuário | `planejada` | Ainda não há generics em classes/funções, constraints ou inferência avançada. |
 | `enum` / ADTs | `planejada` | Ainda não existem no AST principal. |
 | Traits / interfaces | `planejada` | Ainda não existem. |
 | `Option` / `Result` | `planejada` | Ainda não existem como tipos da linguagem. |
@@ -59,6 +64,7 @@ Legenda:
 | `zone` | `experimental` | Existe no parser e no AST, mas ainda não possui formalismo estático completo. |
 | `scope` | `experimental` | Hoje funciona mais como delimitação sintática do que como contrato forte de memória. |
 | `entangle` | `experimental` | Existe sintaticamente, mas ainda não está validado de forma séria. |
+| `@unsafe` para chamadas restritas | `estavel` | O analisador bloqueia funções nativas internas e memória crua fora de `@unsafe`, e libera a região mínima explicitamente marcada. |
 | C interop pelo OM-Snask-System | `experimental` | `import_c_om` é uma porta do mesmo sistema: deduz contratos a partir de headers C, emite chamadas nativas LLVM, registra recursos opacos em zonas e aceita `.om.snif` como patch. Validado com stdio.h e SDL2 simples. Ver `docs/systems/OM_SNASK_SYSTEM.md`. |
 | Escape analysis | `planejada` | Ainda não está consolidada no analisador semântico. |
 | Borrow checking | `planejada` | Ainda não existe de forma real no compilador. |
@@ -79,10 +85,11 @@ Legenda:
 
 | Feature | Status | Observações |
 | --- | --- | --- |
-| Diagnósticos do parser | `parcial` | Já têm códigos e spans, mas ainda precisam cobertura maior. |
-| Snask Humane Diagnostics | `experimental` | Erros do parser/semântica agora têm códigos públicos curtos, snippet com caret, help/notes e `snask explain`. Ver `docs/reference/HUMANE_DIAGNOSTICS.md`. |
+| Diagnósticos do parser | `estavel` | Erros recuperáveis têm código, span, mensagem humana, snippet e limite de recuperação testado. |
+| Snask Humane Diagnostics | `parcial` | Formato público com código curto, snippet com caret, help/notes e `snask explain` já existe; ainda faltam traduzir mensagens restantes e cobrir linker/OM. |
 | Diagnósticos semânticos | `parcial` | Existem, agora renderizados de forma mais humana, mas ainda dependem demais de `Any` e precisam mais sugestões contextuais. |
-| LSP | `parcial` | Completion, hover, goto definition, code actions e semantic tokens já existem. |
+| LSP | `parcial` | Completion, hover, goto definition, code actions, SNIF formatter/schema e semantic tokens já existem; ainda falta suíte LSP automatizada forte. |
+| Plugin Neovim | `experimental` | Existe em `editors/neovim/snask.nvim` com filetype, syntax, indent, comandos, LSP e healthcheck; ainda precisa uso real antes de estabilizar API. |
 | Formatter SNIF | `estavel` | Existe e já possui testes próprios. |
 | Formatter da linguagem principal | `planejada` | Ainda não existe como ferramenta madura. |
 | Linter oficial | `planejada` | Ainda não existe. |
@@ -95,6 +102,7 @@ Legenda:
 | --- | --- | --- |
 | Runtime C nativo | `parcial` | Existe e é grande, mas ainda precisa modularização e contratos mais claros. |
 | Runtime mínimo / tiny | `experimental` | Existe, mas ainda precisa endurecimento. |
+| Primitivas systems/NES | `estavel` | Conversões inteiras, bits/flags, overflow/carry/borrow e memória crua com gate `@unsafe` têm testes semânticos e base documentada. |
 | `import_c_om` | `experimental` | Importa headers C, gera contrato OM em memória e permite chamadas Snask para símbolos C seguros. Ainda não cobre callbacks, structs complexas e ownership ambíguo de forma universal. |
 | HTTP / JSON / IO / OS nativos | `parcial` | Há superfície funcional, mas ainda com semântica e tipagem fracas. |
 | GUI | `experimental` | Existe via runtime nativo e `snaskgui`, mas ainda não deve ser tratado como parte madura do núcleo. |

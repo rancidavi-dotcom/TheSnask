@@ -61,6 +61,8 @@ Perfis de tamanho continuam existindo como flags de build: `--release-size`, `--
 
 ## Documentos importantes
 
+- [Site oficial da documentacao](docs/site/index.html)
+- [Referencia individual de funcoes](docs/site/reference/functions/index.html)
 - [Indice completo da documentacao](docs/INDEX.md)
 - [Aprender Snask](docs/reference/LEARN_SNASK.md)
 - [Referencia da Linguagem](docs/reference/LANGUAGE_REFERENCE.md)
@@ -69,6 +71,13 @@ Perfis de tamanho continuam existindo como flags de build: `--release-size`, `--
 - [Diagnosticos humanos](docs/reference/HUMANE_DIAGNOSTICS.md)
 - [Fundacao systems/NES](docs/systems/SNASK_NES_SYSTEMS_FOUNDATION.md)
 - [Arquitetura](docs/systems/ARCHITECTURE.md)
+
+O site em `docs/site/` e publicado pelo GitHub Pages via `.github/workflows/pages.yml`.
+Ele e a porta de entrada publica, enquanto os Markdown em `docs/` continuam como fontes
+tecnicas completas e material de referencia interna.
+
+Os exemplos versionados da referencia ficam em `docs/examples/reference/` e podem ser
+validados com `scripts/check_doc_examples.sh`.
 
 ## Benchmark e orgulho tecnico
 

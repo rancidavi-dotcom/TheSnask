@@ -1,0 +1,15 @@
+class main {
+    fun start() {
+        @unsafe {
+            let mem = mem_alloc_zero(256)
+            mem_write_u8(mem, 0, 0xEA)
+            mem_write_u16(mem, 1, 0x8000)
+            let opcode = mem_read_u8(mem, 0)
+            let vector = mem_read_u16(mem, 1)
+            mem_fill_u8(mem, 0, 256)
+            mem_free(mem)
+        }
+
+        print("systems memory ok\n")
+    }
+}

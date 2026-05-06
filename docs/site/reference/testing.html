@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Testes da documentacao Snask</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Referencia</h2>
+        <a href="language.html">Linguagem</a>
+        <a href="types.html">Tipos</a>
+        <a href="runtime.html">Runtime e builtins</a>
+        <a href="functions/index.html">Funcoes</a>
+        <a href="testing.html">Testes da doc</a>
+        <a href="diagnostics.html">Diagnosticos</a>
+        <a href="status.html">Status real</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Confiabilidade</p>
+        <h1>Testes da documentacao</h1>
+        <p class="lead">
+          Exemplos de documentacao so contam como teste real quando existem como arquivo `.snask`
+          versionado e passam por `snask build`.
+        </p>
+
+        <h2>Rodar tudo</h2>
+        <pre><code>scripts/check_doc_examples.sh</code></pre>
+
+        <h2>Onde ficam os exemplos</h2>
+        <p>
+          Os exemplos buildaveis ficam em <code>docs/examples/reference/</code>. Cada pagina de
+          funcao que possui exemplo validado mostra o comando exato para compilar aquele arquivo.
+        </p>
+
+        <h2>Politica de honestidade</h2>
+        <ul>
+          <li>Se compila e linka hoje, a pagina pode apontar para um teste real.</li>
+          <li>Se existe apenas no analisador semantico, a pagina fica marcada sem teste versionado.</li>
+          <li>Se depende de GUI ou ambiente externo, o exemplo deve explicar a dependencia.</li>
+          <li>Se a feature e parcial ou experimental, a pagina deve dizer isso antes do exemplo.</li>
+        </ul>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

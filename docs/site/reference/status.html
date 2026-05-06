@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Status real da Snask</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Referencia</h2>
+        <a href="language.html">Linguagem</a>
+        <a href="types.html">Tipos</a>
+        <a href="runtime.html">Runtime e builtins</a>
+        <a href="functions/index.html">Funcoes</a>
+        <a href="testing.html">Testes da doc</a>
+        <a href="diagnostics.html">Diagnosticos</a>
+        <a href="status.html">Status real</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Alpha honesto</p>
+        <h1>Status real das features</h1>
+        <p class="lead">
+          Esta pagina resume o contrato atual. O arquivo completo continua em
+          `docs/reference/FEATURE_STATUS.md`.
+        </p>
+
+        <h2>Estavel hoje</h2>
+        <div class="grid">
+          <article class="card"><span class="status">estavel</span><h3>Core basico</h3><p>`let`, `mut`, `const`, `if`, `while`, `for in`, `return`, aritmetica e blocos.</p></article>
+          <article class="card"><span class="status">estavel</span><h3>Funcoes tipadas simples</h3><p>Aridade, parametros, retorno e missing return tem testes semanticos.</p></article>
+          <article class="card"><span class="status">estavel</span><h3>Classes nominais simples</h3><p>`new Class()`, propriedades, metodos e heranca simples com subtipo filho para pai.</p></article>
+          <article class="card"><span class="status">estavel</span><h3>Colecoes genericas simples</h3><p><code>list&lt;T&gt;</code> e <code>dict&lt;K, V&gt;</code> para literais homogeneos, indexacao e atribuicao.</p></article>
+          <article class="card"><span class="status">estavel</span><h3>@unsafe gate</h3><p>Memoria crua e nativos internos sao bloqueados fora de regioes explicitas.</p></article>
+          <article class="card"><span class="status">estavel</span><h3>Primitivas systems/NES</h3><p>Bits, flags, overflow/carry/borrow e memoria crua controlada.</p></article>
+        </div>
+
+        <h2>Parcial ou experimental</h2>
+        <table>
+          <thead><tr><th>Area</th><th>Status</th><th>Motivo</th></tr></thead>
+          <tbody>
+            <tr><td>OM formal</td><td><span class="status experimental">experimental</span></td><td>Arquitetura existe; faltam escape analysis, borrow checking e regras estaticas completas.</td></tr>
+            <tr><td>C interop universal</td><td><span class="status experimental">experimental</span></td><td>Funciona para casos seguros; callbacks, structs complexas e ownership ambiguo ainda precisam patch/regra.</td></tr>
+            <tr><td>GUI</td><td><span class="status experimental">experimental</span></td><td>Runtime existe, mas API ainda nao e contrato maduro.</td></tr>
+            <tr><td>LSP</td><td><span class="status partial">parcial</span></td><td>Recursos existem; falta suite automatizada de protocolo.</td></tr>
+          </tbody>
+        </table>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

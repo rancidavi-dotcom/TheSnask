@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CLI Snask</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a href="../reference/language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a aria-current="page" href="installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Tooling</h2>
+        <a href="installation.html">Instalacao</a>
+        <a href="cli.html">CLI</a>
+        <a href="sps.html">SPS e SNIF</a>
+        <a href="lsp-neovim.html">LSP e Neovim</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Ferramentas</p>
+        <h1>CLI</h1>
+        <p class="lead">
+          A CLI `snask` e a entrada principal para compilar arquivos, projetos SPS, benchmarks
+          locais e experimentos systems.
+        </p>
+
+        <h2>Build de arquivo</h2>
+        <pre><code>snask build main.snask --output app
+./app</code></pre>
+        <p>Sem `--profile`, o compilador usa `humane`.</p>
+
+        <h2>Build com perfil</h2>
+        <pre><code>snask build apps/nes_emulator/nes_master.snask --profile systems --output /tmp/snask_nes</code></pre>
+
+        <h2>Projetos SPS</h2>
+        <pre><code>snask setup
+snask build
+snask run</code></pre>
+
+        <h2>Flags de tamanho</h2>
+        <table>
+          <thead><tr><th>Flag</th><th>Uso</th></tr></thead>
+          <tbody>
+            <tr><td><code>--release-size</code></td><td>Build otimizado para tamanho.</td></tr>
+            <tr><td><code>--min-runtime</code></td><td>Remove partes opcionais do runtime.</td></tr>
+            <tr><td><code>--tiny</code></td><td>Modo mais agressivo para binarios pequenos.</td></tr>
+            <tr><td><code>--extreme</code></td><td>Experimento de tamanho minimo, com restricoes maiores.</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout">
+          Use `docs/reference/FEATURE_STATUS.md` como fonte de verdade quando uma flag ainda
+          estiver marcada como parcial ou experimental.
+        </div>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

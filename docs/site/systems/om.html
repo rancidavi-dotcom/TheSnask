@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OM-Snask-System</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a href="../reference/language.html">Referencia</a>
+        <a aria-current="page" href="om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Systems</h2>
+        <a href="om.html">OM-Snask-System</a>
+        <a href="systems-profile.html">Perfil systems</a>
+        <a href="low-level.html">Low-level</a>
+        <a href="c-interop.html">Interop C</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Memoria orquestrada</p>
+        <h1>OM-Snask-System</h1>
+        <p class="lead">
+          O OM-Snask-System e o sistema unico de memoria, recursos e interop nativa da Snask.
+        </p>
+
+        <h2>Ideia central</h2>
+        <p>
+          Em vez de espalhar `malloc`, `free`, `destroy`, ownership manual e bindings gigantes pelo
+          codigo, a Snask tenta deduzir o ciclo de vida a partir da intencao.
+        </p>
+        <div class="callout">
+          Frase guia: <strong>em vez de voce escrever o contrato, o Snask deve deduzir o contrato.</strong>
+        </div>
+
+        <h2>O que pertence ao OM</h2>
+        <div class="grid">
+          <article class="card"><h3>Zonas</h3><p>Delimitam vida, agrupam alocacoes e recursos.</p></article>
+          <article class="card"><h3>Arenas</h3><p>Direcao para alocacao temporaria rapida e limpeza em massa.</p></article>
+          <article class="card"><h3>Recursos externos</h3><p>Handles C ou runtime com destrutores conhecidos.</p></article>
+          <article class="card"><h3>Contratos C</h3><p>Gerados automaticamente por scanner e corrigidos por `.om.snif` quando necessario.</p></article>
+        </div>
+
+        <h2>Zona simples</h2>
+        <pre><code>class main {
+    fun start() {
+        zone "frame" {
+            let message = "dentro da zona"
+            print("{message}\n")
+        }
+    }
+}</code></pre>
+
+        <h2>Status</h2>
+        <p>
+          `@unsafe` para chamadas restritas ja e estavel. O formalismo completo do OM ainda e
+          experimental: escape analysis, borrow checking e zone depth formal continuam no roadmap.
+        </p>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Snask Docs</title>
+    <meta
+      name="description"
+      content="Documentacao oficial da linguagem Snask: uma linguagem compilada via LLVM, humana por padrao e systems quando necessario."
+    />
+    <link rel="stylesheet" href="assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav" aria-label="Principal">
+        <a aria-current="page" href="index.html">Inicio</a>
+        <a href="learn/getting-started.html">Aprender</a>
+        <a href="reference/language.html">Referencia</a>
+        <a href="systems/om.html">OM</a>
+        <a href="tooling/installation.html">Tooling</a>
+        <a href="examples/index.html">Exemplos</a>
+      </nav>
+    </header>
+
+    <main class="content">
+      <section class="hero">
+        <p class="eyebrow">Snask v0.4.1-alpha</p>
+        <h1>Uma linguagem compilada, humana por padrao, systems quando necessario.</h1>
+        <p class="lead">
+          Snask compila AOT para binarios nativos via LLVM. O objetivo e unir uma sintaxe clara,
+          diagnosticos humanos, memoria orquestrada pelo OM-Snask-System e acesso controlado a
+          baixo nivel.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="learn/getting-started.html">Comecar agora</a>
+          <a class="button" href="reference/language.html">Referencia da linguagem</a>
+          <a class="button" href="reference/status.html">Status real das features</a>
+        </div>
+      </section>
+
+      <section>
+        <h2>O que a Snask e hoje</h2>
+        <div class="grid">
+          <article class="card">
+            <h3>Compilada de verdade</h3>
+            <p>
+              O compilador le `.snask`, constroi AST, analisa semantica, gera LLVM IR e chama o
+              linker. Snask nao e transpiler para C.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Humane por padrao</h3>
+            <p>
+              Sem `--profile`, a linguagem usa o perfil `humane`, com runtime completo e
+              diagnosticos mais legiveis.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Systems quando precisa</h3>
+            <p>
+              O perfil `systems` expoe inteiros exatos, operacoes de bits e memoria crua protegida por
+              `@unsafe`.
+            </p>
+          </article>
+          <article class="card">
+            <h3>OM-Snask-System</h3>
+            <p>
+              Zonas, recursos externos, contratos C deduzidos e limpeza deterministica pertencem ao
+              mesmo sistema de memoria.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>Hello World</h2>
+        <pre><code>class main {
+    fun start() {
+        print("Ola, Snask!\n")
+    }
+}</code></pre>
+        <pre><code>snask build hello.snask --output hello
+./hello</code></pre>
+      </section>
+
+      <section>
+        <h2>Mapa da documentacao</h2>
+        <div class="grid">
+          <a class="card" href="learn/getting-started.html">
+            <h3>Aprender</h3>
+            <p>Instalacao, primeiro programa, variaveis, funcoes, classes, colecoes e projetos.</p>
+          </a>
+          <a class="card" href="reference/language.html">
+            <h3>Referencia</h3>
+            <p>Sintaxe, tipos, operadores, modulos, runtime, diagnosticos e status real.</p>
+          </a>
+          <a class="card" href="reference/functions/index.html">
+            <h3>Funcoes</h3>
+            <p>150 paginas individuais com assinatura, perfil, status, seguranca, exemplo e teste.</p>
+          </a>
+          <a class="card" href="reference/testing.html">
+            <h3>Testes da doc</h3>
+            <p>Exemplos Snask versionados que sao compilados para provar a documentacao.</p>
+          </a>
+          <a class="card" href="systems/om.html">
+            <h3>Systems e OM</h3>
+            <p>OM-Snask-System, `@unsafe`, low-level, C interop, memoria crua e fundacao NES.</p>
+          </a>
+          <a class="card" href="tooling/installation.html">
+            <h3>Tooling</h3>
+            <p>Instalador Linux, CLI, SPS, SNIF, LSP, Neovim, benchmarks e releases.</p>
+          </a>
+        </div>
+      </section>
+
+      <div class="callout">
+        <strong>Honestidade de alpha:</strong> o site separa features estaveis, parciais,
+        experimentais e planejadas. Use sempre a pagina de status como fonte de verdade antes de
+        depender de uma feature em projeto grande.
+      </div>
+
+      <footer class="footer">
+        Documentacao web gerada em `docs/site`. Fontes tecnicas completas continuam em `docs/`.
+      </footer>
+    </main>
+
+    <script src="assets/site.js"></script>
+  </body>
+</html>

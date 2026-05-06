@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SPS e SNIF</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a href="../reference/language.html">Referencia</a>
+        <a href="../systems/om.html">OM</a>
+        <a aria-current="page" href="installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Tooling</h2>
+        <a href="installation.html">Instalacao</a>
+        <a href="cli.html">CLI</a>
+        <a href="sps.html">SPS e SNIF</a>
+        <a href="lsp-neovim.html">LSP e Neovim</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Projetos</p>
+        <h1>SPS e SNIF</h1>
+        <p class="lead">
+          SPS e o sistema de projeto. SNIF e o formato usado pelo manifesto `snask.snif`.
+        </p>
+
+        <h2>Manifesto</h2>
+        <pre><code>{
+  package: { name: "store", version: "0.1.0", entry: "main.snask" },
+  dependencies: { json: "*" },
+  build: { profile: "humane", opt_level: 2 },
+  scripts: { run: "snask run" },
+}</code></pre>
+
+        <h2>Comandos SNIF</h2>
+        <pre><code>snask snif fmt snask.snif --write
+snask snif schema --md
+snask snif check snask.snif</code></pre>
+
+        <h2>Lockfile</h2>
+        <p>
+          `snask.lock` registra pacote, registry e dependencias com `version`, `sha256` e URL
+          opcional. Isso ja tem roundtrip testado.
+        </p>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ends_with - Snask Docs</title>
+    <link rel="stylesheet" href="../../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../../index.html">Inicio</a>
+        <a href="../../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="../language.html">Referencia</a>
+        <a href="../../systems/om.html">OM</a>
+        <a href="../../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Funcoes</h2>
+        <a href="index.html">Indice de funcoes</a>
+        <a href="../language.html">Linguagem</a>
+        <a href="../types.html">Tipos</a>
+        <a href="../runtime.html">Runtime e builtins</a>
+        <a href="../diagnostics.html">Diagnosticos</a>
+      </aside>
+      <main class="content doc-page">
+        <p class="eyebrow">string</p>
+        <h1>ends_with</h1>
+        <p class="lead">Testa sufixo de string.</p>
+        <p>
+          <span class="status partial">parcial</span>
+          <span class="meta-pill">perfil: humane</span>
+          <span class="meta-pill">seguranca: segura</span>
+        </p>
+        <h2>Assinatura</h2>
+        <pre><code>ends_with(text: str, suffix: str) -&gt; bool</code></pre>
+        <h2>Parametros</h2>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>text</code></td><td>String completa.</td></tr>
+<tr><td><code>suffix</code></td><td>Sufixo esperado.</td></tr></tbody></table>
+        <h2>Retorno</h2>
+        <p>`true` se a string termina com o sufixo.</p>
+        <h2>Exemplo</h2>
+        <pre><code>let ok = ends_with(&quot;snask&quot;, &quot;ask&quot;)</code></pre>
+        <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
+        <h2>Notas</h2>
+        <p>
+          Esta pagina e gerada a partir de <code>scripts/generate_docs_reference.py</code>.
+          Se a assinatura mudar no compilador, atualize a fonte de dados e regenere a referencia.
+        </p>
+      </main>
+    </div>
+    <script src="../../assets/site.js"></script>
+  </body>
+</html>

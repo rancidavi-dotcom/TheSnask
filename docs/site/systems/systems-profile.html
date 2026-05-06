@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Perfil systems</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a href="../reference/language.html">Referencia</a>
+        <a aria-current="page" href="om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Systems</h2>
+        <a href="om.html">OM-Snask-System</a>
+        <a href="systems-profile.html">Perfil systems</a>
+        <a href="low-level.html">Low-level</a>
+        <a href="c-interop.html">Interop C</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Baixo nivel</p>
+        <h1>Perfil systems</h1>
+        <p class="lead">
+          `systems` e o perfil para emuladores, parsers binarios, memoria crua controlada e codigo
+          mais perto da maquina.
+        </p>
+
+        <h2>Build</h2>
+        <pre><code>snask build apps/nes_emulator/nes_master.snask --profile systems --output /tmp/snask_nes</code></pre>
+
+        <h2>Memoria crua</h2>
+        <pre><code>class main {
+    fun start() {
+        @unsafe {
+            let mem: ptr = mem_alloc_zero(65536)
+            mem_write_u8(mem, 0xFFFC, 0x00)
+            mem_write_u8(mem, 0xFFFD, 0x80)
+            let pc: u16 = mem_read_u16(mem, 0xFFFC)
+            mem_free(mem)
+        }
+    }
+}</code></pre>
+
+        <h2>Primitivas uteis</h2>
+        <table>
+          <thead><tr><th>Grupo</th><th>Funcoes</th></tr></thead>
+          <tbody>
+            <tr><td>Conversao</td><td><code>as_u8</code>, <code>as_u16</code>, <code>as_i32</code>, <code>as_usize</code></td></tr>
+            <tr><td>Bits</td><td><code>bit_test</code>, <code>bit_set</code>, <code>flag_write</code></td></tr>
+            <tr><td>6502</td><td><code>lo_u8</code>, <code>hi_u8</code>, <code>make_u16</code></td></tr>
+            <tr><td>Overflow</td><td><code>carry_add_u8</code>, <code>borrow_sub_u8</code>, <code>overflow_add_i8</code></td></tr>
+          </tbody>
+        </table>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>

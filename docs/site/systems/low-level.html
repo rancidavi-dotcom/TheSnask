@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Low-level Snask</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <nav class="nav">
+        <a href="../index.html">Inicio</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a href="../reference/language.html">Referencia</a>
+        <a aria-current="page" href="om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Systems</h2>
+        <a href="om.html">OM-Snask-System</a>
+        <a href="systems-profile.html">Perfil systems</a>
+        <a href="low-level.html">Low-level</a>
+        <a href="c-interop.html">Interop C</a>
+      </aside>
+      <main class="content">
+        <p class="eyebrow">Systems</p>
+        <h1>Low-level em Snask</h1>
+        <p class="lead">
+          Snask pode ser confortavel para iniciantes e ainda oferecer controle baixo nivel quando o
+          projeto pede emuladores, runtimes, parsers binarios ou kernels futuros.
+        </p>
+
+        <h2>Modelo</h2>
+        <ul>
+          <li>`humane` e o perfil padrao para produtividade e runtime completo.</li>
+          <li>`systems` libera primitivas deterministicas e memoria crua controlada.</li>
+          <li>`@unsafe` delimita trechos onde o programador assume responsabilidade manual.</li>
+          <li>OM continua existindo para recursos, zonas e limpeza deterministica.</li>
+        </ul>
+
+        <h2>Base para emulador NES</h2>
+        <table>
+          <thead><tr><th>Necessidade 6502/NES</th><th>Suporte em Snask</th></tr></thead>
+          <tbody>
+            <tr><td>Registradores de 8/16 bits</td><td>Tipos `u8`, `u16` e conversoes explicitas.</td></tr>
+            <tr><td>Flags de CPU</td><td>`bit_test`, `bit_set`, `bit_clear`, `flag_write`.</td></tr>
+            <tr><td>Carry, borrow e overflow</td><td>Builtins dedicados para preservar semantica real.</td></tr>
+            <tr><td>Memoria 64KB</td><td>`mem_alloc_zero`, reads/writes por offset, little-endian.</td></tr>
+            <tr><td>Determinismo</td><td>Operacoes explicitas, sem comportamento escondido de GC manual.</td></tr>
+          </tbody>
+        </table>
+
+        <h2>Regra de seguranca</h2>
+        <p>
+          Codigo baixo nivel deve ser pequeno, testado e cercado por API Snask segura. O objetivo
+          nao e transformar todo programa em memoria manual; e permitir que a parte que precisa da
+          maquina tenha acesso real a ela.
+        </p>
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+  </body>
+</html>
