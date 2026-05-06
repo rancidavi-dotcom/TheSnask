@@ -1,4 +1,5 @@
 use crate::om_contract::{OmConstantContract, OmContract, OmFunctionContract, OmResourceContract};
+use crate::toolchain;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
@@ -258,10 +259,13 @@ fn clang_ast_json(header: &str, extra_cflags: &[String]) -> Result<Vec<u8>, Stri
 
     args.push(header.to_string());
 
-    let output = Command::new("clang-18")
-        .args(&args)
-        .output()
-        .map_err(|e| format!("OM scan: failed to run clang-18: {e}"))?;
+    let clang = toolchain::clang();
+    let output = Command::new(&clang).args(&args).output().map_err(|e| {
+        format!(
+            "OM scan: failed to run {}: {e}",
+            toolchain::tool_display(&clang)
+        )
+    })?;
 
     if !output.status.success() {
         return Err(format!(
@@ -288,10 +292,13 @@ fn clang_macro_defines(header: &str, extra_cflags: &[String]) -> Result<Vec<Stri
 
     args.push(header.to_string());
 
-    let output = Command::new("clang-18")
-        .args(&args)
-        .output()
-        .map_err(|e| format!("OM scan: failed to run clang-18 for macros: {e}"))?;
+    let clang = toolchain::clang();
+    let output = Command::new(&clang).args(&args).output().map_err(|e| {
+        format!(
+            "OM scan: failed to run {} for macros: {e}",
+            toolchain::tool_display(&clang)
+        )
+    })?;
 
     if !output.status.success() {
         return Err(format!(

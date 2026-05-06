@@ -19,18 +19,16 @@ Snask e uma linguagem compilada AOT para binarios nativos via LLVM. O objetivo a
 ```bash
 git clone https://github.com/rancidavi-dotcom/TheSnask.git
 cd TheSnask
-cargo build --release
-./target/release/snask setup
+./install.sh
 ```
 
-Instalacao por APT, quando o repositorio estiver publicado no ambiente do usuario:
+Ou direto por `curl`:
 
 ```bash
-echo "deb [trusted=yes arch=amd64] https://rancidavi-dotcom.github.io/TheSnask/repo/ stable main" | sudo tee /etc/apt/sources.list.d/snask.list
-sudo apt update
-sudo apt install snask
-snask setup
+curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
 ```
+
+O instalador detecta Arch, Debian/Ubuntu, Fedora, openSUSE e Alpine, instala as dependencias quando possivel, encontra LLVM 18 e coloca o binario em `~/.snask/bin/snask`. Veja [Instalacao Linux](docs/tooling/INSTALLATION.md) para detalhes, variaveis de escape e correcao de erros do `llvm-sys`.
 
 ## Hello World atual
 

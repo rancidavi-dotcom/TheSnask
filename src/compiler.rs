@@ -18,6 +18,7 @@ use crate::om_scan::{scan_header, ScanOptions};
 use crate::parser::{ParseError, Parser};
 use crate::semantic_analyzer::{SemanticAnalyzer, SemanticError};
 use crate::sps::SnifFeatureValue;
+use crate::toolchain;
 use crate::tools::{get_pkg_cflags, get_pkg_libs, has_pkg};
 
 /// Options for the compiler build process.
@@ -937,11 +938,20 @@ pub fn link_binary(
         }
     }
 
+    let lld = toolchain::ld_lld();
+    let clang_path = toolchain::clang();
+    let llc_path = toolchain::llc();
+
     let have_lld = size_link
-        && Command::new("ld.lld")
-            .arg("--version")
-            .output()
-            .map(|o| o.status.success())
+        && lld
+            .as_ref()
+            .map(|path| {
+                Command::new(path)
+                    .arg("--version")
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false)
+            })
             .unwrap_or(false);
 
     let extreme_obj = if options.extreme && options.target.is_none() && cfg!(target_os = "linux") {
@@ -956,7 +966,11 @@ pub fn link_binary(
         .unwrap_or_else(|| file_path.replace(".snask", ""));
 
     if options.lto {
-        pb.set_message(format!("Linking (clang-18 {} +LTO)", clang_opt));
+        pb.set_message(format!(
+            "Linking ({} {} +LTO)",
+            toolchain::tool_display(&clang_path),
+            clang_opt
+        ));
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
         let runtime_path = if let Some(t) = &options.target {
             if options.tiny {
@@ -974,10 +988,12 @@ pub fn link_binary(
             format!("{}/.snask/lib/runtime.bc", home)
         };
 
-        let mut clang = Command::new("clang-18");
+        let mut clang = Command::new(&clang_path);
         clang.arg(&clang_opt).arg("-flto=thin");
         if have_lld {
-            clang.arg("-fuse-ld=lld");
+            if let Some(path) = &lld {
+                clang.arg(format!("-fuse-ld={}", path.to_string_lossy()));
+            }
         }
         if extreme_obj.is_some() {
             clang.arg("-nostdlib").arg("-static");
@@ -1033,8 +1049,12 @@ pub fn link_binary(
         }
     } else {
         let obj_file = "temp_snask.o";
-        pb.set_message(format!("Compiling (llc-18 -O{})", options.opt_level));
-        let mut llc = Command::new("llc-18");
+        pb.set_message(format!(
+            "Compiling ({} -O{})",
+            toolchain::tool_display(&llc_path),
+            options.opt_level
+        ));
+        let mut llc = Command::new(&llc_path);
         llc.arg(format!("-O{}", options.opt_level))
             .arg("-relocation-model=pic")
             .arg("-filetype=obj");
@@ -1047,7 +1067,10 @@ pub fn link_binary(
             .status()
             .map_err(|e| e.to_string())?;
 
-        pb.set_message("Linking (clang-18)");
+        pb.set_message(format!(
+            "Linking ({})",
+            toolchain::tool_display(&clang_path)
+        ));
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
 
         let mut runtime_path = if let Some(t) = &options.target {
@@ -1074,10 +1097,12 @@ pub fn link_binary(
             runtime_path = global_runtime.to_string();
         }
 
-        let mut clang = Command::new("clang-18");
+        let mut clang = Command::new(&clang_path);
         clang.arg(&clang_opt);
         if have_lld {
-            clang.arg("-fuse-ld=lld");
+            if let Some(path) = &lld {
+                clang.arg(format!("-fuse-ld={}", path.to_string_lossy()));
+            }
         }
         if extreme_obj.is_some() {
             clang.arg("-nostdlib").arg("-static");
@@ -1211,19 +1236,14 @@ fn fallback_runtime_linkargs() -> Vec<String> {
 }
 
 fn strip_binary(path: &str) {
-    let strip_tool = if Command::new("llvm-strip-18")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
-        "llvm-strip-18"
+    let strip_tool = if let Some(path) = toolchain::llvm_strip() {
+        Some(path)
     } else if Command::new("strip").arg("--version").output().is_ok() {
-        "strip"
+        Some("strip".into())
     } else {
-        ""
+        None
     };
-    if !strip_tool.is_empty() {
+    if let Some(strip_tool) = strip_tool {
         let _ = Command::new(strip_tool).arg(path).status();
     }
 }

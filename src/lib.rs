@@ -21,6 +21,7 @@ pub mod span;
 pub mod sps;
 pub mod stdlib;
 pub mod symbol_table;
+pub mod toolchain;
 pub mod tools;
 pub mod types;
 pub mod value;

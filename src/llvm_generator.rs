@@ -292,8 +292,8 @@ impl<'ctx> LLVMGenerator<'ctx> {
             "os_setenv" => Some(crate::types::Type::Bool),
             "sfs_read" => Some(crate::types::Type::String),
             "sfs_count_bytes" | "sfs_size" | "sfs_mtime" => Some(crate::types::Type::Float),
-            "sfs_delete" | "sfs_exists" | "sfs_copy" | "sfs_move" | "sfs_mkdir"
-            | "sfs_is_file" | "sfs_is_dir" | "sfs_rmdir" => Some(crate::types::Type::Bool),
+            "sfs_delete" | "sfs_exists" | "sfs_copy" | "sfs_move" | "sfs_mkdir" | "sfs_is_file"
+            | "sfs_is_dir" | "sfs_rmdir" => Some(crate::types::Type::Bool),
             "sfs_listdir" => Some(crate::types::Type::Any),
             "gui_init" => Some(crate::types::Type::Bool),
             "gui_run" | "gui_quit" => Some(crate::types::Type::Void),
@@ -303,14 +303,30 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 Some(crate::types::Type::Any)
             }
             "gui_get_text" => Some(crate::types::Type::String),
-            "gui_set_title" | "gui_set_resizable" | "gui_autosize" | "gui_flow_add"
-            | "gui_set_margin" | "gui_icon" | "gui_list_add_text" | "gui_on_select_ctx"
-            | "gui_set_child" | "gui_add" | "gui_add_expand" | "gui_set_placeholder"
-            | "gui_set_editable" | "gui_set_enabled" | "gui_set_visible" | "gui_show_all"
-            | "gui_set_text" | "gui_on_click" | "gui_on_click_ctx" | "gui_on_tap_ctx"
-            | "gui_css" | "gui_add_class" | "gui_msg_info" | "gui_msg_error" => {
-                Some(crate::types::Type::Bool)
-            }
+            "gui_set_title"
+            | "gui_set_resizable"
+            | "gui_autosize"
+            | "gui_flow_add"
+            | "gui_set_margin"
+            | "gui_icon"
+            | "gui_list_add_text"
+            | "gui_on_select_ctx"
+            | "gui_set_child"
+            | "gui_add"
+            | "gui_add_expand"
+            | "gui_set_placeholder"
+            | "gui_set_editable"
+            | "gui_set_enabled"
+            | "gui_set_visible"
+            | "gui_show_all"
+            | "gui_set_text"
+            | "gui_on_click"
+            | "gui_on_click_ctx"
+            | "gui_on_tap_ctx"
+            | "gui_css"
+            | "gui_add_class"
+            | "gui_msg_info"
+            | "gui_msg_error" => Some(crate::types::Type::Bool),
             "snaskgui_init"
             | "snaskgui_present_rgba"
             | "snaskgui_poll"
@@ -4348,7 +4364,11 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     self.builder.build_store(lhs_p, lhs_boxed).unwrap();
                     self.builder.build_store(rhs_p, rhs_boxed).unwrap();
                     self.builder
-                        .build_call(helper, &[out_p.into(), lhs_p.into(), rhs_p.into()], "any_eq")
+                        .build_call(
+                            helper,
+                            &[out_p.into(), lhs_p.into(), rhs_p.into()],
+                            "any_eq",
+                        )
                         .unwrap();
                     let out_v = self
                         .builder
@@ -4381,7 +4401,11 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     self.builder.build_store(lhs_p, lhs_boxed).unwrap();
                     self.builder.build_store(rhs_p, rhs_boxed).unwrap();
                     self.builder
-                        .build_call(helper, &[out_p.into(), lhs_p.into(), rhs_p.into()], "str_eq")
+                        .build_call(
+                            helper,
+                            &[out_p.into(), lhs_p.into(), rhs_p.into()],
+                            "str_eq",
+                        )
                         .unwrap();
                     let out_v = self
                         .builder

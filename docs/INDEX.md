@@ -20,6 +20,7 @@ Esta pasta concentra todos os documentos Markdown do projeto. O unico Markdown m
 
 ## Tooling
 
+- `tooling/INSTALLATION.md`: instalacao Linux, LLVM 18, Arch/Ubuntu e variaveis de escape.
 - `tooling/SPS.md`: Snask Project System.
 - `tooling/PROJECT_SNIF.md`: manifesto `snask.snif`.
 - `tooling/LSP.md`: servidor LSP.

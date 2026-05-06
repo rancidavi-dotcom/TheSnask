@@ -1,3 +1,4 @@
+use crate::toolchain;
 use indicatif::HumanBytes;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,10 +13,10 @@ pub fn doctor() -> Result<(), String> {
     println!("Arch: {}", std::env::consts::ARCH);
 
     // Check Tools
-    check_tool("clang-18");
-    check_tool("llc-18");
-    check_tool("llvm-strip-18");
-    check_tool("ld.lld");
+    check_resolved_tool("clang", &toolchain::clang());
+    check_resolved_tool("llc", &toolchain::llc());
+    check_optional_tool("llvm-strip", toolchain::llvm_strip());
+    check_optional_tool("ld.lld", toolchain::ld_lld());
     check_tool("git");
 
     #[cfg(target_os = "linux")]
@@ -34,6 +35,22 @@ pub fn doctor() -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn check_resolved_tool(label: &str, path: &PathBuf) {
+    if toolchain::command_exists(path) {
+        println!("✅ {}: {}", label, toolchain::tool_display(path));
+    } else {
+        println!("❌ {}: NOT FOUND", label);
+    }
+}
+
+fn check_optional_tool(label: &str, path: Option<PathBuf>) {
+    if let Some(path) = path {
+        println!("✅ {}: {}", label, toolchain::tool_display(&path));
+    } else {
+        println!("❌ {}: NOT FOUND", label);
+    }
 }
 
 fn check_tool(name: &str) {
@@ -158,7 +175,7 @@ pub fn run_setup(target: Option<String>) -> Result<(), String> {
             .join("runtime/ultra_start_x86_64_linux.S");
         if extreme_src.exists() {
             println!("📦 Compiling extreme entrypoint (rt_extreme.o)...");
-            let status = Command::new("clang-18")
+            let status = Command::new(toolchain::clang())
                 .arg("-c")
                 .arg(extreme_src)
                 .arg("-o")
@@ -245,7 +262,7 @@ fn compile_runtime(
     }
 
     // .o
-    let mut cmd_o = Command::new("clang-18");
+    let mut cmd_o = Command::new(toolchain::clang());
     cmd_o.args(&base_args);
     cmd_o.arg("-o").arg(format!("{}.o", dest_base));
     for arg in &extra_args {
@@ -261,7 +278,7 @@ fn compile_runtime(
     }
 
     // .bc
-    let mut cmd_bc = Command::new("clang-18");
+    let mut cmd_bc = Command::new(toolchain::clang());
     cmd_bc.arg("-emit-llvm");
     cmd_bc.args(&base_args);
     cmd_bc.arg("-o").arg(format!("{}.bc", dest_base));
