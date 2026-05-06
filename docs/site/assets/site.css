@@ -261,6 +261,68 @@ p {
   margin: 8px 0 0;
 }
 
+/* Home Page Specifics */
+.features-grid {
+  padding: 40px 0;
+}
+
+.icon {
+  font-size: 32px;
+  margin-bottom: 16px;
+}
+
+.learning-path {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.path-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.path-card:hover {
+  text-decoration: none;
+  border-color: var(--accent);
+  transform: translateX(8px);
+}
+
+.path-card .step {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  background: var(--panel-2);
+  color: var(--accent);
+  border-radius: 50%;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.path-card h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+}
+
+.path-card p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.code-preview {
+  margin: 60px 0;
+}
+
 .doc-page table code {
   white-space: nowrap;
 }
