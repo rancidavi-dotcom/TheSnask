@@ -37,6 +37,9 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>println() -&gt; void</code></pre>
+        <h2>Para que serve</h2>
+        <p>Uma conveniência para emitir uma quebra de linha imediata no console.</p>
+<p>Em versões recentes do runtime Snask, ela é otimizada para usar a sequência de escape correta do sistema operacional (LF no Linux/macOS, CRLF no Windows).</p>
         <h2>Parametros</h2>
         <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td colspan="2">Sem parametros.</td></tr></tbody></table>
         <h2>Retorno</h2>
@@ -44,10 +47,15 @@
         <h2>Exemplo</h2>
         <pre><code>class main {
     fun start() {
-        print(&quot;linha&quot;)
+        print(&quot;Linha 1&quot;)
         println()
+        print(&quot;Linha 2&quot;)
     }
 }</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Atualmente, no Snask, `println()` não aceita argumentos. Para imprimir um valor com nova linha, use `print(valor)` seguido de `println()`.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="print.html"><code>print</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

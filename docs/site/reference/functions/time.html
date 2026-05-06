@@ -37,12 +37,23 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>time() -&gt; float</code></pre>
+        <h2>Para que serve</h2>
+        <p>Retorna o tempo atual do sistema. No perfil humane, geralmente retorna o número de segundos decorridos desde a &#x27;Epoch&#x27; (1 de Janeiro de 1970).</p>
+<p>É essencial para medir performance de algoritmos, criar timestamps de logs ou controlar o tempo em loops de lógica simples.</p>
         <h2>Parametros</h2>
         <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td colspan="2">Sem parametros.</td></tr></tbody></table>
         <h2>Retorno</h2>
-        <p>Timestamp/tempo como float.</p>
+        <p>Timestamp (segundos desde a Epoch).</p>
         <h2>Exemplo</h2>
-        <pre><code>let started = time()</code></pre>
+        <pre><code>let inicio = time()
+// ... executa algo pesado ...
+let fim = time()
+print(&quot;Tempo decorrido: {fim - inicio} segundos\n&quot;)</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>A precisão (milissegundos vs segundos) pode variar entre plataformas e runtimes.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="sleep.html"><code>sleep</code></a></li>
+<li><a href="snaskgui-delay.html"><code>snaskgui_delay</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

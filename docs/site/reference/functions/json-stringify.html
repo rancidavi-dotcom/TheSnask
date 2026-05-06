@@ -37,19 +37,23 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>json_stringify(value: any) -&gt; str</code></pre>
+        <h2>Para que serve</h2>
+        <p>Transforma um objeto ou lista Snask em uma string no formato JSON compacto.</p>
+<p>Útil para salvar estados de jogos, enviar dados para APIs ou criar logs estruturados.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value/text/key</code></td><td>Valor JSON dinamico, texto de entrada ou chave.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Objeto, lista ou valor primitivo a ser serializado.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Conforme assinatura.</p>
         <h2>Exemplo</h2>
         <pre><code>import &quot;json&quot;
-
-class main {
-    fun start() {
-        let obj = json::parse(&quot;{\&quot;name\&quot;:\&quot;snask\&quot;}&quot;)
-        print(json::get(obj, &quot;name&quot;))
-    }
-}</code></pre>
+let player = {&quot;score&quot;: 1500, &quot;name&quot;: &quot;Snasker&quot;}
+let json_text = json::stringify(player)
+// Resultado: &quot;{\&quot;score\&quot;:1500,\&quot;name\&quot;:\&quot;Snasker\&quot;}&quot; </code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Não suporta a serialização de funções ou handles opacos (como janelas ou ponteiros).</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="json-parse.html"><code>json_parse</code></a></li>
+<li><a href="json-stringify-pretty.html"><code>json_stringify_pretty</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/json_basic.snask</code></p><pre><code>snask build docs/examples/reference/json_basic.snask --output /tmp/snask-doc-json-stringify</code></pre>
         <h2>Notas</h2>
         <p>

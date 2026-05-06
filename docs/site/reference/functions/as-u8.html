@@ -37,12 +37,23 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>as_u8(value: any) -&gt; u8</code></pre>
+        <h2>Para que serve</h2>
+        <p>Realiza uma conversão explícita (cast) de um valor para o tipo inteiro sem sinal de 8 bits (u8).</p>
+<p>Se o valor original for maior que 255, ele será truncado (aplica-se a máscara `&amp; 0xFF`).</p>
+<p>É a forma recomendada de garantir que um valor caiba em um registrador de byte no perfil systems.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor numerico de entrada.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor numerico de entrada a ser truncado ou estendido.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Valor convertido para `u8`.</p>
         <h2>Exemplo</h2>
-        <pre><code>let n: u8 = as_u8(255)</code></pre>
+        <pre><code>let valor_grande = 300
+let byte = as_u8(valor_grande) // 44 (pois 300 &amp; 0xFF = 44)</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Diferente do perfil humane, esta função não lança erro em caso de estouro; ela simplesmente trunca os bits excedentes.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="as-u16.html"><code>as_u16</code></a></li>
+<li><a href="as-i8.html"><code>as_i8</code></a></li>
+<li><a href="wrapping-add.html"><code>wrapping_add</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/systems_bits.snask</code></p><pre><code>snask build docs/examples/reference/systems_bits.snask --output /tmp/snask-doc-as-u8</code></pre>
         <h2>Notas</h2>
         <p>

@@ -37,12 +37,23 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>str_to_num(text: str) -&gt; float</code></pre>
+        <h2>Para que serve</h2>
+        <p>Tenta converter uma representação textual (string) em um valor numérico (float).</p>
+<p>Suporta notação decimal e, em alguns runtimes, notação científica.</p>
         <h2>Parametros</h2>
         <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>text</code></td><td>Texto numerico.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Numero convertido.</p>
         <h2>Exemplo</h2>
-        <pre><code>let n = str_to_num(&quot;42&quot;)</code></pre>
+        <pre><code>let preco_texto = &quot;42.50&quot;
+let valor = str_to_num(preco_texto)
+let total = valor * 2 // 85.0</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Se a string contiver caracteres não numéricos (ex: &quot;abc&quot;), a função retornará 0 ou um erro de diagnóstico dependendo do perfil.</li>
+<li>Sempre limpe a string com `trim` antes de converter para evitar erros por espaços em branco.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="num-to-str.html"><code>num_to_str</code></a></li>
+<li><a href="trim.html"><code>trim</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

@@ -37,19 +37,25 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>json_parse(text: str) -&gt; any</code></pre>
+        <h2>Para que serve</h2>
+        <p>Converte uma string contendo dados no formato JSON em um objeto dinâmico ou lista manipulável pelo Snask.</p>
+<p>É a base para integração com APIs Web e leitura de arquivos de configuração modernos.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value/text/key</code></td><td>Valor JSON dinamico, texto de entrada ou chave.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>text</code></td><td>String contendo o JSON válido.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Conforme assinatura.</p>
         <h2>Exemplo</h2>
         <pre><code>import &quot;json&quot;
-
-class main {
-    fun start() {
-        let obj = json::parse(&quot;{\&quot;name\&quot;:\&quot;snask\&quot;}&quot;)
-        print(json::get(obj, &quot;name&quot;))
-    }
-}</code></pre>
+let raw = &quot;{\&quot;id\&quot;: 1, \&quot;active\&quot;: true}&quot;
+let obj = json::parse(raw)
+print(json::get(obj, &quot;id&quot;)) // 1</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Se o JSON for inválido, a função pode retornar nil ou lançar um erro de parsing.</li>
+<li>Strings JSON devem usar aspas duplas escapadas se definidas dentro de literais Snask.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="json-stringify.html"><code>json_stringify</code></a></li>
+<li><a href="json-get.html"><code>json_get</code></a></li>
+<li><a href="http-get.html"><code>http_get</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/json_basic.snask</code></p><pre><code>snask build docs/examples/reference/json_basic.snask --output /tmp/snask-doc-json-parse</code></pre>
         <h2>Notas</h2>
         <p>

@@ -37,12 +37,22 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>sort(values: list) -&gt; list</code></pre>
+        <h2>Para que serve</h2>
+        <p>Ordena os elementos de uma lista. Para listas de números, a ordem é crescente. Para strings, é lexicográfica.</p>
+<p>No Snask v0.4, a ordenação é in-place (modifica a lista original) ou retorna uma nova cópia dependendo do tipo da lista.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>values</code></td><td>Lista original.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>values</code></td><td>Lista a ser ordenada.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Lista ordenada.</p>
         <h2>Exemplo</h2>
-        <pre><code>let xs = sort([3, 1, 2])</code></pre>
+        <pre><code>let notas = [9, 5, 10, 2]
+let ordenadas = sort(notas)
+// [2, 5, 9, 10]</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Misturar tipos incompatíveis na lista (ex: [1, &quot;a&quot;]) pode causar erros de comparação.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="reverse.html"><code>reverse</code></a></li>
+<li><a href="unique.html"><code>unique</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

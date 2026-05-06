@@ -37,8 +37,14 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>snaskgui_present_rgba(window: any, pixels: ptr, width: float, height: float) -&gt; bool</code></pre>
+        <h2>Para que serve</h2>
+        <p>A função principal de renderização. Ela pega um bloco de memória bruta contendo pixels no formato RGBA (4 bytes por pixel) e os &#x27;carimba&#x27; na janela.</p>
+<p>É extremamente rápida pois utiliza aceleração de hardware (quando disponível) para converter o buffer de memória em uma textura de tela.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>window/pixels</code></td><td>Handle de janela ou ponteiro de framebuffer.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>window</code></td><td>Handle da janela retornado por snaskgui_window.</td></tr>
+<tr><td><code>pixels</code></td><td>Ponteiro para o buffer de pixels RGBA.</td></tr>
+<tr><td><code>width</code></td><td>Largura do buffer.</td></tr>
+<tr><td><code>height</code></td><td>Altura do buffer.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Conforme assinatura.</p>
         <h2>Exemplo</h2>
@@ -47,11 +53,30 @@
 class main {
     fun start() {
         snaskgui::init()
-        let win = snaskgui::window(&quot;Pixels&quot;, 256, 240, 2)
-        snaskgui::poll(win)
-        snaskgui::close(win)
+        let win = snaskgui::window(&quot;Video&quot;, 256, 256, 2)
+        
+        // Exemplo: preencher memória com cor sólida (estático)
+        @unsafe {
+            let size = 256 * 256 * 4
+            let pixels = mem_alloc_zero(size)
+            
+            // Loop principal
+            while snaskgui::should_close(win) == false {
+                snaskgui::poll(win)
+                snaskgui::present_rgba(win, pixels, 256, 256)
+                snaskgui::delay(16)
+            }
+        }
     }
 }</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Deve ser usada dentro de um bloco `@unsafe` pois lida com ponteiros (`ptr`).</li>
+<li>O buffer de pixels deve ter exatamente `width * height * 4` bytes. Se for menor, haverá leitura inválida de memória (Buffer Overflow).</li>
+<li>A ordem dos bytes é R, G, B, A (8 bits cada).</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="snaskgui-window.html"><code>snaskgui_window</code></a></li>
+<li><a href="mem-alloc-zero.html"><code>mem_alloc_zero</code></a></li>
+<li><a href="snaskgui-poll.html"><code>snaskgui_poll</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

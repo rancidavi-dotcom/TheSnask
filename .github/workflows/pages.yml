@@ -3,9 +3,6 @@ name: Deploy Snask Docs
 on:
   push:
     branches: [main]
-    paths:
-      - "docs/site/**"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -18,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build-and-deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -26,6 +23,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Generate Documentation
+        run: |
+          # Garante que a pasta de saída existe
+          mkdir -p docs/site
+          # Executa o script que cria os 150 arquivos HTML
+          python3 scripts/generate_docs_reference.py
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

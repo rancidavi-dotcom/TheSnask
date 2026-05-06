@@ -37,12 +37,26 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>bit_write(value: any, bit: any, enabled: any) -&gt; any</code></pre>
+        <h2>Para que serve</h2>
+        <p>Define o estado de um bit específico (0 ou 1) baseado em um valor booleano ou numérico.</p>
+<p>É uma forma declarativa de modificar flags sem precisar lidar manualmente com operadores de máscara (`|` e `&amp;`).</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor ou registrador base.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor base.</td></tr>
+<tr><td><code>bit</code></td><td>Indice do bit.</td></tr>
+<tr><td><code>enabled</code></td><td>Booleano ou 0/1.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Retorna `any`.</p>
         <h2>Exemplo</h2>
-        <pre><code>let status = bit_write(0, 1, true)</code></pre>
+        <pre><code>mut status = 0b00000000
+let condicao = true
+status = bit_write(status, 7, condicao)
+// status agora é 0b10000000</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>O índice do bit deve estar dentro do intervalo do tipo de dado (0-7 para u8, etc).</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="bit-set.html"><code>bit_set</code></a></li>
+<li><a href="bit-clear.html"><code>bit_clear</code></a></li>
+<li><a href="flag-write.html"><code>flag_write</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/systems_bits.snask</code></p><pre><code>snask build docs/examples/reference/systems_bits.snask --output /tmp/snask-doc-bit-write</code></pre>
         <h2>Notas</h2>
         <p>

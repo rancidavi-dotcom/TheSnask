@@ -37,14 +37,27 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>mem_read_u32(ptr: ptr, offset: any) -&gt; u32</code></pre>
+        <h2>Para que serve</h2>
+        <p>`mem_read_u32` e uma primitiva de memoria crua do perfil systems. Ela existe para codigo que precisa lidar com bytes, ponteiros e buffers previsiveis.</p>
+<p>Esse tipo de funcao pertence a regioes `@unsafe`, porque o compilador nao consegue provar sozinho que offsets, tamanho e tempo de vida estao corretos.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>ptr/offset/value</code></td><td>Argumentos de memoria crua; validar bounds e ownership e responsabilidade do codigo unsafe.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>ptr</code></td><td>Ponteiro base.</td></tr>
+<tr><td><code>offset</code></td><td>Deslocamento em bytes.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Valor `u32`.</p>
         <h2>Exemplo</h2>
         <pre><code>@unsafe {
     let d: u32 = mem_read_u32(p, 0)
 }</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Use dentro de `@unsafe` e mantenha ownership claro.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="mem-alloc.html"><code>mem_alloc</code></a></li>
+<li><a href="mem-alloc-zero.html"><code>mem_alloc_zero</code></a></li>
+<li><a href="mem-free.html"><code>mem_free</code></a></li>
+<li><a href="ptr-add.html"><code>ptr_add</code></a></li>
+<li><a href="mem-read-u8.html"><code>mem_read_u8</code></a></li>
+<li><a href="mem-read-u16.html"><code>mem_read_u16</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/systems_memory.snask</code></p><pre><code>snask build docs/examples/reference/systems_memory.snask --output /tmp/snask-doc-mem-read-u32</code></pre>
         <h2>Notas</h2>
         <p>

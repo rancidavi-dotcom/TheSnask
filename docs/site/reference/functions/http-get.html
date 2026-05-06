@@ -37,12 +37,24 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>http_get(url: str) -&gt; dict</code></pre>
+        <h2>Para que serve</h2>
+        <p>Realiza uma requisição HTTP do tipo GET para a URL especificada.</p>
+<p>Retorna um dicionário contendo o corpo da resposta, o código de status e os cabeçalhos recebidos.</p>
+<p>É a ferramenta padrão para consumir dados de APIs REST externas.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>url</code></td><td>URL absoluta.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>url</code></td><td>URL absoluta do recurso.</td></tr></tbody></table>
         <h2>Retorno</h2>
-        <p>Dicionario com dados da resposta, conforme runtime atual.</p>
+        <p>Dicionario com status, headers e body.</p>
         <h2>Exemplo</h2>
-        <pre><code>let res = http_get(&quot;https://example.com&quot;)</code></pre>
+        <pre><code>let res = http_get(&quot;https://api.github.com/zen&quot;)
+print(&quot;Status: {res[\&quot;status\&quot;]}\n&quot;)
+print(&quot;Body: {res[\&quot;body\&quot;]}\n&quot;)</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Operação bloqueante: o programa ficará pausado até que a resposta chegue ou ocorra um timeout.</li>
+<li>Requer que o runtime tenha suporte a rede e certificados SSL válidos para URLs HTTPS.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="http-post.html"><code>http_post</code></a></li>
+<li><a href="json-parse.html"><code>json_parse</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

@@ -37,13 +37,25 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>append_file(path: str, content: str) -&gt; void</code></pre>
+        <h2>Para que serve</h2>
+        <p>`append_file` e um builtin da superficie Snask atual.</p>
+<p>Acrescenta texto ao fim de um arquivo. Use esta pagina como referencia rapida para assinatura, perfil, retorno e limites conhecidos.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>path</code></td><td>Caminho.</td></tr>
-<tr><td><code>content</code></td><td>Texto a anexar.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>path</code></td><td>Caminho do arquivo.</td></tr>
+<tr><td><code>content</code></td><td>Texto a ser anexado.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Nada.</p>
         <h2>Exemplo</h2>
         <pre><code>append_file(&quot;/tmp/snask.log&quot;, &quot;linha\n&quot;)</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>API parcial: existe no compilador/runtime atual, mas ainda pode ter limites de tipo, link ou comportamento.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="read-file.html"><code>read_file</code></a></li>
+<li><a href="write-file.html"><code>write_file</code></a></li>
+<li><a href="exists.html"><code>exists</code></a></li>
+<li><a href="delete.html"><code>delete</code></a></li>
+<li><a href="read-dir.html"><code>read_dir</code></a></li>
+<li><a href="is-file.html"><code>is_file</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

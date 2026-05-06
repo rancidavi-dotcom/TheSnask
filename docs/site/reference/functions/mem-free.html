@@ -37,14 +37,27 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>mem_free(ptr: ptr) -&gt; void</code></pre>
+        <h2>Para que serve</h2>
+        <p>Libera um bloco de memória previamente alocado por `mem_alloc` ou `mem_alloc_zero`, devolvendo-o ao sistema operacional ou ao heap global.</p>
+<p>É uma função crítica para a saúde de aplicações de longa duração (como servidores ou emuladores), pois evita o consumo excessivo de recursos (leaks).</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>ptr/offset/value</code></td><td>Argumentos de memoria crua; validar bounds e ownership e responsabilidade do codigo unsafe.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>ptr</code></td><td>Ponteiro para o inicio do bloco alocado anteriormente.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Nada.</p>
         <h2>Exemplo</h2>
         <pre><code>@unsafe {
-    mem_free(p)
+    let buffer = mem_alloc(1024)
+    // ... uso do buffer ...
+    mem_free(buffer)
+    // ATENÇÃO: &#x27;buffer&#x27; agora é um ponteiro pendente (dangling pointer). 
+    // Não tente lê-lo ou escrevê-lo novamente.
 }</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Double Free: Tentar liberar o mesmo ponteiro duas vezes causará um crash imediato da aplicação por segurança.</li>
+<li>Invalid Free: Tentar liberar um ponteiro que não foi retornado por uma função de alocação (ou um ponteiro deslocado via `ptr_add`) é um erro fatal.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="mem-alloc.html"><code>mem_alloc</code></a></li>
+<li><a href="mem-alloc-zero.html"><code>mem_alloc_zero</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/systems_memory.snask</code></p><pre><code>snask build docs/examples/reference/systems_memory.snask --output /tmp/snask-doc-mem-free</code></pre>
         <h2>Notas</h2>
         <p>

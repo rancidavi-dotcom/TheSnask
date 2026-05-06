@@ -37,8 +37,15 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>snaskgui_window(title: str, width: float, height: float, scale: float) -&gt; any</code></pre>
+        <h2>Para que serve</h2>
+        <p>Cria uma janela nativa otimizada para exibição de pixels (framebuffer), ideal para emuladores, jogos retrô e ferramentas de visualização de dados.</p>
+<p>Diferente de interfaces baseadas em widgets (botões, inputs), esta janela é uma &#x27;tela em branco&#x27; onde você tem controle total sobre cada pixel enviado via `snaskgui_present_rgba`.</p>
+<p>O parâmetro `scale` é crucial: ele permite que você renderize em uma resolução baixa (ex: 256x240 do NES) e a janela seja exibida em um tamanho confortável (ex: 768x720 com scale 3) sem perder a nitidez dos pixels.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>window/pixels</code></td><td>Handle de janela ou ponteiro de framebuffer.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>title</code></td><td>Título da janela.</td></tr>
+<tr><td><code>width</code></td><td>Largura lógica em pixels.</td></tr>
+<tr><td><code>height</code></td><td>Altura lógica em pixels.</td></tr>
+<tr><td><code>scale</code></td><td>Fator de escala de exibição (ex: 2.0 para 2x).</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Conforme assinatura.</p>
         <h2>Exemplo</h2>
@@ -47,11 +54,27 @@
 class main {
     fun start() {
         snaskgui::init()
-        let win = snaskgui::window(&quot;Pixels&quot;, 256, 240, 2)
-        snaskgui::poll(win)
+        // Janela com título &quot;Snask&quot;, 320x200 pixels, escala 2x (640x400 físico)
+        let win = snaskgui::window(&quot;Snask Game&quot;, 320, 200, 2)
+
+        while snaskgui::should_close(win) == false {
+            snaskgui::poll(win)
+            // Lógica de desenho aqui
+            snaskgui::delay(16)
+        }
+
         snaskgui::close(win)
     }
 }</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>O retorno é um handle opaco. Não tente realizar operações aritméticas com ele.</li>
+<li>Largura e altura são resoluções *lógicas*. Se você criar uma janela 100x100 com escala 10, ela ocupará 1000x1000 pixels na tela.</li>
+<li>Não confunda com `gui_window`, que é para interfaces GTK/Widgets.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="snaskgui-init.html"><code>snaskgui_init</code></a></li>
+<li><a href="snaskgui-present-rgba.html"><code>snaskgui_present_rgba</code></a></li>
+<li><a href="snaskgui-poll.html"><code>snaskgui_poll</code></a></li>
+<li><a href="snaskgui-close.html"><code>snaskgui_close</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

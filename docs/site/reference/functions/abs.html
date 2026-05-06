@@ -37,12 +37,22 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>abs(x: float) -&gt; float</code></pre>
+        <h2>Para que serve</h2>
+        <p>Retorna o valor absoluto (módulo) de um número real.</p>
+<p>Transforma números negativos em positivos, mantendo números positivos ou zero inalterados.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>x</code></td><td>Numero de entrada.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>x</code></td><td>Numero de entrada (real).</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Numero sem sinal negativo.</p>
         <h2>Exemplo</h2>
-        <pre><code>let distance = abs(-42)</code></pre>
+        <pre><code>let delta = -42.5
+let magnitude = abs(delta) // 42.5</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Em sistemas de ponto flutuante, `abs(-0.0)` retorna `0.0`.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="sqrt.html"><code>sqrt</code></a></li>
+<li><a href="min.html"><code>min</code></a></li>
+<li><a href="max.html"><code>max</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

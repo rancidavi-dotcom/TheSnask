@@ -37,14 +37,27 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>ptr_add(ptr: ptr, offset: any) -&gt; ptr</code></pre>
+        <h2>Para que serve</h2>
+        <p>`ptr_add` e uma primitiva de memoria crua do perfil systems. Ela existe para codigo que precisa lidar com bytes, ponteiros e buffers previsiveis.</p>
+<p>Esse tipo de funcao pertence a regioes `@unsafe`, porque o compilador nao consegue provar sozinho que offsets, tamanho e tempo de vida estao corretos.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>ptr/offset/value</code></td><td>Argumentos de memoria crua; validar bounds e ownership e responsabilidade do codigo unsafe.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>ptr</code></td><td>Ponteiro base.</td></tr>
+<tr><td><code>offset</code></td><td>Deslocamento em bytes (positivo ou negativo).</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Novo ponteiro.</p>
         <h2>Exemplo</h2>
         <pre><code>@unsafe {
     let p2: ptr = ptr_add(p, 16)
 }</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Use dentro de `@unsafe` e mantenha ownership claro.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="mem-alloc.html"><code>mem_alloc</code></a></li>
+<li><a href="mem-alloc-zero.html"><code>mem_alloc_zero</code></a></li>
+<li><a href="mem-free.html"><code>mem_free</code></a></li>
+<li><a href="mem-read-u8.html"><code>mem_read_u8</code></a></li>
+<li><a href="mem-read-u16.html"><code>mem_read_u16</code></a></li>
+<li><a href="mem-read-u32.html"><code>mem_read_u32</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/systems_memory.snask</code></p><pre><code>snask build docs/examples/reference/systems_memory.snask --output /tmp/snask-doc-ptr-add</code></pre>
         <h2>Notas</h2>
         <p>

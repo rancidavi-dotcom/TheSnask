@@ -37,14 +37,26 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>substring(text: str, start: float, length: float) -&gt; str</code></pre>
+        <h2>Para que serve</h2>
+        <p>Extrai uma porção de uma string original começando em um índice específico e capturando um comprimento determinado.</p>
+<p>É a ferramenta padrão para parsing manual de textos, extração de prefixos ou limpeza de dados.</p>
         <h2>Parametros</h2>
         <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>text</code></td><td>String original.</td></tr>
-<tr><td><code>start</code></td><td>Indice inicial.</td></tr>
-<tr><td><code>length</code></td><td>Quantidade de caracteres.</td></tr></tbody></table>
+<tr><td><code>start</code></td><td>Indice inicial (comeca em 0).</td></tr>
+<tr><td><code>length</code></td><td>Quantidade de caracteres a extrair.</td></tr></tbody></table>
         <h2>Retorno</h2>
-        <p>Trecho extraido.</p>
+        <p>O trecho extraido como uma nova string.</p>
         <h2>Exemplo</h2>
-        <pre><code>let prefix = substring(&quot;snask&quot;, 0, 2)</code></pre>
+        <pre><code>let email = &quot;usuario@snask.org&quot;
+// Extrai &quot;usuario&quot; (começa no 0, pega 7 caracteres)
+let user = substring(email, 0, 7)</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Se o índice de início + comprimento ultrapassar o tamanho da string, a função pode lançar um erro ou retornar uma string vazia dependendo do modo de segurança do runtime.</li>
+<li>Índices começam em 0.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="len.html"><code>len</code></a></li>
+<li><a href="split.html"><code>split</code></a></li>
+<li><a href="replace.html"><code>replace</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

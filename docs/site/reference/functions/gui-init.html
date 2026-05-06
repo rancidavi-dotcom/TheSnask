@@ -37,21 +37,30 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>gui_init() -&gt; bool</code></pre>
+        <h2>Para que serve</h2>
+        <p>Inicializa o runtime de interface gráfica nativa (GTK/Backend nativo). Deve ser chamada antes de qualquer tentativa de criar janelas ou widgets.</p>
+<p>Diferente do `snaskgui_init`, esta função prepara o sistema para uma hierarquia de widgets e gerenciamento de layout automático.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>widget/args</code></td><td>Handles opacos de widgets e argumentos de UI.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td colspan="2">Sem parametros.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Conforme assinatura.</p>
         <h2>Exemplo</h2>
         <pre><code>import &quot;gui&quot;
-
 class main {
     fun start() {
-        let ok = gui::init()
-        let win = gui::window(&quot;Snask&quot;, 320, 180)
-        gui::show_all(win)
-        gui::run()
+        if gui::init() {
+            let win = gui::window(&quot;App Snask&quot;, 400, 300)
+            gui::show_all(win)
+            gui::run()
+        }
     }
 }</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Se o sistema operacional não possuir um servidor gráfico ativo (ex: Linux sem X11/Wayland), a função retornará false.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="gui-run.html"><code>gui_run</code></a></li>
+<li><a href="gui-window.html"><code>gui_window</code></a></li>
+<li><a href="snaskgui-init.html"><code>snaskgui_init</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/gui_minimal.snask</code></p><pre><code>snask build docs/examples/reference/gui_minimal.snask --output /tmp/snask-doc-gui-init</code></pre>
         <h2>Notas</h2>
         <p>

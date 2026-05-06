@@ -37,12 +37,27 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>bit_test(value: any, bit: any) -&gt; bool</code></pre>
+        <h2>Para que serve</h2>
+        <p>Verifica se um bit específico dentro de um valor inteiro está ligado (1) ou desligado (0).</p>
+<p>Extremamente útil para decodificar registros de status de hardware, protocolos binários e sistemas de flags de baixo consumo de memória.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor ou registrador base.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor base.</td></tr>
+<tr><td><code>bit</code></td><td>Indice do bit (base-0).</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Retorna `bool`.</p>
         <h2>Exemplo</h2>
-        <pre><code>let carry = bit_test(status, 0)</code></pre>
+        <pre><code>let flags = 0b10100000
+// Testa o bit 7 (o mais significativo em um u8)
+if bit_test(flags, 7) {
+    print(&quot;Bit 7 está ON\n&quot;)
+}</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Os índices de bits são base-0, indo de 0 (bit menos significativo) até 7 (para u8), 15 (u16), etc.</li>
+<li>Passar um índice maior que o tamanho do tipo de dado resultará sempre em false ou comportamento indefinido.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="bit-set.html"><code>bit_set</code></a></li>
+<li><a href="bit-clear.html"><code>bit_clear</code></a></li>
+<li><a href="bit-toggle.html"><code>bit_toggle</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/systems_bits.snask</code></p><pre><code>snask build docs/examples/reference/systems_bits.snask --output /tmp/snask-doc-bit-test</code></pre>
         <h2>Notas</h2>
         <p>

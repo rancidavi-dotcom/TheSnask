@@ -37,13 +37,20 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>http_post(url: str, body: str) -&gt; void</code></pre>
+        <h2>Para que serve</h2>
+        <p>`http_post` e um builtin da superficie Snask atual.</p>
+<p>Executa requisicao HTTP POST pelo runtime. Use esta pagina como referencia rapida para assinatura, perfil, retorno e limites conhecidos.</p>
         <h2>Parametros</h2>
         <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>url</code></td><td>URL absoluta.</td></tr>
-<tr><td><code>body</code></td><td>Corpo textual.</td></tr></tbody></table>
+<tr><td><code>body</code></td><td>Conteudo do corpo da requisicao.</td></tr></tbody></table>
         <h2>Retorno</h2>
-        <p>Nada na superficie atual.</p>
+        <p>Nada.</p>
         <h2>Exemplo</h2>
         <pre><code>http_post(&quot;https://example.com&quot;, &quot;ok&quot;)</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>API experimental: nome, retorno ou comportamento ainda podem mudar conforme o runtime amadurece.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="http-get.html"><code>http_get</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

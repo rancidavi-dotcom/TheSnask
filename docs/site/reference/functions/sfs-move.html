@@ -37,8 +37,12 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>sfs_move(src: str, dst: str) -&gt; bool</code></pre>
+        <h2>Para que serve</h2>
+        <p>`sfs_move` pertence a uma biblioteca nativa importavel. Em codigo Snask normal, prefira chamar pelo modulo, por exemplo `json::parse` ou `sfs::read`, em vez do nome interno com prefixo.</p>
+<p>Move arquivo pelo SFS. A assinatura documenta a superficie que o analisador conhece hoje.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>path</code></td><td>Caminho de filesystem.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>src</code></td><td>Origem.</td></tr>
+<tr><td><code>dst</code></td><td>Destino.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Conforme assinatura.</p>
         <h2>Exemplo</h2>
@@ -50,6 +54,15 @@ class main {
         print(ok)
     }
 }</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>API parcial: existe no compilador/runtime atual, mas ainda pode ter limites de tipo, link ou comportamento.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="sfs-read.html"><code>sfs_read</code></a></li>
+<li><a href="sfs-write.html"><code>sfs_write</code></a></li>
+<li><a href="sfs-append.html"><code>sfs_append</code></a></li>
+<li><a href="sfs-exists.html"><code>sfs_exists</code></a></li>
+<li><a href="sfs-delete.html"><code>sfs_delete</code></a></li>
+<li><a href="sfs-copy.html"><code>sfs_copy</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/sfs_basic.snask</code></p><pre><code>snask build docs/examples/reference/sfs_basic.snask --output /tmp/snask-doc-sfs-move</code></pre>
         <h2>Notas</h2>
         <p>

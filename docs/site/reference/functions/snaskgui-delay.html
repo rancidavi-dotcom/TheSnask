@@ -37,8 +37,11 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>snaskgui_delay(ms: float) -&gt; void</code></pre>
+        <h2>Para que serve</h2>
+        <p>`snaskgui_delay` faz parte da API framebuffer da Snask. Essa familia e pensada para programas que controlam pixels diretamente: emuladores, jogos simples, visualizadores binarios e ferramentas de renderizacao deterministica.</p>
+<p>Pausa em milissegundos. Em vez de montar uma interface com botoes e layouts, voce manipula uma janela e envia frames prontos para ela.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>window/pixels</code></td><td>Handle de janela ou ponteiro de framebuffer.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>ms</code></td><td>Tempo em milissegundos.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Conforme assinatura.</p>
         <h2>Exemplo</h2>
@@ -52,6 +55,15 @@ class main {
         snaskgui::close(win)
     }
 }</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>API experimental: nome, retorno ou comportamento ainda podem mudar conforme o runtime amadurece.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="snaskgui-init.html"><code>snaskgui_init</code></a></li>
+<li><a href="snaskgui-window.html"><code>snaskgui_window</code></a></li>
+<li><a href="snaskgui-present-rgba.html"><code>snaskgui_present_rgba</code></a></li>
+<li><a href="snaskgui-poll.html"><code>snaskgui_poll</code></a></li>
+<li><a href="snaskgui-key-down.html"><code>snaskgui_key_down</code></a></li>
+<li><a href="snaskgui-should-close.html"><code>snaskgui_should_close</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

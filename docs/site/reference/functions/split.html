@@ -37,13 +37,24 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>split(text: str, sep: str) -&gt; list</code></pre>
+        <h2>Para que serve</h2>
+        <p>Divide uma string em uma lista de strings menores, utilizando um separador (delimitador) específico.</p>
+<p>Muito utilizada para processar arquivos CSV, caminhos de diretórios ou entradas de usuário formatadas.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>text</code></td><td>String original.</td></tr>
-<tr><td><code>sep</code></td><td>Separador.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>text</code></td><td>String a ser dividida.</td></tr>
+<tr><td><code>sep</code></td><td>Caractere ou texto usado como delimitador.</td></tr></tbody></table>
         <h2>Retorno</h2>
-        <p>Lista de partes.</p>
+        <p>Lista contendo as partes da string dividida.</p>
         <h2>Exemplo</h2>
-        <pre><code>let parts = split(&quot;a,b,c&quot;, &quot;,&quot;)</code></pre>
+        <pre><code>let csv = &quot;maca,banana,uva&quot;
+let frutas = split(csv, &quot;,&quot;)
+// Resultado: [&quot;maca&quot;, &quot;banana&quot;, &quot;uva&quot;]</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Se o separador for uma string vazia, o comportamento depende da versão do runtime (pode dividir caractere a caractere ou retornar a string original).</li>
+<li>Separadores adjacentes resultam em strings vazias na lista resultante.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="join.html"><code>join</code></a></li>
+<li><a href="substring.html"><code>substring</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

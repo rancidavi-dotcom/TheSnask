@@ -37,12 +37,24 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>as_u32(value: any) -&gt; u32</code></pre>
+        <h2>Para que serve</h2>
+        <p>`as_u32` e uma primitiva deterministica para sistemas. Ela foi criada para casos como CPU 6502, parsers binarios e logica que precisa controlar bits, overflow ou inteiros de tamanho fixo.</p>
+<p>Converte valor numerico para `u32` com semantica explicita do perfil systems. A ideia e deixar o comportamento explicito, sem depender de conversoes magicas.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor numerico de entrada.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor numerico de entrada a ser truncado ou estendido.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Valor convertido para `u32`.</p>
         <h2>Exemplo</h2>
         <pre><code>let n: u32 = as_u32(255)</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Sem cuidados especiais alem dos tipos da assinatura e do perfil indicado.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="wrapping-add.html"><code>wrapping_add</code></a></li>
+<li><a href="wrapping-sub.html"><code>wrapping_sub</code></a></li>
+<li><a href="wrapping-mul.html"><code>wrapping_mul</code></a></li>
+<li><a href="saturating-add.html"><code>saturating_add</code></a></li>
+<li><a href="as-u8.html"><code>as_u8</code></a></li>
+<li><a href="as-u16.html"><code>as_u16</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/systems_bits.snask</code></p><pre><code>snask build docs/examples/reference/systems_bits.snask --output /tmp/snask-doc-as-u32</code></pre>
         <h2>Notas</h2>
         <p>

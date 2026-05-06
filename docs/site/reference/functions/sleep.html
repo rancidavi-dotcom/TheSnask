@@ -37,12 +37,22 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>sleep(seconds: float) -&gt; void</code></pre>
+        <h2>Para que serve</h2>
+        <p>Pausa a execução do thread atual por um período determinado de segundos.</p>
+<p>Útil para evitar consumo excessivo de CPU em loops de espera ou para coordenar processos temporizados.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>seconds</code></td><td>Duracao da pausa.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>seconds</code></td><td>Duracao da pausa em segundos.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Nada.</p>
         <h2>Exemplo</h2>
-        <pre><code>sleep(0.1)</code></pre>
+        <pre><code>print(&quot;Aguardando...\n&quot;)
+sleep(1.5) // pausa por 1 segundo e meio
+print(&quot;Pronto!\n&quot;)</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Pausar o thread principal em aplicações GUI fará com que a janela pare de responder (congelamento).</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="time.html"><code>time</code></a></li>
+<li><a href="snaskgui-delay.html"><code>snaskgui_delay</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

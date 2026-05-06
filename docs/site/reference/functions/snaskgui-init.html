@@ -37,8 +37,11 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>snaskgui_init() -&gt; bool</code></pre>
+        <h2>Para que serve</h2>
+        <p>Inicializa o subsistema de vídeo e eventos do SnaskGUI. Esta deve ser a primeira função chamada antes de qualquer tentativa de criar janelas ou manipular gráficos no perfil systems.</p>
+<p>Ela configura os drivers internos (como SDL2 ou DRM, dependendo da plataforma) e prepara o ambiente para renderização de alta performance.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>window/pixels</code></td><td>Handle de janela ou ponteiro de framebuffer.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td colspan="2">Sem parametros.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Conforme assinatura.</p>
         <h2>Exemplo</h2>
@@ -46,12 +49,20 @@
 
 class main {
     fun start() {
-        snaskgui::init()
-        let win = snaskgui::window(&quot;Pixels&quot;, 256, 240, 2)
-        snaskgui::poll(win)
-        snaskgui::close(win)
+        if snaskgui::init() {
+            print(&quot;Sistema gráfico pronto!\n&quot;)
+            // Prossiga com snaskgui::window
+        } else {
+            print(&quot;Erro ao inicializar gráficos.\n&quot;)
+        }
     }
 }</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Chamar qualquer outra função `snaskgui_*` antes desta resultará em comportamento indefinido ou crash.</li>
+<li>Em sistemas Linux sem ambiente gráfico (X11/Wayland), esta função pode falhar se o driver de framebuffer não estiver disponível.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="snaskgui-window.html"><code>snaskgui_window</code></a></li>
+<li><a href="snaskgui-close.html"><code>snaskgui_close</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

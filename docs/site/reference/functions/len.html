@@ -37,12 +37,26 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>len(value: any) -&gt; float</code></pre>
+        <h2>Para que serve</h2>
+        <p>Retorna a quantidade de elementos ou o tamanho dimensional de um valor.</p>
+<p>Para **Strings**, retorna o número de caracteres (atualmente mapeado para bytes na versão v0.4).</p>
+<p>Para **Listas**, retorna o número de itens armazenados.</p>
+<p>Para **Objetos Dinâmicos/JSON**, retorna o número de chaves de alto nível ou itens em um array.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor cujo tamanho sera consultado.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>A colecao, string ou objeto cujo tamanho sera consultado.</td></tr></tbody></table>
         <h2>Retorno</h2>
-        <p>Tamanho como numero.</p>
+        <p>Tamanho como numero (float).</p>
         <h2>Exemplo</h2>
-        <pre><code>let n = len(&quot;snask&quot;)</code></pre>
+        <pre><code>let texto = &quot;Snask&quot;
+let tamanho = len(texto) // 5
+
+let lista = [10, 20, 30]
+print(len(lista)) // 3</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Em strings com caracteres multi-byte (Unicode/UTF-8 complexos), o comportamento atual pode retornar o tamanho em bytes, não em glifos visuais.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="substring.html"><code>substring</code></a></li>
+<li><a href="chars.html"><code>chars</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

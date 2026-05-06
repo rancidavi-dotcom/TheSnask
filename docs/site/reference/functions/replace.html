@@ -37,14 +37,26 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>replace(text: str, old: str, new: str) -&gt; str</code></pre>
+        <h2>Para que serve</h2>
+        <p>`replace` e um builtin da superficie Snask atual.</p>
+<p>Substitui ocorrencias de `old` por `new`. Use esta pagina como referencia rapida para assinatura, perfil, retorno e limites conhecidos.</p>
         <h2>Parametros</h2>
         <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>text</code></td><td>String original.</td></tr>
-<tr><td><code>old</code></td><td>Trecho antigo.</td></tr>
-<tr><td><code>new</code></td><td>Trecho novo.</td></tr></tbody></table>
+<tr><td><code>old</code></td><td>Trecho a ser substituido.</td></tr>
+<tr><td><code>new</code></td><td>Novo texto a ser inserido.</td></tr></tbody></table>
         <h2>Retorno</h2>
-        <p>String alterada.</p>
+        <p>Nova string com as substituicoes realizadas.</p>
         <h2>Exemplo</h2>
         <pre><code>let text = replace(&quot;snask&quot;, &quot;ask&quot;, &quot;ake&quot;)</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>API parcial: existe no compilador/runtime atual, mas ainda pode ter limites de tipo, link ou comportamento.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="upper.html"><code>upper</code></a></li>
+<li><a href="lower.html"><code>lower</code></a></li>
+<li><a href="trim.html"><code>trim</code></a></li>
+<li><a href="substring.html"><code>substring</code></a></li>
+<li><a href="contains.html"><code>contains</code></a></li>
+<li><a href="starts-with.html"><code>starts_with</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

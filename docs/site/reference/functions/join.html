@@ -37,13 +37,23 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>join(parts: list, sep: str) -&gt; str</code></pre>
+        <h2>Para que serve</h2>
+        <p>Concatena todos os elementos de uma lista de strings em uma única string, inserindo um separador entre cada elemento.</p>
+<p>É a operação inversa do `split`.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>parts</code></td><td>Lista de strings.</td></tr>
-<tr><td><code>sep</code></td><td>Separador.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>parts</code></td><td>Lista de strings a serem unidas.</td></tr>
+<tr><td><code>sep</code></td><td>Separador a ser inserido entre os itens.</td></tr></tbody></table>
         <h2>Retorno</h2>
-        <p>String resultante.</p>
+        <p>Uma única string resultante da uniao.</p>
         <h2>Exemplo</h2>
-        <pre><code>let text = join([&quot;a&quot;, &quot;b&quot;], &quot;,&quot;)</code></pre>
+        <pre><code>let partes = [&quot;usr&quot;, &quot;bin&quot;, &quot;snask&quot;]
+let caminho = join(partes, &quot;/&quot;)
+// Resultado: &quot;usr/bin/snask&quot;</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Todos os elementos da lista devem ser do tipo string. Se houver números ou nils, a função pode falhar se não houver conversão implícita.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="split.html"><code>split</code></a></li>
+<li><a href="format.html"><code>format</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

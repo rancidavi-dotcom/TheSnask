@@ -37,13 +37,26 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>wrapping_add(a: any, b: any) -&gt; any</code></pre>
+        <h2>Para que serve</h2>
+        <p>Realiza uma soma aritmética que ignora o estouro (overflow). Se o resultado for maior que o valor máximo suportado pelo tipo, ele &#x27;dá a volta&#x27; (wrap around) para zero.</p>
+<p>Esta é a semântica padrão de CPUs reais e é obrigatória para a implementação correta de lógica de registradores de CPU (como o Program Counter ou o acumulador de um 6502/Z80).</p>
         <h2>Parametros</h2>
         <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>a</code></td><td>Operando.</td></tr>
 <tr><td><code>b</code></td><td>Operando.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Resultado com wrap.</p>
         <h2>Exemplo</h2>
-        <pre><code>let x: u8 = wrapping_add(255, 1)</code></pre>
+        <pre><code>// Em um u8, o valor máximo é 255.
+let a: u8 = 255
+let b: u8 = 1
+let res = wrapping_add(a, b)
+// res será 0, e não um erro de overflow ou 256.
+</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Não use esta função para lógica de negócios (financeira, contagem) onde um estouro deve ser tratado como erro. Use apenas em lógica de sistemas.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="wrapping-sub.html"><code>wrapping_sub</code></a></li>
+<li><a href="saturating-add.html"><code>saturating_add</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/systems_bits.snask</code></p><pre><code>snask build docs/examples/reference/systems_bits.snask --output /tmp/snask-doc-wrapping-add</code></pre>
         <h2>Notas</h2>
         <p>

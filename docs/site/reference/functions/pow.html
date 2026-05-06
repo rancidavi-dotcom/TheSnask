@@ -37,13 +37,24 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>pow(base: float, exp: float) -&gt; float</code></pre>
+        <h2>Para que serve</h2>
+        <p>Calcula o resultado de uma base elevada a um expoente.</p>
+<p>Utiliza o algoritmo de exponenciação rápida do runtime LLVM para garantir precisão e velocidade.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>base</code></td><td>Base.</td></tr>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>base</code></td><td>Valor base.</td></tr>
 <tr><td><code>exp</code></td><td>Expoente.</td></tr></tbody></table>
         <h2>Retorno</h2>
-        <p>Resultado numerico.</p>
+        <p>Resultado da potencia.</p>
         <h2>Exemplo</h2>
-        <pre><code>let square = pow(8, 2)</code></pre>
+        <pre><code>let base = 2
+let expoente = 10
+let resultado = pow(base, expoente) // 1024.0</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Resultados podem exceder o valor máximo de um float (Infinity) se o expoente for muito alto.</li>
+<li>Base negativa com expoente fracionário pode resultar em NaN (Not a Number).</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="sqrt.html"><code>sqrt</code></a></li>
+<li><a href="abs.html"><code>abs</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

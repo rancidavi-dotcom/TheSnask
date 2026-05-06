@@ -37,12 +37,22 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>unique(values: list) -&gt; list</code></pre>
+        <h2>Para que serve</h2>
+        <p>`unique` e um builtin da superficie Snask atual.</p>
+<p>Remove duplicatas de uma lista. Use esta pagina como referencia rapida para assinatura, perfil, retorno e limites conhecidos.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>values</code></td><td>Lista original.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>values</code></td><td>Lista com possiveis duplicatas.</td></tr></tbody></table>
         <h2>Retorno</h2>
-        <p>Lista sem duplicatas.</p>
+        <p>Lista contendo apenas elementos únicos.</p>
         <h2>Exemplo</h2>
         <pre><code>let xs = unique([1, 1, 2])</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>API parcial: existe no compilador/runtime atual, mas ainda pode ter limites de tipo, link ou comportamento.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="range.html"><code>range</code></a></li>
+<li><a href="sort.html"><code>sort</code></a></li>
+<li><a href="reverse.html"><code>reverse</code></a></li>
+<li><a href="flatten.html"><code>flatten</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

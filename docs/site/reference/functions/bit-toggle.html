@@ -37,12 +37,25 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>bit_toggle(value: any, bit: any) -&gt; any</code></pre>
+        <h2>Para que serve</h2>
+        <p>`bit_toggle` e uma primitiva deterministica para sistemas. Ela foi criada para casos como CPU 6502, parsers binarios e logica que precisa controlar bits, overflow ou inteiros de tamanho fixo.</p>
+<p>Inverte um bit. A ideia e deixar o comportamento explicito, sem depender de conversoes magicas.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor ou registrador base.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor base.</td></tr>
+<tr><td><code>bit</code></td><td>Indice do bit.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Retorna `any`.</p>
         <h2>Exemplo</h2>
         <pre><code>let status = bit_toggle(0, 1)</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Sem cuidados especiais alem dos tipos da assinatura e do perfil indicado.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="wrapping-add.html"><code>wrapping_add</code></a></li>
+<li><a href="wrapping-sub.html"><code>wrapping_sub</code></a></li>
+<li><a href="wrapping-mul.html"><code>wrapping_mul</code></a></li>
+<li><a href="saturating-add.html"><code>saturating_add</code></a></li>
+<li><a href="as-u8.html"><code>as_u8</code></a></li>
+<li><a href="as-u16.html"><code>as_u16</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/systems_bits.snask</code></p><pre><code>snask build docs/examples/reference/systems_bits.snask --output /tmp/snask-doc-bit-toggle</code></pre>
         <h2>Notas</h2>
         <p>

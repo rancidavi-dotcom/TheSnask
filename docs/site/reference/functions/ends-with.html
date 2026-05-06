@@ -37,13 +37,25 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>ends_with(text: str, suffix: str) -&gt; bool</code></pre>
+        <h2>Para que serve</h2>
+        <p>`ends_with` e um builtin da superficie Snask atual.</p>
+<p>Testa sufixo de string. Use esta pagina como referencia rapida para assinatura, perfil, retorno e limites conhecidos.</p>
         <h2>Parametros</h2>
         <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>text</code></td><td>String completa.</td></tr>
-<tr><td><code>suffix</code></td><td>Sufixo esperado.</td></tr></tbody></table>
+<tr><td><code>suffix</code></td><td>Sufixo a ser testado.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>`true` se a string termina com o sufixo.</p>
         <h2>Exemplo</h2>
         <pre><code>let ok = ends_with(&quot;snask&quot;, &quot;ask&quot;)</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>API parcial: existe no compilador/runtime atual, mas ainda pode ter limites de tipo, link ou comportamento.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="upper.html"><code>upper</code></a></li>
+<li><a href="lower.html"><code>lower</code></a></li>
+<li><a href="trim.html"><code>trim</code></a></li>
+<li><a href="substring.html"><code>substring</code></a></li>
+<li><a href="contains.html"><code>contains</code></a></li>
+<li><a href="starts-with.html"><code>starts_with</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

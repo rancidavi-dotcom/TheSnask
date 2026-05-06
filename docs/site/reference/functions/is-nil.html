@@ -37,12 +37,23 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>is_nil(value: any) -&gt; bool</code></pre>
+        <h2>Para que serve</h2>
+        <p>Verifica se uma variável possui o valor `nil` (nulo/ausente).</p>
+<p>É essencial para validação de segurança antes de realizar operações em objetos ou ponteiros que podem não ter sido inicializados.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor testado.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>value</code></td><td>Valor a ser testado.</td></tr></tbody></table>
         <h2>Retorno</h2>
-        <p>`true` quando o valor e nil.</p>
+        <p>`true` se for nil.</p>
         <h2>Exemplo</h2>
-        <pre><code>let ok = is_nil(nil)</code></pre>
+        <pre><code>let dado = read_file(&quot;inexistente.txt&quot;)
+if is_nil(dado) {
+    print(&quot;Erro ao ler arquivo!\n&quot;)
+}</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Não confunda `nil` com uma string vazia `&quot;&quot;` ou o número `0`. `is_nil` retornará false para esses casos.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="is-str.html"><code>is_str</code></a></li>
+<li><a href="is-obj.html"><code>is_obj</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

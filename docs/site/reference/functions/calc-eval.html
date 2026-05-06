@@ -37,12 +37,22 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>calc_eval(expr: str) -&gt; float</code></pre>
+        <h2>Para que serve</h2>
+        <p>Avalia uma expressão matemática contida em uma string em tempo de execução.</p>
+<p>Permite que usuários finais digitem fórmulas simples (como em calculadoras ou campos de entrada de jogos) que o programa pode processar dinamicamente.</p>
         <h2>Parametros</h2>
         <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>expr</code></td><td>Expressao textual.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Resultado numerico.</p>
         <h2>Exemplo</h2>
-        <pre><code>let n = calc_eval(&quot;(3 + 4) * 2&quot;)</code></pre>
+        <pre><code>let formula = &quot;(10 + 5) * 2&quot;
+let resultado = calc_eval(formula) // 30.0</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>API Experimental: a complexidade das expressões suportadas (parênteses, funções) depende da versão do runtime.</li>
+<li>Não deve ser usado com entrada de usuário não sanitizada se houver risco de execução de código indesejado (embora no Snask v0.4 ela seja limitada a aritmética).</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="str-to-num.html"><code>str_to_num</code></a></li>
+<li><a href="format.html"><code>format</code></a></li></ul>
         <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
         <h2>Notas</h2>
         <p>

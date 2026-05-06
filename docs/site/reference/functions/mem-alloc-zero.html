@@ -37,14 +37,33 @@
         </p>
         <h2>Assinatura</h2>
         <pre><code>mem_alloc_zero(size: any) -&gt; ptr</code></pre>
+        <h2>Para que serve</h2>
+        <p>Aloca um bloco de memória contígua e inicializa todos os seus bytes com o valor zero. É o equivalente ao `calloc(size, 1)` da linguagem C.</p>
+<p>Esta função é preferível a `mem_alloc` quando a segurança e o determinismo são importantes, pois garante que não haverá &#x27;lixo&#x27; de memória (dados de processos anteriores) no bloco alocado.</p>
+<p>O ponteiro retornado pertence ao gerenciamento manual de memória do perfil systems e não é rastreado pelo coletor de lixo ou pelo sistema de zonas automático fora do seu escopo de criação.</p>
         <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>ptr/offset/value</code></td><td>Argumentos de memoria crua; validar bounds e ownership e responsabilidade do codigo unsafe.</td></tr></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>size</code></td><td>Quantidade de bytes a alocar e zerar.</td></tr></tbody></table>
         <h2>Retorno</h2>
         <p>Ponteiro para bloco alocado.</p>
         <h2>Exemplo</h2>
         <pre><code>@unsafe {
-    let p: ptr = mem_alloc_zero(65536)
+    // Aloca 64KB de RAM zerada para uma CPU 6502
+    let ram: ptr = mem_alloc_zero(65536)
+    
+    // O primeiro byte terá o valor 0
+    let first = mem_read_u8(ram, 0)
+    
+    // Sempre libere a memória manualmente
+    mem_free(ram)
 }</code></pre>
+        <h2>Cuidados</h2>
+        <ul><li>Causa vazamento de memória (Memory Leak) se `mem_free` não for chamado.</li>
+<li>Pode retornar um ponteiro nulo (nil) se o sistema ficar sem memória disponível.</li>
+<li>Acesso fora dos limites (out-of-bounds) do tamanho solicitado resultará em corrupção de memória ou falha de segmentação.</li></ul>
+        <h2>Funcoes relacionadas</h2>
+        <ul><li><a href="mem-alloc.html"><code>mem_alloc</code></a></li>
+<li><a href="mem-free.html"><code>mem_free</code></a></li>
+<li><a href="mem-fill-u8.html"><code>mem_fill_u8</code></a></li></ul>
         <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/systems_memory.snask</code></p><pre><code>snask build docs/examples/reference/systems_memory.snask --output /tmp/snask-doc-mem-alloc-zero</code></pre>
         <h2>Notas</h2>
         <p>
