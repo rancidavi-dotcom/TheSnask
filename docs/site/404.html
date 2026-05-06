@@ -3,16 +3,40 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Pagina nao encontrada - Snask</title>
+    <title>404 - Página não encontrada | Snask Docs</title>
     <link rel="stylesheet" href="assets/site.css" />
+    <style>
+      .error-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 70vh;
+        text-align: center;
+      }
+      .error-code {
+        font-size: 120px;
+        font-weight: 900;
+        color: var(--accent);
+        margin: 0;
+        line-height: 1;
+      }
+    </style>
   </head>
   <body>
+    <header class="topbar">
+      <a class="brand" href="index.html"><span class="mark">S</span> Snask Docs</a>
+    </header>
+
     <main class="content">
-      <p class="eyebrow">404</p>
-      <h1>Pagina nao encontrada.</h1>
-      <p class="lead">A documentacao mudou de lugar ou o link esta incorreto.</p>
-      <div class="actions">
-        <a class="button primary" href="index.html">Voltar para a documentacao</a>
+      <div class="error-container">
+        <p class="error-code">404</p>
+        <h1>Ops! Perdido no código?</h1>
+        <p class="lead">A página que você está procurando não existe ou foi movida para uma nova zona de memória.</p>
+        <div class="actions">
+          <a class="button primary" href="index.html">Voltar para a Home</a>
+          <a class="button" href="reference/functions/index.html">Ver todas as funções</a>
+        </div>
       </div>
     </main>
   </body>
