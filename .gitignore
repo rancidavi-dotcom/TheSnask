@@ -8,6 +8,8 @@ __pycache__/
 
 # Local Snask caches and generated contracts
 .snask/
+*.tar.gz
+*.deb
 *.generated.om.snif
 *.generated.om.report.txt
 

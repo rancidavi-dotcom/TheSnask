@@ -160,20 +160,28 @@ update_aur() {
     info "7. Atualizando AUR (Arch User Repository)..."
 
     if ! command -v docker >/dev/null 2>&1; then
-        warn "Docker não encontrado. No Linux Mint, o Docker é necessário para gerar as informações do AUR com segurança."
+        warn "Docker não encontrado. Pulando AUR."
         return
     fi
+
+    # Remove tarballs locais para forçar o download do arquivo real pelo updpkgsums
+    rm -f snask-*.tar.gz
+
+    # Dá um tempo para o GitHub processar a tag recém-enviada
+    info "Aguardando 5 segundos para o GitHub processar a tag..."
+    sleep 5
 
     # Atualiza versão no PKGBUILD local
     sed -i "s/^pkgver=.*/pkgver=${version}/" PKGBUILD
 
     info "Gerando checksums e .SRCINFO via Docker (Arch Linux)..."
-    # Criamos um container temporário para rodar as ferramentas do Arch
     docker run --rm -v "$(pwd):/work" -w /work archlinux:latest bash -c "
         pacman -Syu --noconfirm pacman-contrib sudo binutils --needed
         useradd -m builder
         echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
         chown -R builder:builder /work
+        
+        # O updpkgsums vai baixar o arquivo da URL do PKGBUILD pois não achará o local
         sudo -u builder updpkgsums
         sudo -u builder makepkg --printsrcinfo > .SRCINFO
     " || { warn "Falha ao processar AUR via Docker."; return; }
