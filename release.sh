@@ -296,8 +296,10 @@ if [ "$PUSH" = true ]; then
         # Garante que o binário atual seja renomeado para o padrão da release
         cp target/release/snask snask-linux-amd64
         
-        # Cria a release (ou atualiza se já existir)
-        gh release create "v${VERSION}" snask-linux-amd64 --title "Release v${VERSION}" --notes "Automated binary release for v${VERSION}" --overwrite || \
+        # Tenta criar a release. Se já existir, o comando falha e seguimos para o upload.
+        gh release create "v${VERSION}" --title "Release v${VERSION}" --notes "Automated binary release for v${VERSION}" || true
+        
+        # Faz o upload do binário. O --clobber garante a substituição se o arquivo já existir.
         gh release upload "v${VERSION}" snask-linux-amd64 --clobber
         
         ok "Binário enviado para GitHub Releases."
