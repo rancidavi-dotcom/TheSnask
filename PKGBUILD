@@ -30,4 +30,3 @@ package() {
   # Copia stdlib e runtime do código fonte
   cp -r "${src_dir}/src/"* "${pkgdir}/usr/lib/snask/src/"
 }
-}
