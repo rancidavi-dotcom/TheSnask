@@ -46,7 +46,7 @@
 
     <section>
       <h2>Assinatura</h2>
-      <pre><code>mem_read_u32(ptr: ptr, offset: any) -&amp;amp;amp;amp;amp;gt; u32</code></pre>
+      <pre><code>mem_read_u32(ptr: ptr, offset: any) -&amp;amp;amp;amp;amp;amp;amp;gt; u32</code></pre>
     </section>
 
     <section>
@@ -54,6 +54,8 @@
       <p>`mem_read_u32` e uma primitiva de memoria crua do perfil systems. Ela existe para codigo que precisa lidar com bytes, ponteiros e buffers previsiveis.</p>
 <p>Esse tipo de funcao pertence a regioes `@unsafe`, porque o compilador nao consegue provar sozinho que offsets, tamanho e tempo de vida estao corretos.</p>
         
+    
+    
     
     
     

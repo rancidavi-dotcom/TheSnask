@@ -1,0 +1,517 @@
+# Error catalog for Snask compiler
+# Add new errors here — build.rs generates Rust code automatically
+
+# ============================================================
+# PARSER ERRORS (S1000–S1999)
+# ============================================================
+
+[[error]]
+code = "S0000"
+phase = "parser"
+full_code = "SNASK-PARSE-UNKNOWN"
+message = "unknown parse error"
+severity = "Error"
+
+[[error]]
+code = "S1002"
+phase = "parser"
+full_code = "SNASK-PARSE-MISSING-RPAREN"
+message = "missing closing `)`"
+severity = "Error"
+annotation = "expected `)` here"
+help = "close the function call with `)`"
+
+[[error]]
+code = "S1003"
+phase = "parser"
+full_code = "SNASK-PARSE-MISSING-RBRACKET"
+message = "missing closing `]`"
+severity = "Error"
+annotation = "expected `]` here"
+help = "close the list or index with `]`"
+
+[[error]]
+code = "S1004"
+phase = "parser"
+full_code = "SNASK-PARSE-MISSING-RBRACE"
+message = "missing closing `}`"
+severity = "Error"
+annotation = "expected `}` here"
+help = "close the block with `}`"
+
+[[error]]
+code = "S1005"
+phase = "parser"
+full_code = "SNASK-PARSE-INDENT"
+message = "expected an indented block"
+severity = "Error"
+annotation = "this block needs indentation"
+help = "indent the block body after this line"
+
+[[error]]
+code = "S1006"
+phase = "parser"
+full_code = "SNASK-PARSE-SEMICOLON"
+message = "missing statement terminator"
+severity = "Error"
+annotation = "statement ends here"
+help = "add a semicolon at the end of the statement"
+
+[[error]]
+code = "S1010"
+phase = "parser"
+full_code = "SNASK-PARSE-EXPR"
+message = "expected an expression"
+severity = "Error"
+annotation = "expression should start here"
+help = "provide a value, variable, or expression"
+
+[[error]]
+code = "S1011"
+phase = "parser"
+full_code = "SNASK-PARSE-EXPECTED"
+message = "unexpected token"
+severity = "Error"
+annotation = "problem starts here"
+
+[[error]]
+code = "S1012"
+phase = "parser"
+full_code = "SNASK-PARSE-IDENT"
+message = "expected an identifier"
+severity = "Error"
+annotation = "expected a name here"
+
+[[error]]
+code = "S1013"
+phase = "parser"
+full_code = "SNASK-PARSE-PROMOTE"
+message = "invalid `promote` syntax"
+severity = "Error"
+
+[[error]]
+code = "S1014"
+phase = "parser"
+full_code = "SNASK-PARSE-ZONE"
+message = "invalid `zone` syntax"
+severity = "Error"
+
+[[error]]
+code = "S1015"
+phase = "parser"
+full_code = "SNASK-PARSE-ASSIGN"
+message = "invalid assignment syntax"
+severity = "Error"
+
+[[error]]
+code = "S1016"
+phase = "parser"
+full_code = "SNASK-PARSE-TYPE-ANNOT"
+message = "invalid type annotation syntax"
+severity = "Error"
+
+[[error]]
+code = "S1017"
+phase = "parser"
+full_code = "SNASK-PARSE-IMPORT"
+message = "invalid `import` syntax"
+severity = "Error"
+
+[[error]]
+code = "S1018"
+phase = "parser"
+full_code = "SNASK-PARSE-IMPORT-C-OM"
+message = "invalid `import_c_om` syntax"
+severity = "Error"
+
+[[error]]
+code = "S1019"
+phase = "parser"
+full_code = "SNASK-PARSE-FROM"
+message = "invalid `from` import syntax"
+severity = "Error"
+
+[[error]]
+code = "S1020"
+phase = "parser"
+full_code = "SNASK-PARSE-CLASS"
+message = "invalid `class` declaration"
+severity = "Error"
+
+[[error]]
+code = "S1021"
+phase = "parser"
+full_code = "SNASK-PARSE-TYPE"
+message = "invalid type syntax"
+severity = "Error"
+
+[[error]]
+code = "S1022"
+phase = "parser"
+full_code = "SNASK-PARSE-TYPE-GENERIC"
+message = "invalid generic type syntax"
+severity = "Error"
+
+[[error]]
+code = "S1023"
+phase = "parser"
+full_code = "SNASK-PARSE-OP"
+message = "invalid operator"
+severity = "Error"
+
+[[error]]
+code = "S1090"
+phase = "parser"
+full_code = "SNASK-PARSE-TOKENIZE"
+message = "tokenization error"
+severity = "Error"
+annotation = "this character is not valid here"
+
+# ============================================================
+# SEMANTIC ERRORS (S2000–S2999)
+# ============================================================
+
+[[error]]
+code = "S2001"
+phase = "semantic"
+full_code = "SNASK-SEM-VAR-REDECL"
+variant = "VariableAlreadyDeclared"
+message = "variable `{name}` is already declared"
+severity = "Error"
+params = [{ field = "name", ty = "String" }]
+
+[[error]]
+code = "S2002"
+phase = "semantic"
+full_code = "SNASK-SEM-VAR-NOT-FOUND"
+variant = "VariableNotFound"
+message = "variable `{name}` was not found"
+severity = "Error"
+params = [{ field = "name", ty = "String" }]
+
+[[error]]
+code = "S2003"
+phase = "semantic"
+full_code = "SNASK-SEM-FUN-REDECL"
+variant = "FunctionAlreadyDeclared"
+message = "function `{name}` is already declared"
+severity = "Error"
+params = [{ field = "name", ty = "String" }]
+
+[[error]]
+code = "S2004"
+phase = "semantic"
+full_code = "SNASK-SEM-FUN-NOT-FOUND"
+variant = "FunctionNotFound"
+message = "function `{name}` was not found"
+severity = "Error"
+params = [{ field = "name", ty = "String" }]
+
+[[error]]
+code = "S2005"
+phase = "semantic"
+full_code = "SNASK-SEM-UNKNOWN-TYPE"
+variant = "UnknownType"
+message = "type `{name}` is not defined"
+severity = "Error"
+params = [{ field = "name", ty = "String" }]
+
+[[error]]
+code = "S2006"
+phase = "semantic"
+full_code = "SNASK-SEM-MISSING-RETURN"
+variant = "MissingReturn"
+message = "function `{function}` must return `{expected}` on every path"
+severity = "Error"
+params = [
+  { field = "function", ty = "String" },
+  { field = "expected", ty = "Type" },
+]
+
+[[error]]
+code = "S2010"
+phase = "semantic"
+full_code = "SNASK-SEM-TYPE-MISMATCH"
+variant = "TypeMismatch"
+message = "expected `{expected}`, found `{found}`"
+severity = "Error"
+params = [
+  { field = "expected", ty = "Type" },
+  { field = "found", ty = "Type" },
+]
+
+[[error]]
+code = "S2011"
+phase = "semantic"
+full_code = "SNASK-SEM-INVALID-OP"
+variant = "InvalidOperation"
+message = "operator `{op}` cannot be used on `{type1}`"
+severity = "Error"
+params = [
+  { field = "op", ty = "String" },
+  { field = "type1", ty = "Type" },
+  { field = "type2", ty = "Option<Type>" },
+]
+messages = { some = "operator `{op}` cannot be used between `{type1}` and `{type2}`", none = "operator `{op}` cannot be used on `{type1}`" }
+
+[[error]]
+code = "S2012"
+phase = "semantic"
+full_code = "SNASK-SEM-IMMUTABLE-ASSIGN"
+variant = "ImmutableAssignment"
+message = "cannot assign to immutable variable `{name}`"
+severity = "Error"
+params = [{ field = "name", ty = "String" }]
+
+[[error]]
+code = "S2013"
+phase = "semantic"
+full_code = "SNASK-SEM-RETURN-OUTSIDE"
+variant = "ReturnOutsideFunction"
+message = "`return` can only be used inside a function"
+severity = "Error"
+
+[[error]]
+code = "S2020"
+phase = "semantic"
+full_code = "SNASK-SEM-ARG-COUNT"
+variant = "WrongNumberOfArguments"
+message = "wrong number of arguments: expected {expected}, found {found}"
+severity = "Error"
+params = [
+  { field = "expected", ty = "usize" },
+  { field = "found", ty = "usize" },
+]
+
+[[error]]
+code = "S2030"
+phase = "semantic"
+full_code = "SNASK-SEM-NOT-INDEXABLE"
+variant = "IndexAccessOnNonIndexable"
+message = "type `{ty}` is not indexable"
+severity = "Error"
+params = [{ field = "ty", ty = "Type" }]
+
+[[error]]
+code = "S2031"
+phase = "semantic"
+full_code = "SNASK-SEM-INDEX-TYPE"
+variant = "InvalidIndexType"
+message = "index must be an integer, found `{ty}`"
+severity = "Error"
+params = [{ field = "ty", ty = "Type" }]
+
+[[error]]
+code = "S2040"
+phase = "semantic"
+full_code = "SNASK-SEM-PROP-NOT-FOUND"
+variant = "PropertyNotFound"
+message = "property `{name}` was not found"
+severity = "Error"
+params = [{ field = "name", ty = "String" }]
+
+[[error]]
+code = "S2050"
+phase = "semantic"
+full_code = "SNASK-SEM-NOT-CALLABLE"
+variant = "NotCallable"
+message = "type `{ty}` is not callable"
+severity = "Error"
+params = [{ field = "ty", ty = "Type" }]
+
+[[error]]
+code = "S2060"
+phase = "semantic"
+full_code = "SNASK-SEM-RESTRICTED-NATIVE"
+variant = "RestrictedNativeFunction"
+message = "native function `{name}` is restricted"
+severity = "Error"
+params = [
+  { field = "name", ty = "String" },
+  { field = "help", ty = "String" },
+]
+
+[[error]]
+code = "S2061"
+phase = "semantic"
+full_code = "SNASK-SEM-UNSAFE-BLOCK"
+variant = "UnsafeBlockRequired"
+message = "operation requires `@unsafe` block"
+severity = "Error"
+
+[[error]]
+code = "S2062"
+phase = "semantic"
+full_code = "SNASK-SEM-UNSAFE-OUTSIDE"
+variant = "UnsafeOutsideSystems"
+message = "`@unsafe` block is only allowed in Systems profile"
+severity = "Error"
+
+[[error]]
+code = "S2063"
+phase = "semantic"
+full_code = "SNASK-SEM-VOID-VALUE"
+variant = "VoidValueUsed"
+message = "value is `void` and cannot be used in an expression"
+severity = "Error"
+
+[[error]]
+code = "S2064"
+phase = "semantic"
+full_code = "SNASK-SEM-IMPORT-CYCLE"
+variant = "ImportCycle"
+message = "circular import detected: `{name}`"
+severity = "Error"
+params = [{ field = "name", ty = "String" }]
+
+[[error]]
+code = "S2065"
+phase = "semantic"
+full_code = "SNASK-SEM-RECURSIVE-TYPE"
+variant = "RecursiveType"
+message = "recursive type definition involving `{name}`"
+severity = "Error"
+params = [{ field = "name", ty = "String" }]
+
+[[error]]
+code = "S2066"
+phase = "semantic"
+full_code = "SNASK-SEM-CLASS-NOT-FOUND"
+variant = "ClassNotFound"
+message = "class `{name}` was not found"
+severity = "Error"
+params = [{ field = "name", ty = "String" }]
+
+[[error]]
+code = "S2067"
+phase = "semantic"
+full_code = "SNASK-SEM-METHOD-NOT-FOUND"
+variant = "MethodNotFound"
+message = "method `{method}` not found on class `{class}`"
+severity = "Error"
+params = [
+  { field = "method", ty = "String" },
+  { field = "class", ty = "String" },
+]
+
+[[error]]
+code = "S2070"
+phase = "semantic"
+full_code = "SNASK-SEM-PTR-IN-HUMANE"
+variant = "PointerInHumaneProfile"
+message = "pointer type `ptr` requires Systems profile or `@unsafe` block"
+severity = "Error"
+
+[[error]]
+code = "S2080"
+phase = "semantic"
+full_code = "SNASK-SEM-BREAK-OUTSIDE-LOOP"
+variant = "BreakOutsideLoop"
+message = "`break` can only be used inside a loop"
+severity = "Error"
+
+[[error]]
+code = "S2081"
+phase = "semantic"
+full_code = "SNASK-SEM-CONTINUE-OUTSIDE-LOOP"
+variant = "ContinueOutsideLoop"
+message = "`continue` can only be used inside a loop"
+severity = "Error"
+
+# ============================================================
+# BUILD ERRORS (S8000–S8999)
+# ============================================================
+
+[[error]]
+code = "S8001"
+phase = "build"
+full_code = "SNASK-BUILD-STANDARD-RUNTIME"
+message = "{feature} requires std runtime"
+severity = "Error"
+params = [{ field = "feature", ty = "String" }]
+
+[[error]]
+code = "S8002"
+phase = "build"
+full_code = "SNASK-BUILD-BAREMETAL-BACKEND"
+message = "baremetal backend is not implemented yet"
+severity = "Error"
+help = "use `--profile systems` while baremetal support is being implemented"
+
+[[error]]
+code = "S8003"
+phase = "build"
+full_code = "SNASK-BUILD-LINK-ERROR"
+message = "link step failed: {detail}"
+severity = "Error"
+params = [{ field = "detail", ty = "String" }]
+
+[[error]]
+code = "S8004"
+phase = "build"
+full_code = "SNASK-BUILD-NO-ENTRYPOINT"
+message = "every Snask program must contain a `class main` with at least one method"
+severity = "Error"
+help = "add `class main { fun start() { ... } }` to your program"
+
+[[error]]
+code = "S8005"
+phase = "build"
+full_code = "SNASK-BUILD-MIN-RUNTIME-CONFLICT"
+message = "`--min-runtime` cannot be used with GUI/SQLite/Skia/Web imports"
+severity = "Error"
+
+[[error]]
+code = "S8010"
+phase = "build"
+full_code = "SNASK-BUILD-CIRCULAR-INHERITANCE"
+message = "circular inheritance or too deep hierarchy detected"
+severity = "Error"
+
+[[error]]
+code = "S8011"
+phase = "build"
+full_code = "SNASK-BUILD-PARENT-NOT-FOUND"
+message = "parent class `{parent}` not found for class `{class}`"
+severity = "Error"
+params = [
+  { field = "parent", ty = "String" },
+  { field = "class", ty = "String" },
+]
+
+# ============================================================
+# TOOLCHAIN ERRORS (S9000–S9999)
+# ============================================================
+
+[[error]]
+code = "S9001"
+phase = "semantic"
+full_code = "SNASK-TINY-DISALLOWED-LIB"
+variant = "TinyDisallowedLib"
+message = "library `{lib}` is not allowed in --tiny builds"
+severity = "Error"
+params = [{ field = "lib", ty = "String" }]
+
+[[error]]
+code = "S9002"
+phase = "toolchain"
+full_code = "SNASK-TOOLCHAIN-CLANG-NOT-FOUND"
+message = "Clang/LLVM toolchain not found"
+severity = "Error"
+help = "install LLVM 18 and ensure clang-18 is in PATH"
+
+[[error]]
+code = "S9003"
+phase = "toolchain"
+full_code = "SNASK-TOOLCHAIN-PKG-NOT-FOUND"
+message = "system package `{pkg}` not found"
+severity = "Error"
+params = [{ field = "pkg", ty = "String" }]
+
+[[error]]
+code = "S9004"
+phase = "toolchain"
+full_code = "SNASK-TOOLCHAIN-RUNTIME-MISSING"
+message = "Snask runtime files not found"
+severity = "Error"
+help = "run `snask setup` to install the runtime"

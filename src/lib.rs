@@ -1,5 +1,6 @@
 pub mod ast;
 pub mod compiler;
+pub mod errors;
 pub mod diagnostics;
 pub mod dist;
 pub mod explain;

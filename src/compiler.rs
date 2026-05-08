@@ -1808,7 +1808,8 @@ fn semantic_annotation(error: &SemanticError) -> &'static str {
         PropertyNotFound(_) => "unknown property",
         NotCallable(_) => "this value is not callable",
         RestrictedNativeFunction { .. } => "reserved native function",
-        TinyDisallowedLib { .. } => "not available in tiny mode",
+        TinyDisallowedLib(_) => "not available in tiny mode",
+        _ => "error",
     }
 }
 

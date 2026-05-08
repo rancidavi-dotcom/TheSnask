@@ -46,7 +46,7 @@
 
     <section>
       <h2>Assinatura</h2>
-      <pre><code>mem_free(ptr: ptr) -&amp;amp;amp;amp;amp;gt; void</code></pre>
+      <pre><code>mem_free(ptr: ptr) -&amp;amp;amp;amp;amp;amp;amp;gt; void</code></pre>
     </section>
 
     <section>
@@ -54,6 +54,8 @@
       <p>Libera um bloco de memória previamente alocado por `mem_alloc` ou `mem_alloc_zero`, devolvendo-o ao sistema operacional ou ao heap global.</p>
 <p>É uma função crítica para a saúde de aplicações de longa duração (como servidores ou emuladores), pois evita o consumo excessivo de recursos (leaks).</p>
         
+    
+    
     
     
     
@@ -88,7 +90,7 @@
     let buffer = mem_alloc(1024)
     // ... uso do buffer ...
     mem_free(buffer)
-    // ATENÇÃO: &amp;amp;amp;amp;amp;#x27;buffer&amp;amp;amp;amp;amp;#x27; agora é um ponteiro pendente (dangling pointer). 
+    // ATENÇÃO: &amp;amp;amp;amp;amp;amp;amp;#x27;buffer&amp;amp;amp;amp;amp;amp;amp;#x27; agora é um ponteiro pendente (dangling pointer). 
     // Não tente lê-lo ou escrevê-lo novamente.
 }</code></pre>
         </section>

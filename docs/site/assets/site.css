@@ -393,6 +393,46 @@ tr:last-child td { border-bottom: none; }
 }
 #functionSearch:focus { border-color: var(--accent-2); }
 
+/* ─── Breadcrumbs ─── */
+.breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 16px 0 24px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.breadcrumbs a { color: var(--muted); }
+.breadcrumbs a.active { color: var(--accent); font-weight: 750; }
+.breadcrumbs a:hover { color: var(--accent); }
+
+/* ─── Learn nav ─── */
+.learn-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  gap: 12px;
+}
+.nav-prev, .nav-next {
+  padding: 10px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 650;
+  font-size: 14px;
+  white-space: nowrap;
+  transition: border-color 0.2s, background 0.2s;
+}
+.nav-prev:hover, .nav-next:hover { text-decoration: none; border-color: var(--accent); background: var(--accent-dim); }
+.nav-counter { color: var(--muted); font-size: 13px; }
+
 /* ─── Features grid ─── */
 .features-grid { padding: 36px 0; }
 .icon { font-size: 30px; margin-bottom: 14px; }

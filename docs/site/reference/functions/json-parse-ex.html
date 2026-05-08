@@ -46,7 +46,7 @@
 
     <section>
       <h2>Assinatura</h2>
-      <pre><code>json_parse_ex(text: str) -&amp;amp;amp;amp;amp;gt; any</code></pre>
+      <pre><code>json_parse_ex(text: str) -&amp;amp;amp;amp;amp;amp;amp;gt; any</code></pre>
     </section>
 
     <section>
@@ -54,6 +54,8 @@
       <p>`json_parse_ex` pertence a uma biblioteca nativa importavel. Em codigo Snask normal, prefira chamar pelo modulo, por exemplo `json::parse` ou `sfs::read`, em vez do nome interno com prefixo.</p>
 <p>Parse JSON com superficie extendida do runtime. A assinatura documenta a superficie que o analisador conhece hoje.</p>
         
+    
+    
     
     
     
@@ -84,12 +86,12 @@
     
         <section>
           <h2>Exemplo</h2>
-          <pre><code>import &amp;amp;amp;amp;amp;quot;json&amp;amp;amp;amp;amp;quot;
+          <pre><code>import &amp;amp;amp;amp;amp;amp;amp;quot;json&amp;amp;amp;amp;amp;amp;amp;quot;
 
 class main {
     fun start() {
-        let obj = json::parse(&amp;amp;amp;amp;amp;quot;{\&amp;amp;amp;amp;amp;quot;name\&amp;amp;amp;amp;amp;quot;:\&amp;amp;amp;amp;amp;quot;snask\&amp;amp;amp;amp;amp;quot;}&amp;amp;amp;amp;amp;quot;)
-        print(json::get(obj, &amp;amp;amp;amp;amp;quot;name&amp;amp;amp;amp;amp;quot;))
+        let obj = json::parse(&amp;amp;amp;amp;amp;amp;amp;quot;{\&amp;amp;amp;amp;amp;amp;amp;quot;name\&amp;amp;amp;amp;amp;amp;amp;quot;:\&amp;amp;amp;amp;amp;amp;amp;quot;snask\&amp;amp;amp;amp;amp;amp;amp;quot;}&amp;amp;amp;amp;amp;amp;amp;quot;)
+        print(json::get(obj, &amp;amp;amp;amp;amp;amp;amp;quot;name&amp;amp;amp;amp;amp;amp;amp;quot;))
     }
 }</code></pre>
         </section>

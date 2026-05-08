@@ -81,152 +81,6 @@ impl SemanticSymbolTable {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum SemanticErrorKind {
-    VariableAlreadyDeclared(String),
-    VariableNotFound(String),
-    FunctionAlreadyDeclared(String),
-    FunctionNotFound(String),
-    UnknownType(String),
-    MissingReturn {
-        function: String,
-        expected: Type,
-    },
-    TypeMismatch {
-        expected: Type,
-        found: Type,
-    },
-    InvalidOperation {
-        op: String,
-        type1: Type,
-        type2: Option<Type>,
-    },
-    ImmutableAssignment(String),
-    ReturnOutsideFunction,
-    WrongNumberOfArguments {
-        expected: usize,
-        found: usize,
-    },
-    IndexAccessOnNonIndexable(Type),
-    InvalidIndexType(Type),
-    PropertyNotFound(String),
-    NotCallable(Type),
-    RestrictedNativeFunction {
-        name: String,
-        help: String,
-    },
-    TinyDisallowedLib {
-        lib: String,
-    },
-}
-
-#[derive(Debug, Clone)]
-pub struct SemanticError {
-    pub kind: SemanticErrorKind,
-    pub span: Span,
-    pub help: Option<String>,
-    pub notes: Vec<String>,
-}
-
-impl SemanticError {
-    pub fn new(kind: SemanticErrorKind, span: Span) -> Self {
-        SemanticError {
-            kind,
-            span,
-            help: None,
-            notes: Vec::new(),
-        }
-    }
-
-    pub fn with_help(mut self, help: String) -> Self {
-        self.help = Some(help);
-        self
-    }
-
-    pub fn with_note(mut self, note: String) -> Self {
-        self.notes.push(note);
-        self
-    }
-
-    pub fn message(&self) -> String {
-        use SemanticErrorKind::*;
-        match &self.kind {
-            VariableAlreadyDeclared(name) => format!("variable `{}` is already declared", name),
-            VariableNotFound(name) => format!("variable `{}` was not found", name),
-            FunctionAlreadyDeclared(name) => format!("function `{}` is already declared", name),
-            FunctionNotFound(name) => format!("function `{}` was not found", name),
-            UnknownType(name) => format!("type `{}` is not defined", name),
-            MissingReturn { function, expected } => format!(
-                "function `{}` must return `{}` on every path",
-                function,
-                display_type(expected)
-            ),
-            TypeMismatch { expected, found } => {
-                format!(
-                    "expected `{}`, found `{}`",
-                    display_type(expected),
-                    display_type(found)
-                )
-            }
-            InvalidOperation { op, type1, type2 } => {
-                if let Some(t2) = type2 {
-                    format!(
-                        "operator `{}` cannot be used between `{}` and `{}`",
-                        op,
-                        display_type(type1),
-                        display_type(t2)
-                    )
-                } else {
-                    format!(
-                        "operator `{}` cannot be used on `{}`",
-                        op,
-                        display_type(type1)
-                    )
-                }
-            }
-            ImmutableAssignment(name) => format!("cannot assign to immutable variable `{}`", name),
-            ReturnOutsideFunction => "`return` can only be used inside a function".to_string(),
-            WrongNumberOfArguments { expected, found } => format!(
-                "wrong number of arguments: expected {}, found {}",
-                expected, found
-            ),
-            IndexAccessOnNonIndexable(t) => format!("type `{}` is not indexable", display_type(t)),
-            InvalidIndexType(t) => format!("index must be an integer, found `{}`", display_type(t)),
-            PropertyNotFound(name) => format!("property `{}` was not found", name),
-            NotCallable(t) => format!("type `{}` is not callable", display_type(t)),
-            RestrictedNativeFunction { name, .. } => {
-                format!("native function `{}` is restricted", name)
-            }
-            TinyDisallowedLib { lib } => {
-                format!("library `{}` is not allowed in --tiny builds", lib)
-            }
-        }
-    }
-
-    pub fn code(&self) -> &'static str {
-        use SemanticErrorKind::*;
-        match &self.kind {
-            VariableAlreadyDeclared(_) => "SNASK-SEM-VAR-REDECL",
-            VariableNotFound(_) => "SNASK-SEM-VAR-NOT-FOUND",
-            FunctionAlreadyDeclared(_) => "SNASK-SEM-FUN-REDECL",
-            FunctionNotFound(_) => "SNASK-SEM-FUN-NOT-FOUND",
-            UnknownType(_) => "SNASK-SEM-UNKNOWN-TYPE",
-            MissingReturn { .. } => "SNASK-SEM-MISSING-RETURN",
-            TypeMismatch { .. } => "SNASK-SEM-TYPE-MISMATCH",
-            InvalidOperation { .. } => "SNASK-SEM-INVALID-OP",
-            ImmutableAssignment(_) => "SNASK-SEM-IMMUTABLE-ASSIGN",
-            ReturnOutsideFunction => "SNASK-SEM-RETURN-OUTSIDE",
-            WrongNumberOfArguments { .. } => "SNASK-SEM-ARG-COUNT",
-            IndexAccessOnNonIndexable(_) => "SNASK-SEM-NOT-INDEXABLE",
-            InvalidIndexType(_) => "SNASK-SEM-INDEX-TYPE",
-            PropertyNotFound(_) => "SNASK-SEM-PROP-NOT-FOUND",
-            NotCallable(_) => "SNASK-SEM-NOT-CALLABLE",
-            RestrictedNativeFunction { .. } => "SNASK-SEM-RESTRICTED-NATIVE",
-            TinyDisallowedLib { .. } => "SNASK-TINY-DISALLOWED-LIB",
-        }
-    }
-}
-
 fn display_type(ty: &Type) -> String {
     match ty {
         Type::Int => "int".to_string(),
@@ -264,6 +118,33 @@ fn display_type(ty: &Type) -> String {
             format!("fun({}) -> {}", params, display_type(ret))
         }
     }
+}
+
+include!(concat!(env!("OUT_DIR"), "/semantic_kind.rs"));
+
+#[derive(Debug, Clone)]
+pub struct SemanticError {
+    pub kind: SemanticErrorKind,
+    pub span: Span,
+    pub help: Option<String>,
+    pub notes: Vec<String>,
+}
+
+impl SemanticError {
+    pub fn new(kind: SemanticErrorKind, span: Span) -> Self {
+        SemanticError { kind, span, help: None, notes: Vec::new() }
+    }
+
+    pub fn with_help(mut self, help: String) -> Self {
+        self.help = Some(help); self
+    }
+
+    pub fn with_note(mut self, note: String) -> Self {
+        self.notes.push(note); self
+    }
+
+    pub fn message(&self) -> String { self.kind.message() }
+    pub fn code(&self) -> &'static str { self.kind.code() }
 }
 
 pub struct SemanticAnalyzer {
@@ -1392,7 +1273,7 @@ impl SemanticAnalyzer {
                     if disallowed {
                         self.errors.push(
                             SemanticError::new(
-                                SemanticErrorKind::TinyDisallowedLib { lib: lib.clone() },
+                                SemanticErrorKind::TinyDisallowedLib(lib.clone()),
                                 statement.span.clone(),
                             )
                             .with_help("Recompile without `--tiny`, or remove this import.".to_string())
@@ -1411,7 +1292,7 @@ impl SemanticAnalyzer {
                 if self.tiny_mode {
                     self.errors.push(
                         SemanticError::new(
-                            SemanticErrorKind::TinyDisallowedLib { lib: alias.clone() },
+                            SemanticErrorKind::TinyDisallowedLib(alias.clone()),
                             statement.span.clone(),
                         )
                         .with_help(

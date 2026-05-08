@@ -185,38 +185,7 @@ fn render_source_annotation(out: &mut String, source: &str, ann: &Annotation) {
     }
 }
 
-pub fn humane_code(code: &str) -> &'static str {
-    match code {
-        "SNASK-PARSE-MISSING-RPAREN" => "S1002",
-        "SNASK-PARSE-MISSING-RBRACKET" => "S1003",
-        "SNASK-PARSE-MISSING-RBRACE" => "S1004",
-        "SNASK-PARSE-INDENT" => "S1005",
-        "SNASK-PARSE-SEMICOLON" => "S1006",
-        "SNASK-PARSE-EXPR" => "S1010",
-        "SNASK-PARSE-EXPECTED" => "S1011",
-        "SNASK-PARSE-TOKENIZE" => "S1090",
-        "SNASK-SEM-VAR-REDECL" => "S2001",
-        "SNASK-SEM-VAR-NOT-FOUND" => "S2002",
-        "SNASK-SEM-FUN-REDECL" => "S2003",
-        "SNASK-SEM-FUN-NOT-FOUND" => "S2004",
-        "SNASK-SEM-UNKNOWN-TYPE" => "S2005",
-        "SNASK-SEM-MISSING-RETURN" => "S2006",
-        "SNASK-SEM-TYPE-MISMATCH" => "S2010",
-        "SNASK-SEM-INVALID-OP" => "S2011",
-        "SNASK-SEM-IMMUTABLE-ASSIGN" => "S2012",
-        "SNASK-SEM-RETURN-OUTSIDE" => "S2013",
-        "SNASK-SEM-ARG-COUNT" => "S2020",
-        "SNASK-SEM-NOT-INDEXABLE" => "S2030",
-        "SNASK-SEM-INDEX-TYPE" => "S2031",
-        "SNASK-SEM-PROP-NOT-FOUND" => "S2040",
-        "SNASK-SEM-NOT-CALLABLE" => "S2050",
-        "SNASK-SEM-RESTRICTED-NATIVE" => "S2060",
-        "SNASK-BUILD-STANDARD-RUNTIME" => "S8001",
-        "SNASK-BUILD-BAREMETAL-BACKEND" => "S8002",
-        "SNASK-TINY-DISALLOWED-LIB" => "S9001",
-        _ => "S0000",
-    }
-}
+include!(concat!(env!("OUT_DIR"), "/humane_code.rs"));
 
 pub struct DiagnosticReporter {
     pub has_errors: bool,

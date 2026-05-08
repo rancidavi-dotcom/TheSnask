@@ -46,7 +46,7 @@
 
     <section>
       <h2>Assinatura</h2>
-      <pre><code>sfs_read(path: str) -&amp;amp;amp;amp;amp;gt; str</code></pre>
+      <pre><code>sfs_read(path: str) -&amp;amp;amp;amp;amp;amp;amp;gt; str</code></pre>
     </section>
 
     <section>
@@ -54,6 +54,8 @@
       <p>Lê o conteúdo de um arquivo através da biblioteca SFS (Snask File System), que oferece uma camada de abstração mais robusta que o `read_file` básico.</p>
 <p>Geralmente associada a runtimes que suportam sandboxing ou sistemas de arquivos virtuais.</p>
         
+    
+    
     
     
     
@@ -84,9 +86,9 @@
     
         <section>
           <h2>Exemplo</h2>
-          <pre><code>import &amp;amp;amp;amp;amp;quot;sfs&amp;amp;amp;amp;amp;quot;
-if sfs::exists(&amp;amp;amp;amp;amp;quot;data.txt&amp;amp;amp;amp;amp;quot;) {
-    let content = sfs::read(&amp;amp;amp;amp;amp;quot;data.txt&amp;amp;amp;amp;amp;quot;)
+          <pre><code>import &amp;amp;amp;amp;amp;amp;amp;quot;sfs&amp;amp;amp;amp;amp;amp;amp;quot;
+if sfs::exists(&amp;amp;amp;amp;amp;amp;amp;quot;data.txt&amp;amp;amp;amp;amp;amp;amp;quot;) {
+    let content = sfs::read(&amp;amp;amp;amp;amp;amp;amp;quot;data.txt&amp;amp;amp;amp;amp;amp;amp;quot;)
     print(content)
 }</code></pre>
         </section>

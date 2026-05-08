@@ -1200,9 +1200,42 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    for p in LEARN_PAGES:
+    for idx, p in enumerate(LEARN_PAGES):
+        prev_link = ""
+        next_link = ""
+        if idx > 0:
+            prev = LEARN_PAGES[idx - 1]
+            prev_link = f'<a href="{prev["slug"]}.html" class="nav-prev">&larr; {prev["title"]}</a>'
+        if idx < len(LEARN_PAGES) - 1:
+            nxt = LEARN_PAGES[idx + 1]
+            next_link = f'<a href="{nxt["slug"]}.html" class="nav-next">{nxt["title"]} &rarr;</a>'
+
+        breadcrumbs_html = f"""
+        <nav class="breadcrumbs">{" &middot; ".join(
+            f'<a href="{lp["slug"]}.html"{" class=\"active\"" if i == idx else ""}>{lp["title"]}</a>'
+            for i, lp in enumerate(LEARN_PAGES)
+        )}</nav>
+        """
+
+        nav_footer = f"""
+        <div class="learn-nav">
+          {prev_link}
+          <span class="nav-counter">{idx + 1} / {len(LEARN_PAGES)}</span>
+          {next_link}
+        </div>
+        """
+
+        content_with_nav = re.sub(
+            r'(<p class="lead">.*?</p>\s*)',
+            rf'\1{breadcrumbs_html}',
+            p["content"],
+            count=1,
+            flags=re.DOTALL,
+        )
+        content_with_nav += nav_footer
+
         (OUT_LEARN / f"{p['slug']}.html").write_text(
-            render_layout(p["title"], p["content"], 1), encoding="utf-8"
+            render_layout(p["title"], content_with_nav, 1), encoding="utf-8"
         )
 
     funcs = load_functions()

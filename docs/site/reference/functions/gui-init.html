@@ -46,7 +46,7 @@
 
     <section>
       <h2>Assinatura</h2>
-      <pre><code>gui_init() -&amp;amp;amp;amp;amp;gt; bool</code></pre>
+      <pre><code>gui_init() -&amp;amp;amp;amp;amp;amp;amp;gt; bool</code></pre>
     </section>
 
     <section>
@@ -54,6 +54,8 @@
       <p>Inicializa o runtime de interface gráfica nativa (GTK/Backend nativo). Deve ser chamada antes de qualquer tentativa de criar janelas ou widgets.</p>
 <p>Diferente do `snaskgui_init`, esta função prepara o sistema para uma hierarquia de widgets e gerenciamento de layout automático.</p>
         
+    
+    
     
     
     
@@ -84,11 +86,11 @@
     
         <section>
           <h2>Exemplo</h2>
-          <pre><code>import &amp;amp;amp;amp;amp;quot;gui&amp;amp;amp;amp;amp;quot;
+          <pre><code>import &amp;amp;amp;amp;amp;amp;amp;quot;gui&amp;amp;amp;amp;amp;amp;amp;quot;
 class main {
     fun start() {
         if gui::init() {
-            let win = gui::window(&amp;amp;amp;amp;amp;quot;App Snask&amp;amp;amp;amp;amp;quot;, 400, 300)
+            let win = gui::window(&amp;amp;amp;amp;amp;amp;amp;quot;App Snask&amp;amp;amp;amp;amp;amp;amp;quot;, 400, 300)
             gui::show_all(win)
             gui::run()
         }
