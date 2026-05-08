@@ -186,13 +186,21 @@ update_aur() {
         cp PKGBUILD .SRCINFO "$aur_dir/"
         (
             cd "$aur_dir"
+            # Configura identidade local para este commit
+            git config user.email "davidev@snask.lang"
+            git config user.name "Davi (Snask Release Bot)"
+            
             git add PKGBUILD .SRCINFO
-            git commit -m "chore: update to version ${version}" || true
-            if [ "$PUSH" = true ]; then
-                git push origin master
-                ok "AUR atualizado com sucesso."
+            if git commit -m "chore: update to version ${version}"; then
+                if [ "$PUSH" = true ]; then
+                    # No AUR o branch principal é sempre 'master'
+                    git push origin master
+                    ok "AUR atualizado com sucesso."
+                else
+                    warn "Push para AUR ignorado (--no-push)."
+                fi
             else
-                warn "Push para AUR ignorado (--no-push)."
+                warn "Nada para commitar no AUR (versão já atualizada?)."
             fi
         )
     else
