@@ -46,7 +46,7 @@
 
     <section>
       <h2>Assinatura</h2>
-      <pre><code>mem_alloc_zero(size: any) -&amp;amp;gt; ptr</code></pre>
+      <pre><code>mem_alloc_zero(size: any) -&amp;amp;amp;amp;gt; ptr</code></pre>
     </section>
 
     <section>
@@ -55,6 +55,8 @@
 <p>Esta função é preferível a `mem_alloc` quando a segurança e o determinismo são importantes, pois garante que não haverá &#x27;lixo&#x27; de memória (dados de processos anteriores) no bloco alocado.</p>
 <p>O ponteiro retornado pertence ao gerenciamento manual de memória do perfil systems e não é rastreado pelo coletor de lixo ou pelo sistema de zonas automático fora do seu escopo de criação.</p>
         
+    
+    
     
     </section>
 

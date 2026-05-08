@@ -46,7 +46,7 @@
 
     <section>
       <h2>Assinatura</h2>
-      <pre><code>snaskgui_present_rgba(window: any, pixels: ptr, width: float, height: float) -&amp;amp;gt; bool</code></pre>
+      <pre><code>snaskgui_present_rgba(window: any, pixels: ptr, width: float, height: float) -&amp;amp;amp;amp;gt; bool</code></pre>
     </section>
 
     <section>
@@ -54,6 +54,8 @@
       <p>A função principal de renderização. Ela pega um bloco de memória bruta contendo pixels no formato RGBA (4 bytes por pixel) e os &#x27;carimba&#x27; na janela.</p>
 <p>É extremamente rápida pois utiliza aceleração de hardware (quando disponível) para converter o buffer de memória em uma textura de tela.</p>
         
+    
+    
     
     </section>
 
@@ -81,12 +83,12 @@
     
         <section>
           <h2>Exemplo</h2>
-          <pre><code>import &amp;amp;quot;snaskgui&amp;amp;quot;
+          <pre><code>import &amp;amp;amp;amp;quot;snaskgui&amp;amp;amp;amp;quot;
 
 class main {
     fun start() {
         snaskgui::init()
-        let win = snaskgui::window(&amp;amp;quot;Video&amp;amp;quot;, 256, 256, 2)
+        let win = snaskgui::window(&amp;amp;amp;amp;quot;Video&amp;amp;amp;amp;quot;, 256, 256, 2)
         
         // Exemplo: preencher memória com cor sólida (estático)
         @unsafe {

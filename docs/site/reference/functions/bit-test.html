@@ -46,7 +46,7 @@
 
     <section>
       <h2>Assinatura</h2>
-      <pre><code>bit_test(value: any, bit: any) -&amp;amp;gt; bool</code></pre>
+      <pre><code>bit_test(value: any, bit: any) -&amp;amp;amp;amp;gt; bool</code></pre>
     </section>
 
     <section>
@@ -54,6 +54,8 @@
       <p>Verifica se um bit específico dentro de um valor inteiro está ligado (1) ou desligado (0).</p>
 <p>Extremamente útil para decodificar registros de status de hardware, protocolos binários e sistemas de flags de baixo consumo de memória.</p>
         
+    
+    
     
     </section>
 
@@ -84,7 +86,7 @@
           <pre><code>let flags = 0b10100000
 // Testa o bit 7 (o mais significativo em um u8)
 if bit_test(flags, 7) {
-    print(&amp;amp;quot;Bit 7 está ON\n&amp;amp;quot;)
+    print(&amp;amp;amp;amp;quot;Bit 7 está ON\n&amp;amp;amp;amp;quot;)
 }</code></pre>
         </section>
 

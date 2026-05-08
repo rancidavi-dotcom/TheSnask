@@ -496,6 +496,13 @@ def main() -> None:
         (OUT_FUNCTIONS / f"{slug_name}.html").write_text(
             render_fn_page(fn), encoding="utf-8"
         )
+        redirect_html = f"""<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"/>
+<title>{esc(fn['name'])} - Snask Docs</title>
+<meta http-equiv="refresh" content="0;url=functions/{slug_name}"/>
+<script>location.href="functions/{slug_name}"</script>
+</head><body><a href="functions/{slug_name}">Redirecionando...</a></body></html>"""
+        (OUT_ROOT / "reference" / f"{slug_name}.html").write_text(redirect_html, encoding="utf-8")
 
     cat_groups = {}
     for fn in funcs:

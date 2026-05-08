@@ -46,7 +46,7 @@
 
     <section>
       <h2>Assinatura</h2>
-      <pre><code>mem_read_u8(ptr: ptr, offset: any) -&amp;amp;gt; u8</code></pre>
+      <pre><code>mem_read_u8(ptr: ptr, offset: any) -&amp;amp;amp;amp;gt; u8</code></pre>
     </section>
 
     <section>
@@ -54,6 +54,8 @@
       <p>Lê um único byte (8 bits) de um endereço de memória física especificado por um ponteiro base e um deslocamento (offset).</p>
 <p>É a primitiva fundamental para implementar barramentos de memória, leitura de cabeçalhos binários e processamento de buffers de rede.</p>
         
+    
+    
     
     </section>
 
@@ -86,7 +88,7 @@
     let status: u8 = mem_read_u8(buffer, 0x10)
     
     if bit_test(status, 7) {
-        print(&amp;amp;quot;Flag ativa!\n&amp;amp;quot;)
+        print(&amp;amp;amp;amp;quot;Flag ativa!\n&amp;amp;amp;amp;quot;)
     }
 }</code></pre>
         </section>
