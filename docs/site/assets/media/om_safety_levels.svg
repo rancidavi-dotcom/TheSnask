@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 340" font-family="Inter, system-ui, sans-serif">
+  <rect width="800" height="340" rx="16" fill="#1a221e"/>
+  <text x="400" y="36" text-anchor="middle" fill="#dce8df" font-size="20" font-weight="800">Níveis de Segurança do Scanner OM</text>
+
+  <!-- SAFE -->
+  <rect x="40" y="70" width="220" height="200" rx="12" fill="#0f2e22" stroke="#1bc184" stroke-width="2"/>
+  <rect x="60" y="90" width="180" height="36" rx="8" fill="#1bc184"/>
+  <text x="150" y="114" text-anchor="middle" fill="white" font-size="15" font-weight="800">SAFE</text>
+  <text x="60" y="152" fill="#a0b5a9" font-size="12">Pode ser chamada</text>
+  <text x="60" y="172" fill="#a0b5a9" font-size="12">diretamente pela</text>
+  <text x="60" y="192" fill="#a0b5a9" font-size="12">superfície Snask</text>
+  <text x="60" y="220" fill="#1bc184" font-size="12">→ sdl2.delay(50)</text>
+  <text x="60" y="240" fill="#1bc184" font-size="12">→ sdl2.render_clear(r)</text>
+  <text x="60" y="260" fill="#1bc184" font-size="12">→ stdio.puts("ok")</text>
+
+  <!-- COPY_ONLY -->
+  <rect x="290" y="70" width="220" height="200" rx="12" fill="#2a2010" stroke="#f59e0b" stroke-width="2"/>
+  <rect x="310" y="90" width="180" height="36" rx="8" fill="#f59e0b"/>
+  <text x="400" y="114" text-anchor="middle" fill="white" font-size="15" font-weight="800">COPY_ONLY</text>
+  <text x="310" y="152" fill="#a0b5a9" font-size="12">Pode ser usada, mas</text>
+  <text x="310" y="172" fill="#a0b5a9" font-size="12">OM copia resultado</text>
+  <text x="310" y="192" fill="#a0b5a9" font-size="12">para memória Snask</text>
+  <text x="310" y="220" fill="#f59e0b" font-size="12">→ sdl2.get_platform()</text>
+  <text x="310" y="240" fill="#f59e0b" font-size="12">→ const char* copiado</text>
+
+  <!-- BLOCKED -->
+  <rect x="540" y="70" width="220" height="200" rx="12" fill="#2a1212" stroke="#ef4444" stroke-width="2"/>
+  <rect x="560" y="90" width="180" height="36" rx="8" fill="#ef4444"/>
+  <text x="650" y="114" text-anchor="middle" fill="white" font-size="15" font-weight="800">BLOCKED</text>
+  <text x="560" y="152" fill="#a0b5a9" font-size="12">Não exposta na</text>
+  <text x="560" y="172" fill="#a0b5a9" font-size="12">superfície Snask</text>
+  <text x="560" y="210" fill="#ef4444" font-size="12">→ Destrutores manuais</text>
+  <text x="560" y="230" fill="#ef4444" font-size="12">→ Callbacks</text>
+  <text x="560" y="250" fill="#ef4444" font-size="12">→ void* parameters</text>
+  <text x="560" y="270" fill="#ef4444" font-size="12">→ Ownership ambíguo</text>
+
+  <text x="400" y="315" text-anchor="middle" fill="#7a8f81" font-size="12">Scanner conservador: prefere bloquear uma função útil a expor uma insegura</text>
+</svg>

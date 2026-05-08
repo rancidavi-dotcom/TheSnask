@@ -1,0 +1,11 @@
+<figure class="code-figure">
+  <div class="code-screen">@unsafe {
+    let mem: ptr = mem_alloc_zero(256)
+    mem_write_u8(mem, 0, 42)
+    let value: u8 = mem_read_u8(mem, 0)
+    print(&quot;Valor: {value}\n&quot;)
+    mem_free(mem)
+}
+</div>
+  <figcaption>Memória crua no perfil Systems</figcaption>
+</figure>

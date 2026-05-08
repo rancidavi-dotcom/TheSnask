@@ -1,0 +1,17 @@
+<figure class="code-figure">
+  <div class="code-screen">gui_init()
+let win = gui_window(&quot;Snask App&quot;, 400, 300)
+let vbox = gui_vbox()
+gui_add(win, vbox)
+let label = gui_label(&quot;Clique no botao!&quot;)
+gui_add(vbox, label)
+let btn = gui_button(&quot;Clique Aqui&quot;)
+gui_on_click(btn, fun() {
+    gui_set_text(label, &quot;Clicou!&quot;)
+})
+gui_add(vbox, btn)
+gui_show_all(win)
+gui_run()
+</div>
+  <figcaption>Interface gráfica nativa com GUI Snask</figcaption>
+</figure>

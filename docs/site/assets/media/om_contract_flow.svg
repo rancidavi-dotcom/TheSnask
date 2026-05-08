@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#0b7a5a"/><stop offset="100%" style="stop-color:#1bc184"/></linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#d97706"/><stop offset="100%" style="stop-color:#f59e0b"/></linearGradient>
+    <linearGradient id="g3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#6366f1"/><stop offset="100%" style="stop-color:#818cf8"/></linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#1bc184"/>
+    </marker>
+  </defs>
+  <rect width="800" height="360" rx="16" fill="#1a221e"/>
+  <text x="400" y="36" text-anchor="middle" fill="#dce8df" font-size="20" font-weight="800">Fluxo do Contrato OM</text>
+
+  <!-- Step 1 -->
+  <rect x="40" y="70" width="160" height="80" rx="10" fill="url(#g1)" opacity="0.9"/>
+  <text x="120" y="104" text-anchor="middle" fill="white" font-size="14" font-weight="700">Header C</text>
+  <text x="120" y="126" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">SDL2/SDL.h</text>
+  <line x1="200" y1="110" x2="250" y2="110" stroke="#1bc184" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- Step 2 -->
+  <rect x="250" y="70" width="160" height="80" rx="10" fill="url(#g3)" opacity="0.9"/>
+  <text x="330" y="104" text-anchor="middle" fill="white" font-size="14" font-weight="700">Scanner Clang</text>
+  <text x="330" y="126" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">parser → heurísticas</text>
+  <line x1="410" y1="110" x2="460" y2="110" stroke="#1bc184" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- Step 3 -->
+  <rect x="460" y="70" width="160" height="80" rx="10" fill="url(#g2)" opacity="0.9"/>
+  <text x="540" y="104" text-anchor="middle" fill="white" font-size="14" font-weight="700">Contrato Deduzido</text>
+  <text x="540" y="126" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">recursos + constantes</text>
+
+  <!-- Step 4 (optional) -->
+  <rect x="250" y="200" width="200" height="60" rx="10" fill="url(#g2)" opacity="0.7" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,4"/>
+  <text x="350" y="230" text-anchor="middle" fill="white" font-size="14" font-weight="700">.om.snif (opcional)</text>
+  <text x="350" y="248" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">patch de exceções</text>
+
+  <line x1="540" y1="150" x2="540" y2="200" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+  <line x1="450" y1="230" x2="420" y2="230" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,4"/>
+
+  <!-- Step 5 -->
+  <rect x="600" y="140" width="160" height="80" rx="10" fill="url(#g1)" opacity="0.9"/>
+  <text x="680" y="174" text-anchor="middle" fill="white" font-size="14" font-weight="700">LLVM Codegen</text>
+  <text x="680" y="196" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">chamada nativa</text>
+  <line x1="620" y1="150" x2="600" y2="150" stroke="#1bc184" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <text x="400" y="330" text-anchor="middle" fill="#7a8f81" font-size="12">O resultado: chamadas C nativas via LLVM, sem ponteiros crus na superfície Snask</text>
+</svg>

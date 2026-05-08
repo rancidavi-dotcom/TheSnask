@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Showcase Snask — Tecnologia que você pode VER</title>
+    <link rel="stylesheet" href="assets/site.css" />
+    <style>
+      .showcase-hero {
+        text-align: center;
+        padding: 80px 0 40px;
+      }
+      .showcase-hero h1 {
+        font-size: clamp(42px, 7vw, 80px);
+        margin-bottom: 12px;
+      }
+      .showcase-hero .eyebrow {
+        font-size: 14px;
+      }
+      .showcase-hero p.lead {
+        max-width: 600px;
+        margin: 0 auto;
+        font-size: 18px;
+      }
+      .showcase-section {
+        margin: 48px 0;
+      }
+      .showcase-section > h2 {
+        font-size: 32px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .showcase-section > h2::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--line);
+      }
+      .om-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+        gap: 20px;
+        margin: 24px 0;
+      }
+      .om-grid .media-figure {
+        margin: 0;
+      }
+      .terminal-card .card-media {
+        padding: 0;
+        background: var(--code-bg);
+        display: block;
+      }
+      .terminal-card .card-media pre {
+        margin: 0;
+        padding: 16px;
+        border-radius: 0;
+        background: transparent;
+        font-size: 0.82em;
+        line-height: 1.5;
+      }
+      .terminal-card .card-media code {
+        color: var(--code-text);
+      }
+      .tag.om { background: #0f2e22; color: #1bc184; }
+      .tag.systems { background: #2a1212; color: #ef4444; }
+      .tag.gui { background: #1e1b4b; color: #a78bfa; }
+      .tag.interop { background: #1a1a2e; color: #f59e0b; }
+      .tag.sdl2 { background: #0c1929; color: #60a5fa; }
+      .tag.snif { background: #1c1917; color: #fbbf24; }
+      .tag.sps { background: #0f172a; color: #38bdf8; }
+      .tag.benchmark { background: #1a1a1a; color: #a3e635; }
+      .tag.memory { background: #1a0a0a; color: #f87171; }
+      .showcase-grid .code-figure {
+        margin: 0;
+        height: 100%;
+      }
+      .showcase-grid .code-figure .code-screen {
+        min-height: 140px;
+      }
+      @media (max-width: 860px) {
+        .showcase-hero { padding: 40px 0 24px; }
+        .om-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="nav">
+        <a href="index.html">Início</a>
+        <a href="learn/getting-started.html">Aprender</a>
+        <a href="reference/functions/index.html">Funções</a>
+        <a href="systems/om.html">OM</a>
+        <a href="tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell" style="grid-template-columns: 1fr;">
+      <main class="content doc-page" style="max-width: none;">
+        <div class="showcase-hero">
+          <p class="eyebrow">Snask Language</p>
+          <h1>Showcase Snask</h1>
+          <p class="lead">Tecnologia que você pode <strong>VER</strong></p>
+        </div>
+
+        <!-- OM Memory System -->
+        <section class="showcase-section">
+          <h2>OM Memory System</h2>
+          <p class="lead" style="margin-bottom: 12px;">O sistema de gerenciamento automático de memória baseado em zonas. Sem GC, sem leaks, sem pauses.</p>
+          <div class="om-grid">
+            <figure class="media-figure">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" font-family="Inter, system-ui, sans-serif" style="max-width: 100%; height: auto;">
+                <defs>
+                  <linearGradient id="hGStatic" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#6366f1"/><stop offset="100%" style="stop-color:#818cf8"/></linearGradient>
+                  <linearGradient id="hGStack" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#0b7a5a"/><stop offset="100%" style="stop-color:#1bc184"/></linearGradient>
+                  <linearGradient id="hGArena" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#d97706"/><stop offset="100%" style="stop-color:#f59e0b"/></linearGradient>
+                  <linearGradient id="hGHeap" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#dc2626"/><stop offset="100%" style="stop-color:#ef4444"/></linearGradient>
+                  <linearGradient id="hGResource" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#7c3aed"/><stop offset="100%" style="stop-color:#a855f7"/></linearGradient>
+                </defs>
+                <rect width="800" height="520" rx="16" fill="#1a221e"/>
+                <text x="400" y="44" text-anchor="middle" fill="#dce8df" font-size="22" font-weight="800">OM-Snask-System — Hierarquia de Memória</text>
+                <text x="400" y="68" text-anchor="middle" fill="#7a8f81" font-size="14">Em vez de você gerenciar, o Snask deduz o ciclo de vida</text>
+                <rect x="50" y="100" width="700" height="52" rx="8" fill="url(#hGStatic)" opacity="0.9"/>
+                <text x="70" y="132" fill="white" font-size="16" font-weight="700">static</text>
+                <text x="130" y="132" fill="rgba(255,255,255,0.8)" font-size="14">dados do binário • vida: programa inteiro • custo zero</text>
+                <rect x="50" y="168" width="700" height="52" rx="8" fill="url(#hGStack)" opacity="0.9"/>
+                <text x="70" y="200" fill="white" font-size="16" font-weight="700">stack</text>
+                <text x="130" y="200" fill="rgba(255,255,255,0.8)" font-size="14">objetos curtos • vida: frame atual • ideal para helpers temporários</text>
+                <rect x="50" y="236" width="700" height="52" rx="8" fill="url(#hGArena)" opacity="0.9"/>
+                <text x="70" y="268" fill="white" font-size="16" font-weight="700">arena</text>
+                <text x="130" y="268" fill="rgba(255,255,255,0.8)" font-size="14">alocação linear • vida: zona atual • bump allocator O(1)</text>
+                <rect x="50" y="304" width="700" height="52" rx="8" fill="url(#hGHeap)" opacity="0.9"/>
+                <text x="70" y="336" fill="white" font-size="16" font-weight="700">heap</text>
+                <text x="130" y="336" fill="rgba(255,255,255,0.8)" font-size="14">dados persistentes • vida: até não serem mais usados • promovido via promote()</text>
+                <rect x="50" y="372" width="700" height="52" rx="8" fill="url(#hGResource)" opacity="0.9"/>
+                <text x="70" y="404" fill="white" font-size="16" font-weight="700">resource</text>
+                <text x="130" y="404" fill="rgba(255,255,255,0.8)" font-size="14">recurso externo C • vida: zona/handle OM • limpeza automática por destrutor</text>
+                <text x="400" y="470" text-anchor="middle" fill="#7a8f81" font-size="13">↑ mais rápido / menos flexível           mais flexível / mais custoso ↓</text>
+                <line x1="100" y1="482" x2="700" y2="482" stroke="#2a3830" stroke-width="2"/>
+                <polygon points="700,478 710,482 700,486" fill="#2a3830"/>
+                <polygon points="100,478 90,482 100,486" fill="#2a3830"/>
+                <text x="110" y="502" fill="#7a8f81" font-size="11">Performance</text>
+                <text x="660" y="502" text-anchor="end" fill="#7a8f81" font-size="11">Flexibilidade</text>
+              </svg>
+              <figcaption>Hierarquia de memória OM — 5 níveis com diferentes custos e ciclos de vida</figcaption>
+            </figure>
+
+            <figure class="media-figure">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360" font-family="Inter, system-ui, sans-serif" style="max-width: 100%; height: auto;">
+                <defs>
+                  <linearGradient id="cG1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#0b7a5a"/><stop offset="100%" style="stop-color:#1bc184"/></linearGradient>
+                  <linearGradient id="cG2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#d97706"/><stop offset="100%" style="stop-color:#f59e0b"/></linearGradient>
+                  <linearGradient id="cG3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#6366f1"/><stop offset="100%" style="stop-color:#818cf8"/></linearGradient>
+                  <marker id="cArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 Z" fill="#1bc184"/>
+                  </marker>
+                </defs>
+                <rect width="800" height="360" rx="16" fill="#1a221e"/>
+                <text x="400" y="36" text-anchor="middle" fill="#dce8df" font-size="20" font-weight="800">Fluxo do Contrato OM</text>
+                <rect x="40" y="70" width="160" height="80" rx="10" fill="url(#cG1)" opacity="0.9"/>
+                <text x="120" y="104" text-anchor="middle" fill="white" font-size="14" font-weight="700">Header C</text>
+                <text x="120" y="126" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">SDL2/SDL.h</text>
+                <line x1="200" y1="110" x2="250" y2="110" stroke="#1bc184" stroke-width="3" marker-end="url(#cArrow)"/>
+                <rect x="250" y="70" width="160" height="80" rx="10" fill="url(#cG3)" opacity="0.9"/>
+                <text x="330" y="104" text-anchor="middle" fill="white" font-size="14" font-weight="700">Scanner Clang</text>
+                <text x="330" y="126" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">parser → heurísticas</text>
+                <line x1="410" y1="110" x2="460" y2="110" stroke="#1bc184" stroke-width="3" marker-end="url(#cArrow)"/>
+                <rect x="460" y="70" width="160" height="80" rx="10" fill="url(#cG2)" opacity="0.9"/>
+                <text x="540" y="104" text-anchor="middle" fill="white" font-size="14" font-weight="700">Contrato Deduzido</text>
+                <text x="540" y="126" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">recursos + constantes</text>
+                <rect x="250" y="200" width="200" height="60" rx="10" fill="url(#cG2)" opacity="0.7" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,4"/>
+                <text x="350" y="230" text-anchor="middle" fill="white" font-size="14" font-weight="700">.om.snif (opcional)</text>
+                <text x="350" y="248" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">patch de exceções</text>
+                <line x1="540" y1="150" x2="540" y2="200" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#cArrow)"/>
+                <line x1="450" y1="230" x2="420" y2="230" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,4"/>
+                <rect x="600" y="140" width="160" height="80" rx="10" fill="url(#cG1)" opacity="0.9"/>
+                <text x="680" y="174" text-anchor="middle" fill="white" font-size="14" font-weight="700">LLVM Codegen</text>
+                <text x="680" y="196" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">chamada nativa</text>
+                <line x1="620" y1="150" x2="600" y2="150" stroke="#1bc184" stroke-width="3" marker-end="url(#cArrow)"/>
+                <text x="400" y="330" text-anchor="middle" fill="#7a8f81" font-size="12">O resultado: chamadas C nativas via LLVM, sem ponteiros crus na superfície Snask</text>
+              </svg>
+              <figcaption>Fluxo do contrato OM — do header C até chamada LLVM nativa</figcaption>
+            </figure>
+
+            <figure class="media-figure">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 340" font-family="Inter, system-ui, sans-serif" style="max-width: 100%; height: auto;">
+                <rect width="800" height="340" rx="16" fill="#1a221e"/>
+                <text x="400" y="36" text-anchor="middle" fill="#dce8df" font-size="20" font-weight="800">Níveis de Segurança do Scanner OM</text>
+                <rect x="40" y="70" width="220" height="200" rx="12" fill="#0f2e22" stroke="#1bc184" stroke-width="2"/>
+                <rect x="60" y="90" width="180" height="36" rx="8" fill="#1bc184"/>
+                <text x="150" y="114" text-anchor="middle" fill="white" font-size="15" font-weight="800">SAFE</text>
+                <text x="60" y="152" fill="#a0b5a9" font-size="12">Pode ser chamada</text>
+                <text x="60" y="172" fill="#a0b5a9" font-size="12">diretamente pela</text>
+                <text x="60" y="192" fill="#a0b5a9" font-size="12">superfície Snask</text>
+                <text x="60" y="220" fill="#1bc184" font-size="12">→ sdl2.delay(50)</text>
+                <text x="60" y="240" fill="#1bc184" font-size="12">→ sdl2.render_clear(r)</text>
+                <text x="60" y="260" fill="#1bc184" font-size="12">→ stdio.puts("ok")</text>
+                <rect x="290" y="70" width="220" height="200" rx="12" fill="#2a2010" stroke="#f59e0b" stroke-width="2"/>
+                <rect x="310" y="90" width="180" height="36" rx="8" fill="#f59e0b"/>
+                <text x="400" y="114" text-anchor="middle" fill="white" font-size="15" font-weight="800">COPY_ONLY</text>
+                <text x="310" y="152" fill="#a0b5a9" font-size="12">Pode ser usada, mas</text>
+                <text x="310" y="172" fill="#a0b5a9" font-size="12">OM copia resultado</text>
+                <text x="310" y="192" fill="#a0b5a9" font-size="12">para memória Snask</text>
+                <text x="310" y="220" fill="#f59e0b" font-size="12">→ sdl2.get_platform()</text>
+                <text x="310" y="240" fill="#f59e0b" font-size="12">→ const char* copiado</text>
+                <rect x="540" y="70" width="220" height="200" rx="12" fill="#2a1212" stroke="#ef4444" stroke-width="2"/>
+                <rect x="560" y="90" width="180" height="36" rx="8" fill="#ef4444"/>
+                <text x="650" y="114" text-anchor="middle" fill="white" font-size="15" font-weight="800">BLOCKED</text>
+                <text x="560" y="152" fill="#a0b5a9" font-size="12">Não exposta na</text>
+                <text x="560" y="172" fill="#a0b5a9" font-size="12">superfície Snask</text>
+                <text x="560" y="210" fill="#ef4444" font-size="12">→ Destrutores manuais</text>
+                <text x="560" y="230" fill="#ef4444" font-size="12">→ Callbacks</text>
+                <text x="560" y="250" fill="#ef4444" font-size="12">→ void* parameters</text>
+                <text x="560" y="270" fill="#ef4444" font-size="12">→ Ownership ambíguo</text>
+                <text x="400" y="315" text-anchor="middle" fill="#7a8f81" font-size="12">Scanner conservador: prefere bloquear uma função útil a expor uma insegura</text>
+              </svg>
+              <figcaption>Níveis de segurança do scanner OM — SAFE, COPY_ONLY e BLOCKED</figcaption>
+            </figure>
+          </div>
+          <div class="callout">
+            O OM Memory System permite que você nunca se preocupe com <code>malloc</code>/<code>free</code> no perfil Humane,
+            e ainda oferece controle total via <code>@unsafe</code> quando necessário no perfil Systems.
+          </div>
+        </section>
+
+        <!-- Profiles -->
+        <section class="showcase-section">
+          <h2>Perfis: Humane vs Systems</h2>
+          <p class="lead" style="margin-bottom: 12px;">A mesma linguagem, dois níveis de abstração. Escolha o perfil certo para cada parte do seu projeto.</p>
+          <figure class="media-figure">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 380" font-family="Inter, system-ui, sans-serif" style="max-width: 100%; height: auto;">
+              <rect width="800" height="380" rx="16" fill="#1a221e"/>
+              <text x="400" y="36" text-anchor="middle" fill="#dce8df" font-size="20" font-weight="800">Perfis: Humane vs Systems</text>
+              <rect x="40" y="70" width="340" height="270" rx="12" fill="#0f2e22" stroke="#1bc184" stroke-width="2"/>
+              <rect x="60" y="90" width="300" height="44" rx="10" fill="#1bc184"/>
+              <text x="210" y="118" text-anchor="middle" fill="white" font-size="18" font-weight="800">Humane</text>
+              <circle cx="70" cy="165" r="5" fill="#1bc184"/>
+              <text x="85" y="170" fill="#a0b5a9" font-size="13">Runtime completo</text>
+              <circle cx="70" cy="195" r="5" fill="#1bc184"/>
+              <text x="85" y="200" fill="#a0b5a9" font-size="13">Zonas automáticas</text>
+              <circle cx="70" cy="225" r="5" fill="#1bc184"/>
+              <text x="85" y="230" fill="#a0b5a9" font-size="13">GC não obrigatório</text>
+              <circle cx="70" cy="255" r="5" fill="#1bc184"/>
+              <text x="85" y="260" fill="#a0b5a9" font-size="13">Produtividade máxima</text>
+              <text x="60" y="300" fill="#1bc184" font-size="13" font-weight="700">Perfil padrão (--profile humane)</text>
+              <rect x="420" y="70" width="340" height="270" rx="12" fill="#2a1212" stroke="#ef4444" stroke-width="2"/>
+              <rect x="440" y="90" width="300" height="44" rx="10" fill="#ef4444"/>
+              <text x="590" y="118" text-anchor="middle" fill="white" font-size="18" font-weight="800">Systems</text>
+              <circle cx="450" cy="165" r="5" fill="#ef4444"/>
+              <text x="465" y="170" fill="#a0b5a9" font-size="13">Memória crua (malloc/free)</text>
+              <circle cx="450" cy="195" r="5" fill="#ef4444"/>
+              <text x="465" y="200" fill="#a0b5a9" font-size="13">Ponteiros explícitos (ptr)</text>
+              <circle cx="450" cy="225" r="5" fill="#ef4444"/>
+              <text x="465" y="230" fill="#a0b5a9" font-size="13">@unsafe delimita riscos</text>
+              <circle cx="450" cy="255" r="5" fill="#ef4444"/>
+              <text x="465" y="260" fill="#a0b5a9" font-size="13">Primitivas NES/CPU</text>
+              <text x="440" y="300" fill="#ef4444" font-size="13" font-weight="700">Build explícito (--profile systems)</text>
+              <text x="400" y="360" text-anchor="middle" fill="#7a8f81" font-size="13">OM conecta os dois mundos: zonas funcionam em ambos os perfis</text>
+            </svg>
+            <figcaption>Comparação entre os perfis Humane e Systems na Snask</figcaption>
+          </figure>
+        </section>
+
+        <!-- Code Gallery -->
+        <section class="showcase-section">
+          <h2>Galeria de Código</h2>
+          <p class="lead" style="margin-bottom: 12px;">Veja Snask em ação: desde Hello World até emulador NES e interop com C.</p>
+          <div class="showcase-grid">
+            <figure class="code-figure">
+              <div class="code-screen">class main {
+    fun start() {
+        print(&quot;Olá, Snask!\n&quot;)
+    }
+}</div>
+              <figcaption>Hello World em Snask</figcaption>
+            </figure>
+
+            <figure class="code-figure">
+              <div class="code-screen">zone &quot;frame&quot; {
+    let buffer = String::new(1024)
+    let dados = read_file(&quot;config.json&quot;)
+    processar(dados, buffer)
+} // buffer e dados liberados aqui</div>
+              <figcaption>Zona OM — alocação automática com escopo</figcaption>
+            </figure>
+
+            <figure class="code-figure">
+              <div class="code-screen">import_c_om &quot;SDL2/SDL.h&quot; as sdl2
+
+class main {
+    fun start() {
+        zone &quot;sdl&quot; {
+            sdl2.init(sdl2.INIT_VIDEO)
+            let window = sdl2.create_window(
+                &quot;Snask SDL2&quot;, 100, 100, 640, 480, 0
+            )
+            let renderer = sdl2.create_renderer(window, -1, 0)
+            sdl2.set_render_draw_color(renderer, 20, 120, 220, 255)
+            sdl2.render_clear(renderer)
+            sdl2.render_present(renderer)
+            sdl2.delay(3000)
+            sdl2.quit()
+        }
+    }
+}</div>
+              <figcaption>SDL2 com OM — recursos C limpos por zona</figcaption>
+            </figure>
+
+            <figure class="code-figure">
+              <div class="code-screen">@unsafe {
+    let mem: ptr = mem_alloc_zero(65536)  // 64KB RAM
+    // Reset vector
+    mem_write_u8(mem, 0xFFFC, 0x00)
+    mem_write_u8(mem, 0xFFFD, 0x80)
+    // Read start address
+    let pc: u16 = mem_read_u16(mem, 0xFFFC)
+    // CPU loop
+    loop {
+        let opcode: u8 = mem_read_u8(mem, pc)
+        // decode &amp; execute...
+        pc = pc + 1
+    }
+    mem_free(mem)
+}</div>
+              <figcaption>Emulador NES — memória crua controlada via @unsafe</figcaption>
+            </figure>
+
+            <figure class="code-figure">
+              <div class="code-screen">Hierarquia de Memória OM:
+
+  static ── dados do binário (vida: programa inteiro)
+  stack  ── objetos curtos (vida: frame atual)
+  arena  ── alocação linear (vida: zona atual)
+  heap   ── dados persistentes (vida: até não usar)
+  resource ── handle C externo (vida: zona OM)</div>
+              <figcaption>Hierarquia de memória do OM-Snask-System</figcaption>
+            </figure>
+
+            <figure class="code-figure">
+              <div class="code-screen">@unsafe {
+    let mem: ptr = mem_alloc_zero(256)
+    mem_write_u8(mem, 0, 42)
+    let value: u8 = mem_read_u8(mem, 0)
+    print(&quot;Valor: {value}\n&quot;)
+    mem_free(mem)
+}</div>
+              <figcaption>Memória crua no perfil Systems</figcaption>
+            </figure>
+
+            <figure class="code-figure">
+              <div class="code-screen"># snask.snif — manifesto de projeto SPS
+[project]
+name = &quot;meu_app&quot;
+version = &quot;0.1.0&quot;
+main = &quot;src/main.snask&quot;
+
+[dependencies]
+json = &quot;1.0.0&quot;
+
+[build]
+profile = &quot;humane&quot;
+target = &quot;native&quot;</div>
+              <figcaption>Manifesto SPS (snask.snif)</figcaption>
+            </figure>
+
+            <figure class="code-figure">
+              <div class="code-screen">{
+  name: &quot;Snask&quot;,
+  version: &quot;0.4.1&quot;,
+  tags: [&quot;lang&quot;, &quot;compiler&quot;,],
+  released: @date&quot;2026-05-08&quot;,
+  metadata: {
+    score: @dec&quot;99.9&quot;,
+    status: @enum&quot;ACTIVE&quot;,
+  },
+}</div>
+              <figcaption>Formato SNIF — o formato de dados nativo do Snask</figcaption>
+            </figure>
+
+            <figure class="code-figure">
+              <div class="code-screen">gui_init()
+let win = gui_window(&quot;Snask App&quot;, 400, 300)
+let vbox = gui_vbox()
+gui_add(win, vbox)
+let label = gui_label(&quot;Clique no botao!&quot;)
+gui_add(vbox, label)
+let btn = gui_button(&quot;Clique Aqui&quot;)
+gui_on_click(btn, fun() {
+    gui_set_text(label, &quot;Clicou!&quot;)
+})
+gui_add(vbox, btn)
+gui_show_all(win)
+gui_run()</div>
+              <figcaption>Interface gráfica nativa com GUI Snask</figcaption>
+            </figure>
+
+            <figure class="code-figure">
+              <div class="code-screen">import_c_om &quot;SDL2/SDL.h&quot; as sdl2
+
+// Scanner deduz contrato automaticamente:
+// SDL_Init → sdl2.init (SAFE)
+// SDL_CreateWindow → sdl2.create_window (resource)
+// SDL_DestroyWindow → escondido (destrutor automático)
+// SDL_WINDOW_HIDDEN → sdl2.WINDOW_HIDDEN (constante)
+
+zone &quot;gfx&quot; {
+    let win = sdl2.create_window(&quot;Título&quot;, 0, 0, 800, 600, 0)
+    let ren = sdl2.create_renderer(win, -1, 0)
+    sdl2.render_clear(ren)
+    sdl2.render_present(ren)
+    sdl2.delay(16)
+}</div>
+              <figcaption>Import C via OM — scanner deduz contratos automaticamente</figcaption>
+            </figure>
+
+            <figure class="code-figure">
+              <div class="code-screen">$ snask build bench/particles.snask --profile systems --output particles
+$ ./particles
+FPS: 1200  particles: 100000  mem: 3.2 MB
+FPS: 980   particles: 100000  mem: 3.2 MB
+FPS: 1100  particles: 100000  mem: 3.2 MB
+^C</div>
+              <figcaption>Benchmark de partículas — perfil Systems</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <!-- Running Demos -->
+        <section class="showcase-section">
+          <h2>Demonstrações no Terminal</h2>
+          <p class="lead" style="margin-bottom: 12px;">Registros de comandos reais do Snask CLI em ação.</p>
+          <div class="showcase-grid">
+            <div class="showcase-card terminal-card">
+              <div class="card-media">
+                <pre><code>$ snask --help
+Snask v0.4.1 — Linguagem de programação compilada
+
+Uso: snask &lt;comando&gt; [argumentos]
+
+Comandos:
+  build     Compila um arquivo .snask
+  run       Compila e executa
+  new       Cria um novo projeto
+  doctor    Verifica instalação e dependências
+  explain   Explica diagnósticos e códigos de erro
+  fmt       Formata código-fonte Snask
+  lsp       Inicia o servidor LSP
+  version   Exibe a versão do compilador
+
+Opções globais:
+  --help       Mostra esta mensagem
+  --profile    Define perfil (humane | systems)
+  --target     Define alvo (native | linux | wasm)
+  --output     Nome do arquivo de saída</code></pre>
+              </div>
+              <div class="card-body">
+                <h3>snask --help</h3>
+                <p>Lista completa de comandos e opções do compilador Snask.</p>
+              </div>
+              <div class="card-tags">
+                <span class="tag">CLI</span>
+                <span class="tag">Tooling</span>
+              </div>
+            </div>
+
+            <div class="showcase-card terminal-card">
+              <div class="card-media">
+                <pre><code>$ snask build Testes/om_stdio_puts.snask
+[Snask] Compilando om_stdio_puts...
+[Snask] Perfil: humane
+[Snask] Parsing: ✓
+[Snask] Análise semântica: ✓
+[Snask] OM scan: 3 recursos detectados
+[Snask] Geração LLVM IR: ✓
+[Snask] Otimizações: -O2
+[Snask] Linkando objetos...
+[Snask] Saída: om_stdio_puts
+[Snask] Build concluído em 0.342s
+
+$ ./om_stdio_puts
+Olá do Snask via stdio.h!
+puts() chamado via OM interop C
+42 é a resposta, claro.
+Zona limpa. Nenhum leak.</code></pre>
+              </div>
+              <div class="card-body">
+                <h3>snask build (OM + C interop)</h3>
+                <p>Compilação de um programa que usa <code>import_c_om</code> para chamar <code>puts()</code> da libc.</p>
+              </div>
+              <div class="card-tags">
+                <span class="tag">OM</span>
+                <span class="tag">C Interop</span>
+                <span class="tag">CLI</span>
+              </div>
+            </div>
+
+            <div class="showcase-card terminal-card">
+              <div class="card-media">
+                <pre><code>$ snask explain S1002
+╔══════════════════════════════════════════╗
+║  S1002 — Tipo incompatível em operação  ║
+╚══════════════════════════════════════════╝
+
+Contexto:
+  A operação `+` espera ambos os operandos
+  do mesmo tipo, mas recebeu:
+    - Esquerda: u32
+    - Direita:  String
+
+Ocorreu em:
+  exemplo.snask:7:14
+
+Possíveis causas:
+  1. String não convertida para número
+  2. Variável declarada com tipo diferente
+  3. Uso acidental de `+` em vez de `++`
+
+Sugestão:
+  Use `parse_int()` para converter a String
+  antes da operação aritmética.
+
+  let x: u32 = parse_int(minha_string) ou 0
+
+Documentação:
+  https://snask.dev/reference/diagnostics#S1002</code></pre>
+              </div>
+              <div class="card-body">
+                <h3>snask explain S1002</h3>
+                <p>Diagnóstico detalhado e sugestões para o erro de tipo incompatível.</p>
+              </div>
+              <div class="card-tags">
+                <span class="tag">Diagnósticos</span>
+                <span class="tag">Tooling</span>
+              </div>
+            </div>
+
+            <div class="showcase-card terminal-card">
+              <div class="card-media">
+                <pre><code>$ snask doctor
+╔══════════════════════════════════════════╗
+║  Snask Doctor — Verificação do sistema  ║
+╚══════════════════════════════════════════╝
+
+[✓] Snask v0.4.1 instalado
+[✓] LLVM 17.0.6 encontrado em /usr/lib/llvm-17
+[✓] Clang 17.0.6 detectado
+[✓] $HOME/.snask/bin no PATH
+[✓] ld (GNU Binutils) disponível
+[✓] Sistema: Linux x86_64 (glibc 2.35)
+[✓] Espaço em disco: 42 GB livres
+
+Diagnóstico completo:
+  - Perfil humane: pronto
+  - Perfil systems: pronto
+  - OM scan: funcional
+  - LSP server: funcional
+  - SNIF support: funcional
+
+Nenhum problema encontrado.
+Seu ambiente Snask está pronto para uso.</code></pre>
+              </div>
+              <div class="card-body">
+                <h3>snask doctor</h3>
+                <p>Verificação completa do ambiente: compilador, LLVM, Clang e dependências.</p>
+              </div>
+              <div class="card-tags">
+                <span class="tag">Tooling</span>
+                <span class="tag">Diagnósticos</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="callout" style="margin-top: 40px;">
+          Quer ver mais? Explore os <a href="examples/index.html">exemplos prontos</a>,
+          leia o <a href="learn/getting-started.html">guia de introdução</a>, ou
+          confira a <a href="reference/functions/index.html">referência de funções</a>.
+        </div>
+
+        <div class="footer">
+          Snask Documentation — Showcase
+        </div>
+      </main>
+    </div>
+    <script src="assets/site.js"></script>
+  </body>
+</html>

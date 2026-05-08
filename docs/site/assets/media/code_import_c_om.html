@@ -1,0 +1,19 @@
+<figure class="code-figure">
+  <div class="code-screen">import_c_om &quot;SDL2/SDL.h&quot; as sdl2
+
+// Scanner deduz contrato automaticamente:
+// SDL_Init → sdl2.init (SAFE)
+// SDL_CreateWindow → sdl2.create_window (resource)
+// SDL_DestroyWindow → escondido (destrutor automático)
+// SDL_WINDOW_HIDDEN → sdl2.WINDOW_HIDDEN (constante)
+
+zone &quot;gfx&quot; {
+    let win = sdl2.create_window(&quot;Título&quot;, 0, 0, 800, 600, 0)
+    let ren = sdl2.create_renderer(win, -1, 0)
+    sdl2.render_clear(ren)
+    sdl2.render_present(ren)
+    sdl2.delay(16)
+}
+</div>
+  <figcaption>Import C via OM — scanner deduz contratos automaticamente</figcaption>
+</figure>

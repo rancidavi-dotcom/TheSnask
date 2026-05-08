@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 380" font-family="Inter, system-ui, sans-serif">
+  <rect width="800" height="380" rx="16" fill="#1a221e"/>
+  <text x="400" y="36" text-anchor="middle" fill="#dce8df" font-size="20" font-weight="800">Perfis: Humane vs Systems</text>
+
+  <!-- Humane -->
+  <rect x="40" y="70" width="340" height="270" rx="12" fill="#0f2e22" stroke="#1bc184" stroke-width="2"/>
+  <rect x="60" y="90" width="300" height="44" rx="10" fill="#1bc184"/>
+  <text x="210" y="118" text-anchor="middle" fill="white" font-size="18" font-weight="800">Humane</text>
+  <circle cx="70" cy="165" r="5" fill="#1bc184"/>
+  <text x="85" y="170" fill="#a0b5a9" font-size="13">Runtime completo</text>
+  <circle cx="70" cy="195" r="5" fill="#1bc184"/>
+  <text x="85" y="200" fill="#a0b5a9" font-size="13">Zonas automáticas</text>
+  <circle cx="70" cy="225" r="5" fill="#1bc184"/>
+  <text x="85" y="230" fill="#a0b5a9" font-size="13">GC não obrigatório</text>
+  <circle cx="70" cy="255" r="5" fill="#1bc184"/>
+  <text x="85" y="260" fill="#a0b5a9" font-size="13">Produtividade máxima</text>
+  <text x="60" y="300" fill="#1bc184" font-size="13" font-weight="700">Perfil padrão (--profile humane)</text>
+
+  <!-- Systems -->
+  <rect x="420" y="70" width="340" height="270" rx="12" fill="#2a1212" stroke="#ef4444" stroke-width="2"/>
+  <rect x="440" y="90" width="300" height="44" rx="10" fill="#ef4444"/>
+  <text x="590" y="118" text-anchor="middle" fill="white" font-size="18" font-weight="800">Systems</text>
+  <circle cx="450" cy="165" r="5" fill="#ef4444"/>
+  <text x="465" y="170" fill="#a0b5a9" font-size="13">Memória crua (malloc/free)</text>
+  <circle cx="450" cy="195" r="5" fill="#ef4444"/>
+  <text x="465" y="200" fill="#a0b5a9" font-size="13">Ponteiros explícitos (ptr)</text>
+  <circle cx="450" cy="225" r="5" fill="#ef4444"/>
+  <text x="465" y="230" fill="#a0b5a9" font-size="13">@unsafe delimita riscos</text>
+  <circle cx="450" cy="255" r="5" fill="#ef4444"/>
+  <text x="465" y="260" fill="#a0b5a9" font-size="13">Primitivas NES/CPU</text>
+  <text x="440" y="300" fill="#ef4444" font-size="13" font-weight="700">Build explícito (--profile systems)</text>
+
+  <!-- Bridge text -->
+  <text x="400" y="360" text-anchor="middle" fill="#7a8f81" font-size="13">OM conecta os dois mundos: zonas funcionam em ambos os perfis</text>
+</svg>

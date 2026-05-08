@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <linearGradient id="gStatic" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#6366f1"/><stop offset="100%" style="stop-color:#818cf8"/></linearGradient>
+    <linearGradient id="gStack" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#0b7a5a"/><stop offset="100%" style="stop-color:#1bc184"/></linearGradient>
+    <linearGradient id="gArena" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#d97706"/><stop offset="100%" style="stop-color:#f59e0b"/></linearGradient>
+    <linearGradient id="gHeap" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#dc2626"/><stop offset="100%" style="stop-color:#ef4444"/></linearGradient>
+    <linearGradient id="gResource" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#7c3aed"/><stop offset="100%" style="stop-color:#a855f7"/></linearGradient>
+  </defs>
+  <rect width="800" height="520" rx="16" fill="#1a221e"/>
+  <text x="400" y="44" text-anchor="middle" fill="#dce8df" font-size="22" font-weight="800">OM-Snask-System — Hierarquia de Memória</text>
+  <text x="400" y="68" text-anchor="middle" fill="#7a8f81" font-size="14">Em vez de você gerenciar, o Snask deduz o ciclo de vida</text>
+
+  <!-- static -->
+  <rect x="50" y="100" width="700" height="52" rx="8" fill="url(#gStatic)" opacity="0.9"/>
+  <text x="70" y="132" fill="white" font-size="16" font-weight="700">static</text>
+  <text x="130" y="132" fill="rgba(255,255,255,0.8)" font-size="14">dados do binário • vida: programa inteiro • custo zero</text>
+
+  <!-- stack -->
+  <rect x="50" y="168" width="700" height="52" rx="8" fill="url(#gStack)" opacity="0.9"/>
+  <text x="70" y="200" fill="white" font-size="16" font-weight="700">stack</text>
+  <text x="130" y="200" fill="rgba(255,255,255,0.8)" font-size="14">objetos curtos • vida: frame atual • ideal para helpers temporários</text>
+
+  <!-- arena -->
+  <rect x="50" y="236" width="700" height="52" rx="8" fill="url(#gArena)" opacity="0.9"/>
+  <text x="70" y="268" fill="white" font-size="16" font-weight="700">arena</text>
+  <text x="130" y="268" fill="rgba(255,255,255,0.8)" font-size="14">alocação linear • vida: zona atual • bump allocator O(1)</text>
+
+  <!-- heap -->
+  <rect x="50" y="304" width="700" height="52" rx="8" fill="url(#gHeap)" opacity="0.9"/>
+  <text x="70" y="336" fill="white" font-size="16" font-weight="700">heap</text>
+  <text x="130" y="336" fill="rgba(255,255,255,0.8)" font-size="14">dados persistentes • vida: até não serem mais usados • promovido via promote()</text>
+
+  <!-- resource -->
+  <rect x="50" y="372" width="700" height="52" rx="8" fill="url(#gResource)" opacity="0.9"/>
+  <text x="70" y="404" fill="white" font-size="16" font-weight="700">resource</text>
+  <text x="130" y="404" fill="rgba(255,255,255,0.8)" font-size="14">recurso externo C • vida: zona/handle OM • limpeza automática por destrutor</text>
+
+  <!-- arrow -->
+  <text x="400" y="470" text-anchor="middle" fill="#7a8f81" font-size="13">↑ mais rápido / menos flexível           mais flexível / mais custoso ↓</text>
+  <line x1="100" y1="482" x2="700" y2="482" stroke="#2a3830" stroke-width="2"/>
+  <polygon points="700,478 710,482 700,486" fill="#2a3830"/>
+  <polygon points="100,478 90,482 100,486" fill="#2a3830"/>
+  <text x="110" y="502" fill="#7a8f81" font-size="11">Performance</text>
+  <text x="660" y="502" text-anchor="end" fill="#7a8f81" font-size="11">Flexibilidade</text>
+</svg>

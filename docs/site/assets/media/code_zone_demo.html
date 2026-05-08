@@ -1,0 +1,9 @@
+<figure class="code-figure">
+  <div class="code-screen">zone &quot;frame&quot; {
+    let buffer = String::new(1024)
+    let dados = read_file(&quot;config.json&quot;)
+    processar(dados, buffer)
+} // buffer e dados liberados aqui
+</div>
+  <figcaption>Zona OM — alocação automática com escopo</figcaption>
+</figure>

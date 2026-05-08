@@ -1,0 +1,19 @@
+<figure class="code-figure">
+  <div class="code-screen">@unsafe {
+    let mem: ptr = mem_alloc_zero(65536)  // 64KB RAM
+    // Reset vector
+    mem_write_u8(mem, 0xFFFC, 0x00)
+    mem_write_u8(mem, 0xFFFD, 0x80)
+    // Read start address
+    let pc: u16 = mem_read_u16(mem, 0xFFFC)
+    // CPU loop
+    loop {
+        let opcode: u8 = mem_read_u8(mem, pc)
+        // decode &amp; execute...
+        pc = pc + 1
+    }
+    mem_free(mem)
+}
+</div>
+  <figcaption>Emulador NES — memória crua controlada via @unsafe</figcaption>
+</figure>

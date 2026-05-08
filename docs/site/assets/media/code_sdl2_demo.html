@@ -1,0 +1,22 @@
+<figure class="code-figure">
+  <div class="code-screen">import_c_om &quot;SDL2/SDL.h&quot; as sdl2
+
+class main {
+    fun start() {
+        zone &quot;sdl&quot; {
+            sdl2.init(sdl2.INIT_VIDEO)
+            let window = sdl2.create_window(
+                &quot;Snask SDL2&quot;, 100, 100, 640, 480, 0
+            )
+            let renderer = sdl2.create_renderer(window, -1, 0)
+            sdl2.set_render_draw_color(renderer, 20, 120, 220, 255)
+            sdl2.render_clear(renderer)
+            sdl2.render_present(renderer)
+            sdl2.delay(3000)
+            sdl2.quit()
+        }
+    }
+}
+</div>
+  <figcaption>SDL2 com OM — recursos C limpos por zona</figcaption>
+</figure>
