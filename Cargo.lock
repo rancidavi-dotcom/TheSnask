@@ -1982,6 +1982,7 @@ dependencies = [
  "inkwell",
  "lazy_static",
  "libc",
+ "llvm-sys",
  "rand",
  "reqwest",
  "rmp-serde",

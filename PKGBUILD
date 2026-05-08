@@ -11,13 +11,15 @@ provides=('snask')
 conflicts=('snask-git')
 source_x86_64=(
   "snask-bin::${url}/releases/download/v${pkgver}/snask-linux-amd64"
+  "snask-lsp-bin::${url}/releases/download/v${pkgver}/snask-lsp-linux-amd64"
   "snask-src.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz"
 )
-sha256sums_x86_64=('SKIP' 'SKIP')
+sha256sums_x86_64=('SKIP' 'SKIP' 'SKIP')
 
 package() {
-  # Instala o binário renomeado
+  # Instala os binários renomeados
   install -Dm755 "${srcdir}/snask-bin" "${pkgdir}/usr/bin/snask"
+  install -Dm755 "${srcdir}/snask-lsp-bin" "${pkgdir}/usr/bin/snask-lsp"
 
   # Pasta do código fonte extraído (nome do repo no zip)
   local src_dir="TheSnask-${pkgver/-beta/}"

@@ -192,6 +192,88 @@ pub fn run_setup(target: Option<String>) -> Result<(), String> {
     }
 
     println!("✅ Setup completed successfully.");
+
+    // --- Neovim setup prompt ---
+    print!("\n➜ Deseja configurar o suporte ao Neovim para Snask? (s/N): ");
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap();
+    if input.trim().eq_ignore_ascii_case("s") {
+        let nvim_check = Command::new("sh")
+            .arg("-c")
+            .arg("command -v nvim")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+
+        if nvim_check {
+            println!("✅ Neovim já está instalado.");
+        } else {
+            print!("❌ Neovim não encontrado. Deseja instalar? (s/N): ");
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            input.clear();
+            std::io::stdin().read_line(&mut input).unwrap();
+            if input.trim().eq_ignore_ascii_case("s") {
+                let status: Option<std::process::ExitStatus> = if cfg!(target_os = "linux") {
+                    let r = if Path::new("/usr/bin/apt").exists() {
+                        Command::new("sudo").args(["apt", "install", "-y", "neovim"]).status()
+                    } else if Path::new("/usr/bin/pacman").exists() {
+                        Command::new("sudo").args(["pacman", "-S", "--noconfirm", "neovim"]).status()
+                    } else if Path::new("/usr/bin/dnf").exists() {
+                        Command::new("sudo").args(["dnf", "install", "-y", "neovim"]).status()
+                    } else {
+                        return Ok(());
+                    };
+                    r.ok()
+                } else if cfg!(target_os = "macos") {
+                    Command::new("brew").args(["install", "neovim"]).status().ok()
+                } else {
+                    None
+                };
+
+                match status {
+                    Some(s) if s.success() => println!("✅ Neovim instalado."),
+                    _ => println!("⚠️  Não foi possível instalar o Neovim automaticamente. Instale manualmente."),
+                }
+            } else {
+                println!("⚠️  Neovim não será instalado. A extensão requer o Neovim.");
+                return Ok(());
+            }
+        }
+
+        print!("➜ Deseja instalar a extensão oficial snask.nvim? (s/N): ");
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        input.clear();
+        std::io::stdin().read_line(&mut input).unwrap();
+        if input.trim().eq_ignore_ascii_case("s") {
+            let plugin_src = PathBuf::from("editors/neovim/snask.nvim");
+            if !plugin_src.exists() {
+                println!("⚠️  Diretório da extensão não encontrado em: {}", plugin_src.display());
+                return Ok(());
+            }
+
+            let nvim_pack_dir = format!("{}/.local/share/nvim/site/pack/snask/start", home);
+            fs::create_dir_all(&nvim_pack_dir).map_err(|e| e.to_string())?;
+
+            let symlink_path = format!("{}/snask.nvim", nvim_pack_dir);
+            let _ = fs::remove_file(&symlink_path);
+            std::os::unix::fs::symlink(
+                plugin_src.canonicalize().unwrap_or(plugin_src),
+                &symlink_path,
+            )
+            .map_err(|e| format!("Erro ao criar symlink: {}", e))?;
+
+            println!("✅ Extensão snask.nvim instalada em {}", symlink_path);
+            println!();
+            println!("📝 Para ativar, adicione ao seu init.lua:");
+            println!("  require(\"snask\").setup({{");
+            println!("    lsp = {{ cmd = {{ \"snask-lsp\" }} }}");
+            println!("  }})");
+            println!();
+            println!("✅ Suporte ao Neovim configurado com sucesso!");
+        }
+    }
+
     Ok(())
 }
 
