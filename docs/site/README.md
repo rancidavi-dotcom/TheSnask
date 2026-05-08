@@ -2,9 +2,18 @@
 
 Este diretorio contem o site estatico oficial da documentacao Snask.
 
-Ele foi pensado para GitHub Pages: nao precisa de Node, bundler, gerador estatico
+Ele foi pensado para GitHub Pages e Vercel: nao precisa de Node, bundler, gerador estatico
 ou etapa de build. O workflow `.github/workflows/pages.yml` publica exatamente o
 conteudo de `docs/site`.
+
+## Funcionalidades do Site
+
+- Tema claro/escuro automatico (segue o sistema) com alternancia manual
+- Layout responsivo com menu hamburger em dispositivos moveis
+- Navegacao lateral com destaque da pagina ativa
+- Botoes de copiar codigo com feedback visual
+- Busca de funcoes na pagina de indice
+- Design moderno com variaveis CSS e transicoes suaves
 
 ## Estrutura
 
@@ -16,6 +25,7 @@ conteudo de `docs/site`.
 - `tooling/`: instalacao, CLI, SPS/SNIF, LSP e Neovim.
 - `examples/`: exemplos pequenos e verificaveis.
 - `assets/`: CSS e JavaScript compartilhados.
+- `vercel.json`: configuracao de deploy para Vercel (clean URLs).
 
 ## Como testar localmente
 

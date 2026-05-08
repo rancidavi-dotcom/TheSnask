@@ -5,7 +5,6 @@ class main
         print("--- Snask SQLite3 Raw Demo ---")
         
         zone "db":
-            // 1. Abrir banco (OM gerencia o ciclo de vida)
             // sqlite3_open retorna int e 'escreve' no recurso
             let db = sqlite3.sqlite3_open("snask_complex.db")
             print("Banco aberto com sucesso.")

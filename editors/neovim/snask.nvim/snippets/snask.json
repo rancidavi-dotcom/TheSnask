@@ -19,6 +19,15 @@
     ],
     "description": "Funcao Snask"
   },
+  "function typed": {
+    "prefix": "funt",
+    "body": [
+      "fun ${1:name}(${2:params}) : ${3:type} {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Funcao Snask com tipo de retorno"
+  },
   "class": {
     "prefix": "class",
     "body": [
@@ -28,8 +37,26 @@
     ],
     "description": "Classe Snask"
   },
-  "if else": {
+  "class extends": {
+    "prefix": "classe",
+    "body": [
+      "class ${1:Name} extends ${2:Parent} {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Classe Snask com heranca"
+  },
+  "if": {
     "prefix": "if",
+    "body": [
+      "if ${1:condition} {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Condicional if"
+  },
+  "if else": {
+    "prefix": "ife",
     "body": [
       "if ${1:condition} {",
       "    ${2}",
@@ -39,6 +66,20 @@
     ],
     "description": "Condicional if/else"
   },
+  "elif": {
+    "prefix": "elif",
+    "body": "elif ${1:condition} {",
+    "description": "Else if"
+  },
+  "while": {
+    "prefix": "while",
+    "body": [
+      "while ${1:condition} {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Loop while"
+  },
   "for in": {
     "prefix": "for",
     "body": [
@@ -47,6 +88,21 @@
       "}"
     ],
     "description": "Loop for/in"
+  },
+  "let": {
+    "prefix": "let",
+    "body": "let ${1:name} = ${0:value}",
+    "description": "Declaracao let"
+  },
+  "mut": {
+    "prefix": "mut",
+    "body": "mut ${1:name} = ${0:value}",
+    "description": "Declaracao mutavel"
+  },
+  "const": {
+    "prefix": "const",
+    "body": "const ${1:NAME} = ${0:value}",
+    "description": "Constante"
   },
   "unsafe block": {
     "prefix": "unsafe",
@@ -66,6 +122,25 @@
     ],
     "description": "Zona OM"
   },
+  "scope": {
+    "prefix": "scope",
+    "body": [
+      "scope ${1:name} {",
+      "    ${0}",
+      "}"
+    ],
+    "description": "Escopo OM"
+  },
+  "entangle": {
+    "prefix": "entangle",
+    "body": "entangle ${1:resource} with ${2:anchor}",
+    "description": "Prende recurso a um ancoradouro"
+  },
+  "promote": {
+    "prefix": "promote",
+    "body": "promote ${1:value} to ${2:heap}",
+    "description": "Promove dado entre estrategias de memoria"
+  },
   "import module": {
     "prefix": "import",
     "body": "import \"${1:module}\"",
@@ -75,5 +150,10 @@
     "prefix": "import_c_om",
     "body": "import_c_om \"${1:header.h}\" as ${2:library}",
     "description": "Importa header C pelo OM-Snask-System"
+  },
+  "print": {
+    "prefix": "print",
+    "body": "print(${0})",
+    "description": "Chamada print()"
   }
 }

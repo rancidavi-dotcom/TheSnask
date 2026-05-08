@@ -22,7 +22,7 @@ function! SnaskIndent(lnum) abort
   let l:line = getline(a:lnum)
   let l:ind = indent(l:prevnum)
 
-  if l:prev =~# '^\s*\(fun\|class\|if\|elif\|else\|while\|for\|scope\|zone\|with\|unsafe\)\>'
+  if l:prev =~# '^\s*\(fun\|class\|if\|elif\|else\|while\|for\|scope\|zone\|with\|unsafe\|promote\|entangle\)\>'
         \ || l:prev =~# '[:{]\s*\($\|//\)'
         \ || l:prev =~# '[@]\s*unsafe\s*$'
         \ || l:prev =~# '[([{]\s*$'

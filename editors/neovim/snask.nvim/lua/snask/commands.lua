@@ -53,22 +53,35 @@ function M.run(extra)
         util.notify("Build falhou; execucao cancelada.", vim.log.levels.ERROR)
         return
       end
-      vim.fn.jobstart({ output }, {
-        stdout_buffered = true,
-        stderr_buffered = true,
-        on_stdout = function(_, data)
-          if data and #data > 1 then
-            util.open_scratch("Snask Run", data, "snask-output")
-          end
-        end,
-        on_stderr = function(_, data)
-          if data and #data > 1 then
-            util.open_scratch("Snask Run Errors", data, "snask-output")
-          end
+      vim.cmd("botright 15split")
+      vim.fn.termopen({ output }, {
+        on_exit = function()
+          vim.cmd("stopinsert")
         end,
       })
     end,
   })
+end
+
+function M.format()
+  local file = current_file_or_warn()
+  if not file then
+    return
+  end
+
+  local ft = vim.bo[vim.api.nvim_get_current_buf()].filetype
+  if ft == "snif" then
+    jobs.run({ "snif", "fmt", file }, {
+      on_exit = function(code)
+        if code == 0 then
+          vim.cmd("edit!")
+          util.notify("Arquivo formatado com sucesso.")
+        end
+      end,
+    })
+  else
+    util.notify("SnaskFormat só suporta arquivos .snif por enquanto.", vim.log.levels.WARN)
+  end
 end
 
 function M.doctor()
@@ -132,6 +145,10 @@ function M.create()
 
   vim.api.nvim_create_user_command("SnaskLspRestart", function()
     M.lsp_restart()
+  end, { force = true })
+
+  vim.api.nvim_create_user_command("SnaskFormat", function()
+    M.format()
   end, { force = true })
 end
 

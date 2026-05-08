@@ -3,6 +3,37 @@ local util = require("snask.util")
 
 local M = {}
 
+local function setup_diagnostics()
+  local sign = vim.fn.sign_define
+  local icons = {
+    Error = "✘",
+    Warn = "⚠",
+    Info = "ℹ",
+    Hint = "➤",
+  }
+
+  for severity, icon in pairs(icons) do
+    local name = "DiagnosticSign" .. severity
+    pcall(sign, name, { text = icon, texthl = name })
+  end
+
+  vim.diagnostic.config({
+    virtual_text = { prefix = "●" },
+    signs = true,
+    underline = true,
+    update_in_insert = false,
+    severity_sort = true,
+    float = {
+      focusable = false,
+      style = "minimal",
+      border = "rounded",
+      source = "always",
+      header = "",
+      prefix = "",
+    },
+  })
+end
+
 local function supports_method(client, method)
   if client.supports_method then
     return client:supports_method(method)
@@ -32,6 +63,8 @@ function M.start(bufnr)
   if not config.options.lsp.enable then
     return
   end
+
+  setup_diagnostics()
 
   local cmd = config.options.lsp.cmd
   if not util.executable(cmd) then

@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "redirects": [
+    { "source": "/aprender", "destination": "/learn/getting-started" },
+    { "source": "/referencia", "destination": "/reference/language" },
+    { "source": "/funcoes", "destination": "/reference/functions" }
+  ]
+}

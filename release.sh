@@ -165,7 +165,7 @@ update_aur() {
     fi
 
     # Remove arquivos antigos para forçar o download dos arquivos atuais do GitHub
-    rm -f snask-linux-amd64 snask-lsp-linux-amd64 snask-*.tar.gz
+    rm -f snask-linux-amd64 snask-*.tar.gz
 
     # Atualiza versão no PKGBUILD local
     sed -i "s/^pkgver=.*/pkgver=${version}/" PKGBUILD
@@ -244,7 +244,6 @@ Description: Snask Programming Language with Orchestrated Memory (OM)
 EOF
 
 cp target/release/snask pkg-snask/usr/bin/
-cp target/release/snask-lsp pkg-snask/usr/bin/
 cp -r src/runtime/* pkg-snask/usr/lib/snask/runtime/
 cp -r src/stdlib/* pkg-snask/usr/lib/snask/stdlib/
 cp src/runtime.c pkg-snask/usr/lib/snask/runtime/
@@ -290,17 +289,16 @@ if [ "$PUSH" = true ]; then
 
     info "Criando Release no GitHub e enviando binário..."
     if command -v gh >/dev/null 2>&1; then
-        # Garante que os binários sejam renomeados para o padrão da release
+        # Garante que o binário atual seja renomeado para o padrão da release
         cp target/release/snask snask-linux-amd64
-        cp target/release/snask-lsp snask-lsp-linux-amd64
         
         # Tenta criar a release. Se já existir, o comando falha e seguimos para o upload.
         gh release create "v${VERSION}" --title "Release v${VERSION}" --notes "Automated binary release for v${VERSION}" || true
         
-        # Faz o upload dos binários. O --clobber garante a substituição se o arquivo já existir.
-        gh release upload "v${VERSION}" snask-linux-amd64 snask-lsp-linux-amd64 --clobber
+        # Faz o upload do binário. O --clobber garante a substituição se o arquivo já existir.
+        gh release upload "v${VERSION}" snask-linux-amd64 --clobber
         
-        ok "Binários enviados para GitHub Releases."
+        ok "Binário enviado para GitHub Releases."
     else
         warn "GitHub CLI (gh) não encontrada. Binário não enviado para as Releases."
         warn "O AUR VAI FALHAR pois o link de download não existirá."
@@ -311,4 +309,4 @@ if [ "$PUSH" = true ]; then
     ok "Snask v${VERSION} enviado para GitHub e Codeberg."
 else
     warn "Push ignorado (--no-push). Pacote gerado localmente."
-fi
+  fi

@@ -4,13 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Snask Programming Language</title>
-    <meta
-      name="description"
-      content="Snask: Uma linguagem compilada via LLVM, desenhada para performance de sistemas com ergonomia humana."
-    />
+    <meta name="description" content="Snask: Uma linguagem compilada via LLVM, desenhada para performance de sistemas com ergonomia humana." />
     <meta name="theme-color" content="#0b7a5a">
     <meta property="og:title" content="Snask Programming Language" />
-    <meta property="og:description" content="Snask: Uma linguagem compilada via LLVM, desenhada para performance de sistemas com ergonomia humana." />
+    <meta property="og:description" content="Snask: Linguagem compilada AOT via LLVM 18 com OM-Snask-System para memória determinística." />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="pt_BR" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -29,99 +26,142 @@
       </nav>
     </header>
 
-    <main class="content">
-      <section class="hero">
-        <p class="eyebrow">v0.4.1-alpha is here</p>
-        <h1>Performance de Sistemas.<br/><span style="color: var(--accent)">Ergonomia Humana.</span></h1>
-        <p class="lead">
-          Snask é uma linguagem compilada AOT (Ahead-of-Time) via LLVM que une a segurança de tipos moderna 
-          com o controle total sobre o hardware. Desenvolva desde scripts rápidos até emuladores de alta performance.
+    <main>
+      <section class="hero" style="padding:80px 36px 48px;max-width:var(--max-width);margin:0 auto;">
+        <p class="eyebrow">v0.4.1-alpha — Lançamento Mais Recente</p>
+        <h1>Performance de Sistemas.<br/><span style="color:var(--accent)">Ergonomia Humana.</span></h1>
+        <p class="lead" style="max-width:720px;">
+          Snask é uma linguagem compilada AOT (Ahead-of-Time) via <strong>LLVM 18</strong> que une tipos estáticos modernos 
+          com controle total sobre o hardware. Desenvolva desde scripts rápidos até emuladores — tudo na mesma linguagem.
         </p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 24px;">
+          <span class="status">🚀 Compilado Nativo</span>
+          <span class="status">🧠 Memória Determinística</span>
+          <span class="status">🛡️ Type-Safe</span>
+          <span class="status">🎭 Perfis Humane + Systems</span>
+        </div>
         <div class="actions">
           <a class="button primary" href="learn/getting-started.html">Começar a Aprender</a>
           <a class="button" href="reference/functions/index.html">Referência de API</a>
+          <a class="button" href="https://github.com/rancidavi-dotcom/TheSnask" target="_blank" rel="noopener">GitHub</a>
         </div>
       </section>
 
-      <section class="features-grid">
+      <section class="features-grid" style="max-width:var(--max-width);margin:0 auto;padding:0 36px;">
         <div class="grid">
           <article class="card">
-            <div class="icon">🚀</div>
-            <h3>Backend LLVM 18</h3>
-            <p>Gere binários nativos ultra-otimizados para x86_64 e ARM64 sem necessidade de uma VM ou interpretador.</p>
+            <div class="icon">⚡</div>
+            <h3>Compilado via LLVM 18</h3>
+            <p>Gera binários nativos ultra-otimizados. Sem VM, sem interpretador. Performance comparável a C e Rust.</p>
           </article>
           <article class="card">
             <div class="icon">🧠</div>
             <h3>OM-Snask-System</h3>
-            <p>Gerenciamento de memória determinístico via Zonas. Performance de C com segurança de Rust, sem as pausas do GC.</p>
+            <p>Memória determinística via <strong>Zonas</strong>. Performance de C com segurança de tipos, sem pausas de garbage collector.</p>
           </article>
           <article class="card">
             <div class="icon">🎭</div>
-            <h3>Perfis Adaptativos</h3>
-            <p>Use o perfil <strong>Humane</strong> para desenvolvimento rápido ou mude para <strong>Systems</strong> para manipulação de bits e ponteiros.</p>
+            <h3>Dois Perfis, Uma Linguagem</h3>
+            <p>Use <strong>Humane</strong> para apps (GUI, HTTP, SQLite) ou <strong>Systems</strong> para bits, ponteiros e hardware.</p>
           </article>
           <article class="card">
-            <div class="icon">🛠️</div>
-            <h3>Tooling Integrado</h3>
-            <p>Compilador, formatador, sistema de pacotes (SPS) e diagnósticos humanos integrados em uma única ferramenta.</p>
+            <div class="icon">🔧</div>
+            <h3>Toolchain Completo</h3>
+            <p>Compilador, formatador SNIF, sistema de pacotes (SPS), LSP, REPL, empacotamento .deb e AUR integrados.</p>
+          </article>
+          <article class="card">
+            <div class="icon">🌐</div>
+            <h3>Interop com C</h3>
+            <p>Importe bibliotecas C nativamente via contratos OM. SQLite, zlib, GTK, Skia — tudo disponível sem bindings manuais.</p>
+          </article>
+          <article class="card">
+            <div class="icon">📦</div>
+            <h3>Binários Pequenos</h3>
+            <p>Compile com <code>--tiny</code> ou <code>--extreme</code> para binários abaixo de 100KB. Ideal para embedded e CLI.</p>
           </article>
         </div>
       </section>
 
-      <section>
+      <section style="max-width:var(--max-width);margin:0 auto;padding:0 36px;">
         <h2>Jornada de Aprendizado</h2>
         <div class="learning-path">
           <a class="path-card" href="learn/getting-started.html">
             <span class="step">1</span>
             <div>
               <h4>Introdução</h4>
-              <p>Instalação do toolchain e seu primeiro "Olá Mundo" nativo.</p>
+              <p>Instalação do toolchain e seu primeiro "Olá Mundo" nativo em segundos.</p>
             </div>
           </a>
           <a class="path-card" href="learn/basics.html">
             <span class="step">2</span>
             <div>
               <h4>Variáveis e Tipos</h4>
-              <p>Imutabilidade por padrão e o sistema de tipos estático do Snask.</p>
+              <p>Imutabilidade por padrão, tipos estáticos e o sistema de tipos do Snask.</p>
             </div>
           </a>
           <a class="path-card" href="learn/control-flow.html">
             <span class="step">3</span>
             <div>
               <h4>Controle de Fluxo</h4>
-              <p>Estruturas de decisão e iteração seguras e modernas.</p>
+              <p>Condicionais, loops e iterações modernas e seguras.</p>
+            </div>
+          </a>
+          <a class="path-card" href="learn/functions.html">
+            <span class="step">4</span>
+            <div>
+              <h4>Funções e Módulos</h4>
+              <p>Declaração de funções, parâmetros e o sistema de importação.</p>
             </div>
           </a>
           <a class="path-card" href="learn/memory-om.html">
-            <span class="step">4</span>
+            <span class="step">5</span>
             <div>
               <h4>Domínio da Memória</h4>
-              <p>Aprenda a usar Zonas para alocação de alta performance.</p>
+              <p>Zonas, arenas, stack vs heap — performance sem GC.</p>
+            </div>
+          </a>
+          <a class="path-card" href="learn/systems-profile.html">
+            <span class="step">6</span>
+            <div>
+              <h4>Perfil Systems</h4>
+              <p>Bits, ponteiros, memória raw e programação de baixo nível.</p>
             </div>
           </a>
         </div>
       </section>
 
-      <section class="code-preview">
-        <h2>Sintaxe Elegante</h2>
-        <pre><code>class main {
+      <section style="max-width:var(--max-width);margin:0 auto;padding:0 36px;">
+        <h2>Sintaxe Limpa e Expressiva</h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin:20px 0;">
+          <pre style="margin:0;"><code>class main {
     fun start() {
         zone "frame" {
             let user = "Davi"
             let score = 100
-            print("Resultado para {user}: {score}\n")
+            print("Olá, {user}! Score: {score}\n")
         }
     }
 }</code></pre>
+          <pre style="margin:0;"><code>import "math"
+
+fun fibonacci(n: int) : int {
+    if n <= 1 { return n }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+print("{fibonacci(10)}\n")  // 55</code></pre>
+        </div>
       </section>
 
-      <div class="callout">
-        <strong>Status do Projeto:</strong> Snask está em fase Alpha. Ideal para entusiastas de linguagens, 
-        criadores de emuladores e sistemas embarcados.
-      </div>
+      <section style="max-width:var(--max-width);margin:0 auto;padding:0 36px;">
+        <div class="callout">
+          <strong>📌 Status do Projeto:</strong> Snask está em <strong>Alpha</strong> (v0.4.1). Ideal para entusiastas de linguagens, 
+          criadores de emuladores e sistemas embarcados. <a href="reference/status.html">Veja o status completo das features</a>.
+        </div>
+      </section>
 
-      <footer class="footer">
-        <p>© 2026 Snask Foundation. Documentação gerada profissionalmente.</p>
+      <footer class="footer" style="max-width:var(--max-width);margin:40px auto 0;padding:36px;">
+        <p>© 2026 Snask Foundation. Documentação profissional.</p>
       </footer>
     </main>
 

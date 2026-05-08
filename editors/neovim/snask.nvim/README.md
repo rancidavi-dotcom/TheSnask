@@ -5,19 +5,19 @@ Plugin Neovim oficial do Snask.
 Ele fornece:
 
 - deteccao de filetype para `.snask`, `.snif` e `.om.snif`;
-- syntax highlighting Vimscript sem dependencia externa;
-- integracao LSP com `snask-lsp`;
-- comandos de build, run, setup, doctor, explain e OM scan;
-- indentacao basica consciente de blocos Snask;
-- snippets JSON para engines compativeis com VS Code/LuaSnip;
+- syntax highlighting Vimscript sem dependencia externa (cobre tipos, builtins, low-level, OM);
+- integracao LSP com `snask-lsp` (diagnosticos com icones na gutter, semantic tokens, hover, definicao);
+- comandos de build, run (em terminal), setup, doctor, explain, format (snif) e OM scan;
+- indentacao consciente de todos os blocos Snask (fun, class, if, while, for, zone, scope, unsafe, promote, entangle);
+- snippets JSON para engines compativeis com VS Code/LuaSnip (15+ snippets);
 - healthcheck com `:checkhealth snask`;
-- query inicial de highlights para quando um parser Tree-sitter Snask existir.
+- query de highlights para quando um parser Tree-sitter Snask existir.
 
 ## Instalacao com lazy.nvim
 
 ```lua
 {
-  dir = "/home/davidev/Desktop/TheSnask/editors/neovim/snask.nvim",
+  dir = "/home/davidev/Repositorios/Snask/editors/neovim/snask.nvim",
   ft = { "snask", "snif" },
   config = function()
     require("snask").setup({
@@ -44,7 +44,7 @@ Enquanto o plugin nao estiver publicado, use `dir`. Depois ele pode virar:
 
 ```bash
 mkdir -p ~/.local/share/nvim/site/pack/snask/start
-ln -s /home/davidev/Desktop/TheSnask/editors/neovim/snask.nvim \
+ln -s /home/davidev/Repositorios/Snask/editors/neovim/snask.nvim \
   ~/.local/share/nvim/site/pack/snask/start/snask.nvim
 ```
 
@@ -64,7 +64,7 @@ Build do LSP:
 
 ```bash
 cargo build --release --bin snask-lsp
-cp target/release/snask-lsp ~/.snask/bin/snask-lsp
+cp target/release/snask-lsp ~/.local/bin/snask-lsp
 ```
 
 ## Comandos
@@ -73,14 +73,15 @@ cp target/release/snask-lsp ~/.snask/bin/snask-lsp
 | --- | --- |
 | `:SnaskBuild` | compila o arquivo atual |
 | `:SnaskBuild --profile systems` | compila com argumentos extras |
-| `:SnaskRun` | compila e roda o arquivo atual |
+| `:SnaskRun` | compila e roda o arquivo atual num terminal |
 | `:SnaskDoctor` | roda `snask doctor` |
 | `:SnaskSetup` | roda `snask setup` |
 | `:SnaskExplain S1001` | abre explicacao de diagnostico |
 | `:SnaskOmScan sqlite3.h --lib sqlite3` | roda scanner OM |
+| `:SnaskFormat` | formata o arquivo `.snif` atual com `snif fmt` |
 | `:SnaskLspRestart` | reinicia clientes LSP Snask |
 
-Os comandos abrem a quickfix quando encontram mensagens no formato `arquivo:linha:coluna`.
+Os comandos abrem a quickfix quando encontram mensagens no formato `arquivo:linha:coluna`. O `:SnaskRun` abre o binario compilado num terminal interativo.
 
 ## Configuracao
 
@@ -104,13 +105,15 @@ require("snask").setup({
 
 ## Keymaps padrao
 
-Aplicados apenas em buffers Snask:
+Aplicados apenas em buffers Snask e SNIF:
 
 - `<leader>sb`: build;
-- `<leader>sr`: run;
+- `<leader>sr`: run (terminal);
 - `<leader>sd`: doctor;
 - `<leader>se`: explain do codigo sob cursor;
+- `<leader>sf`: format (snif);
 - `K`: hover LSP quando houver cliente ativo;
 - `gd`: goto definition;
 - `<leader>ca`: code action.
+
 

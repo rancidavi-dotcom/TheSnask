@@ -3,41 +3,34 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>404 - Página não encontrada | Snask Docs</title>
+    <title>404 — Página não encontrada</title>
     <link rel="stylesheet" href="assets/site.css" />
-    <style>
-      .error-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-height: 70vh;
-        text-align: center;
-      }
-      .error-code {
-        font-size: 120px;
-        font-weight: 900;
-        color: var(--accent);
-        margin: 0;
-        line-height: 1;
-      }
-    </style>
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="index.html"><span class="mark">S</span> Snask Docs</a>
+      <a class="brand" href="index.html"><span class="mark">S</span> Snask</a>
+      <nav class="nav" aria-label="Principal">
+        <a href="index.html">Início</a>
+        <a href="learn/getting-started.html">Aprender</a>
+        <a href="reference/functions/index.html">Funções</a>
+        <a href="systems/om.html">Memória (OM)</a>
+        <a href="tooling/installation.html">Tooling</a>
+      </nav>
     </header>
 
-    <main class="content">
-      <div class="error-container">
-        <p class="error-code">404</p>
-        <h1>Ops! Perdido no código?</h1>
-        <p class="lead">A página que você está procurando não existe ou foi movida para uma nova zona de memória.</p>
-        <div class="actions">
-          <a class="button primary" href="index.html">Voltar para a Home</a>
-          <a class="button" href="reference/functions/index.html">Ver todas as funções</a>
-        </div>
+    <main class="content" style="max-width:600px;margin:0 auto;text-align:center;padding:100px 24px;">
+      <div style="font-size:80px;font-weight:900;color:var(--accent);line-height:1;">404</div>
+      <h1 style="font-size:28px;margin:12px 0;">Página não encontrada</h1>
+      <p style="color:var(--muted);font-size:18px;margin:0 auto 32px;">
+        A página que você procura não existe, foi movida ou está em construção.
+      </p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <a class="button primary" href="index.html">Voltar ao Início</a>
+        <a class="button" href="learn/getting-started.html">Começar a Aprender</a>
+        <a class="button" href="reference/functions/index.html">Referência</a>
       </div>
     </main>
+
+    <script src="assets/site.js" defer></script>
   </body>
 </html>
