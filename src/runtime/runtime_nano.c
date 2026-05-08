@@ -13,27 +13,23 @@ typedef struct {
     void* ptr;
 } SnaskValue;
 
-// Minimal printing using write(2)
-void s_print(SnaskValue* v) {
-    int tag = (int)v->tag;
-    if (tag == SNASK_STR && v->ptr) {
-        const char* s = (const char*)v->ptr;
-        write(1, s, strlen(s));
-    } else if (tag == SNASK_BOOL) {
-        const char* s = v->num ? "true" : "false";
-        write(1, s, strlen(s));
-    } else if (tag == SNASK_NIL) {
-        write(1, "nil", 3);
-    } else if (tag == SNASK_NUM) {
-        char buf[32];
-        int n = snprintf(buf, sizeof(buf), "%g", v->num);
-        if (n > 0) write(1, buf, n);
-    }
-    write(1, " ", 1);
+// s_write — write syscall wrapper used by intrinsic codegen
+long s_write(long fd, const void* buf, long len) {
+    return write((int)fd, buf, (size_t)len);
 }
 
-void s_println() {
-    write(1, "\n", 1);
+// num_to_str — converts number to string (called by intrinsic print codegen)
+void num_to_str(SnaskValue* out, SnaskValue* n) {
+    if (!n || (int)n->tag != SNASK_NUM) { out->tag = (double)SNASK_NIL; out->num = 0.0; out->ptr = NULL; return; }
+    char buf[128];
+    int len = snprintf(buf, sizeof(buf), "%.15g", n->num);
+    if (len > 0) {
+        char* s = malloc((size_t)len + 1);
+        if (s) { memcpy(s, buf, (size_t)len); s[len] = '\0'; }
+        out->tag = (double)SNASK_STR; out->num = 0.0; out->ptr = s;
+    } else {
+        out->tag = (double)SNASK_NIL; out->num = 0.0; out->ptr = NULL;
+    }
 }
 
 // Minimal comparison

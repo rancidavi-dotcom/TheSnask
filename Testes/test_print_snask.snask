@@ -1,0 +1,47 @@
+import "string";
+
+fun snask_print(val)
+  let tag = __snask_type(val);
+
+  if tag == 0
+    __snask_write(1, __snask_get_str("nil"), 3);
+    return nil;
+
+  if tag == 1
+    let n = __snask_get_num(val);
+    let s = num_to_str(n);
+    let p = __snask_get_str(s);
+    let l = len(s);
+    __snask_write(1, p, l);
+    return nil;
+
+  if tag == 2
+    let n = __snask_get_num(val);
+    if n == 0.0
+      __snask_write(1, __snask_get_str("false"), 5);
+    else
+      __snask_write(1, __snask_get_str("true"), 4);
+    return nil;
+
+  if tag == 3
+    let s = __snask_get_str(val);
+    let l = len(s);
+    __snask_write(1, s, l);
+    return nil;
+
+  __snask_write(1, __snask_get_str("<unknown>"), 9);
+  return nil;
+
+fun snask_println(val)
+  snask_print(val);
+  __snask_write(1, __snask_get_str("\n"), 1);
+  return nil;
+
+class main
+  fun start()
+    snask_println(42);
+    snask_println(3.14);
+    snask_println("hello world");
+    snask_println(true);
+    snask_println(false);
+    print("old print still works");

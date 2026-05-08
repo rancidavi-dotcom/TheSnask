@@ -7,6 +7,7 @@ pub struct OmContract {
     pub resources: Vec<OmResourceContract>,
     pub functions: Vec<OmFunctionContract>,
     pub constants: Vec<OmConstantContract>,
+    pub structs: Vec<OmStructContract>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +40,21 @@ pub struct OmFunctionContract {
     pub c_param_types: Vec<String>,
     pub safety: Option<String>,
     pub reason: Option<String>,
+    pub variadic: bool,
+    pub cleanup_group: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmStructContract {
+    pub name: String,
+    pub c_type: String,
+    pub fields: Vec<OmStructField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmStructField {
+    pub name: String,
+    pub c_type: String,
 }
 
 impl OmContract {
@@ -54,6 +70,14 @@ impl OmContract {
 
     pub fn constant_by_surface(&self, surface: &str) -> Option<&OmConstantContract> {
         self.constants.iter().find(|c| c.surface == surface)
+    }
+
+    pub fn struct_by_c_type(&self, c_type: &str) -> Option<&OmStructContract> {
+        self.structs.iter().find(|s| s.c_type == c_type)
+    }
+
+    pub fn struct_by_name(&self, name: &str) -> Option<&OmStructContract> {
+        self.structs.iter().find(|s| s.name == name)
     }
 }
 
@@ -80,6 +104,15 @@ struct FunctionBuilder {
     c_param_types: Vec<String>,
     safety: Option<String>,
     reason: Option<String>,
+    variadic: bool,
+    cleanup_group: Option<String>,
+}
+
+#[derive(Debug, Default)]
+struct StructBuilder {
+    name: String,
+    c_type: Option<String>,
+    fields: Vec<OmStructField>,
 }
 
 impl FunctionBuilder {
@@ -102,6 +135,8 @@ impl FunctionBuilder {
             c_param_types: self.c_param_types,
             safety: self.safety,
             reason: self.reason,
+            variadic: self.variadic,
+            cleanup_group: self.cleanup_group,
         })
     }
 }
@@ -109,6 +144,7 @@ impl FunctionBuilder {
 enum SectionBuilder {
     Resource(ResourceBuilder),
     Function(FunctionBuilder),
+    Struct(StructBuilder),
 }
 
 impl SectionBuilder {
@@ -117,10 +153,12 @@ impl SectionBuilder {
         line: usize,
         resources: &mut Vec<OmResourceContract>,
         functions: &mut Vec<OmFunctionContract>,
+        structs: &mut Vec<OmStructContract>,
     ) -> Result<(), String> {
         match self {
             SectionBuilder::Resource(builder) => resources.push(builder.finish(line)?),
             SectionBuilder::Function(builder) => functions.push(builder.finish(line)?),
+            SectionBuilder::Struct(builder) => structs.push(builder.finish(line)?),
         }
         Ok(())
     }
@@ -149,6 +187,18 @@ impl ResourceBuilder {
     }
 }
 
+impl StructBuilder {
+    fn finish(self, line: usize) -> Result<OmStructContract, String> {
+        Ok(OmStructContract {
+            name: self.name,
+            c_type: self.c_type.ok_or_else(|| {
+                format!("OM contract: struct missing `c_type` before line {line}")
+            })?,
+            fields: self.fields,
+        })
+    }
+}
+
 pub fn load_om_contract(path: &Path) -> Result<OmContract, String> {
     let src = fs::read_to_string(path)
         .map_err(|e| format!("OM contract: failed to read {}: {e}", path.display()))?;
@@ -170,6 +220,7 @@ pub fn parse_om_contract(src: &str) -> Result<OmContract, String> {
     let mut resources = Vec::new();
     let mut functions = Vec::new();
     let mut constants = Vec::new();
+    let mut structs = Vec::new();
     let mut current: Option<SectionBuilder> = None;
 
     for (idx, raw_line) in src.lines().enumerate() {
@@ -195,7 +246,7 @@ pub fn parse_om_contract(src: &str) -> Result<OmContract, String> {
 
         if let Some(rest) = line.strip_prefix("resource ") {
             if let Some(builder) = current.take() {
-                builder.finish(line_no, &mut resources, &mut functions)?;
+                builder.finish(line_no, &mut resources, &mut functions, &mut structs)?;
             }
             let name = rest
                 .strip_suffix(':')
@@ -217,7 +268,7 @@ pub fn parse_om_contract(src: &str) -> Result<OmContract, String> {
 
         if let Some(rest) = line.strip_prefix("function ") {
             if let Some(builder) = current.take() {
-                builder.finish(line_no, &mut resources, &mut functions)?;
+                builder.finish(line_no, &mut resources, &mut functions, &mut structs)?;
             }
             let name = rest
                 .strip_suffix(':')
@@ -237,9 +288,31 @@ pub fn parse_om_contract(src: &str) -> Result<OmContract, String> {
             continue;
         }
 
+        if let Some(rest) = line.strip_prefix("struct ") {
+            if let Some(builder) = current.take() {
+                builder.finish(line_no, &mut resources, &mut functions, &mut structs)?;
+            }
+            let name = rest
+                .strip_suffix(':')
+                .ok_or_else(|| {
+                    format!("OM contract: expected ':' after struct name at line {line_no}")
+                })?
+                .trim();
+            if name.is_empty() {
+                return Err(format!(
+                    "OM contract: empty struct name at line {line_no}"
+                ));
+            }
+            current = Some(SectionBuilder::Struct(StructBuilder {
+                name: name.to_string(),
+                ..StructBuilder::default()
+            }));
+            continue;
+        }
+
         if let Some(rest) = line.strip_prefix("constant ") {
             if let Some(builder) = current.take() {
-                builder.finish(line_no, &mut resources, &mut functions)?;
+                builder.finish(line_no, &mut resources, &mut functions, &mut structs)?;
             }
             let (name, raw_value) = rest.split_once(':').ok_or_else(|| {
                 format!("OM contract: expected `constant NAME: value` at line {line_no}")
@@ -262,6 +335,28 @@ pub fn parse_om_contract(src: &str) -> Result<OmContract, String> {
                 surface: format!("{library_name}.{name}"),
                 value,
             });
+            continue;
+        }
+
+        // Field inside current section
+        if line.starts_with("field ") {
+            let rest = line.strip_prefix("field ").unwrap();
+            let (fname, ftype) = rest.split_once(':').ok_or_else(|| {
+                format!("OM contract: expected `field name: type` at line {line_no}")
+            })?;
+            match current.as_mut() {
+                Some(SectionBuilder::Struct(ref mut builder)) => {
+                    builder.fields.push(OmStructField {
+                        name: fname.trim().to_string(),
+                        c_type: ftype.trim().to_string(),
+                    });
+                }
+                _ => {
+                    return Err(format!(
+                        "OM contract: `field` is only valid inside a `struct` section at line {line_no}"
+                    ))
+                }
+            }
             continue;
         }
 
@@ -312,9 +407,21 @@ pub fn parse_om_contract(src: &str) -> Result<OmContract, String> {
                 }
                 "safety" => builder.safety = Some(value.to_string()),
                 "reason" => builder.reason = Some(value.to_string()),
+                "variadic" => {
+                    builder.variadic = parse_bool(value, "variadic", line_no)?;
+                }
+                "cleanup_group" => builder.cleanup_group = Some(value.to_string()),
                 other => {
                     return Err(format!(
                         "OM contract: unknown function field `{other}` at line {line_no}"
+                    ))
+                }
+            },
+            SectionBuilder::Struct(builder) => match key.trim() {
+                "c_type" => builder.c_type = Some(value.to_string()),
+                other => {
+                    return Err(format!(
+                        "OM contract: unknown struct field `{other}` at line {line_no}"
                     ))
                 }
             },
@@ -322,13 +429,13 @@ pub fn parse_om_contract(src: &str) -> Result<OmContract, String> {
     }
 
     if let Some(builder) = current.take() {
-        builder.finish(src.lines().count() + 1, &mut resources, &mut functions)?;
+        builder.finish(src.lines().count() + 1, &mut resources, &mut functions, &mut structs)?;
     }
 
     let library =
         library.ok_or_else(|| "OM contract: missing `library` declaration".to_string())?;
-    if resources.is_empty() && functions.is_empty() {
-        return Err("OM contract: expected at least one resource or function".to_string());
+    if resources.is_empty() && functions.is_empty() && structs.is_empty() {
+        return Err("OM contract: expected at least one resource, function, or struct".to_string());
     }
 
     Ok(OmContract {
@@ -336,7 +443,18 @@ pub fn parse_om_contract(src: &str) -> Result<OmContract, String> {
         resources,
         functions,
         constants,
+        structs,
     })
+}
+
+fn parse_bool(value: &str, field: &str, line: usize) -> Result<bool, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "true" | "yes" | "1" => Ok(true),
+        "false" | "no" | "0" => Ok(false),
+        other => Err(format!(
+            "OM contract: expected true/false for `{field}`, got `{other}` at line {line}"
+        )),
+    }
 }
 
 fn parse_integer_literal(raw: &str) -> Option<i64> {
@@ -395,6 +513,8 @@ mod tests {
         assert_eq!(compress.c_function, "compress2");
         assert_eq!(compress.input, "str");
         assert_eq!(compress.output, "bytes");
+        assert_eq!(compress.variadic, false);
+        assert_eq!(compress.cleanup_group, None);
 
         let decompress = contract
             .function_by_surface("zlib.decompress")
@@ -402,6 +522,122 @@ mod tests {
         assert_eq!(decompress.c_function, "uncompress");
         assert_eq!(decompress.input, "bytes");
         assert_eq!(decompress.output, "str");
+    }
+
+    #[test]
+    fn parses_variadic_and_borrow_fields() {
+        let contract = parse_om_contract(
+            r#"
+library test
+
+function print:
+    c_function: printf
+    surface: test.print
+    input: value
+    output: value
+    variadic: true
+    c_return_type: int
+    c_param_types: char*
+    safety: SAFE
+    reason: variadic print function
+
+function get_data:
+    c_function: get_data
+    surface: test.get_data
+    input: value
+    output: borrow
+    c_return_type: char*
+    c_param_types: int
+    safety: COPY_ONLY
+    reason: borrowed pointer
+
+function open_handle:
+    c_function: open
+    surface: test.open
+    input: str
+    output: int_resource
+    c_return_type: int
+    c_param_types: char*, int
+    safety: SAFE
+    reason: returns file descriptor
+"#,
+        )
+        .expect("contract with new fields should parse");
+
+        let print = contract
+            .function_by_surface("test.print")
+            .expect("print function should exist");
+        assert!(print.variadic, "variadic should be true");
+        assert_eq!(print.output, "value");
+
+        let get_data = contract
+            .function_by_surface("test.get_data")
+            .expect("get_data function should exist");
+        assert_eq!(get_data.output, "borrow");
+
+        let open_handle = contract
+            .function_by_surface("test.open")
+            .expect("open_handle function should exist");
+        assert_eq!(open_handle.output, "int_resource");
+    }
+
+    #[test]
+    fn parses_struct_section() {
+        let contract = parse_om_contract(
+            r#"
+library sdl2
+
+struct Rect:
+    c_type: SDL_Rect
+    field x: Sint32
+    field y: Sint32
+    field w: Sint32
+    field h: Sint32
+"#,
+        )
+        .expect("struct section should parse");
+
+        let rect = contract
+            .struct_by_name("Rect")
+            .expect("Rect struct should exist");
+        assert_eq!(rect.c_type, "SDL_Rect");
+        assert_eq!(rect.fields.len(), 4);
+        assert_eq!(rect.fields[0].name, "x");
+        assert_eq!(rect.fields[0].c_type, "Sint32");
+        assert_eq!(rect.fields[3].name, "h");
+    }
+
+    #[test]
+    fn parses_cleanup_group() {
+        let contract = parse_om_contract(
+            r#"
+library test
+
+function init:
+    c_function: test_init
+    surface: test.init
+    input: unit
+    output: value
+    cleanup_group: lifecycle
+    safety: SAFE
+    reason: init
+
+function quit:
+    c_function: test_quit
+    surface: test.quit
+    input: unit
+    output: value
+    cleanup_group: lifecycle
+    safety: SAFE
+    reason: quit
+"#,
+        )
+        .expect("contract with cleanup_group should parse");
+
+        let init = contract
+            .function_by_surface("test.init")
+            .expect("init should exist");
+        assert_eq!(init.cleanup_group.as_deref(), Some("lifecycle"));
     }
 
     #[test]

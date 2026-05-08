@@ -46,6 +46,24 @@
           </div>
         </div></div>
 
+        <section id="news" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 32px; border-radius: var(--radius); margin-bottom: 32px;">
+          <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <span style="background: #ff6b6b; color: white; padding: 4px 12px; border-radius: 12px; font-size: 14px; font-weight: bold;">NOVO</span>
+            <h2 style="margin: 0; font-size: 24px;">Iniciando a Era Self-Hosted do Snask</h2>
+          </div>
+          <p style="margin-top: 16px; font-size: 16px; line-height: 1.6;">
+            Começamos a maior atualização do Snask: tornar a stdlib totalmente <strong>self-hosted</strong>.
+            O <code style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px;">print</code> é o primeiro passo —
+            criamos o módulo <code style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px;">stdio</code> em Snask puro
+            (<code style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px;">src/stdlib/stdio.snask</code>), removendo o código C do runtime.
+          </p>
+          <p style="margin-top: 12px; font-size: 16px; line-height: 1.6;">
+            <strong>Próximos passos:</strong> Módulos stdlib modulares (um <code style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px;">.snask</code> por módulo),
+            auto-import da stdlib, e substituição gradual de todas as funções C por código Snask compilado.
+            Apenas 4 intrínsecos irreducíveis restarão no core!
+          </p>
+        </section>
+
         <section id="features">
           <h2><a href="#features">#</a> Features</h2>
 

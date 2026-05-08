@@ -115,6 +115,15 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
     inject_features(&mut program, options.features.clone());
     pb.inc(1);
 
+    // Auto-import stdlib modules
+    let loc = Location { line: 0, column: 0 };
+    let span = loc.to_span();
+    program.push(Stmt::with_span(
+        StmtKind::Import("stdio".to_string()),
+        loc,
+        span,
+    ));
+
     // Validate entrypoint
     validate_entrypoint(&program)?;
 
@@ -1683,7 +1692,15 @@ fn resolve_module_path(entry_dir: &Path, module_name: &str) -> Result<String, St
         return Ok(raw.to_string_lossy().to_string());
     }
 
-    // 2. Stdlib / Packages (MVP: check both direct and nested structure)
+    // 2. Compiler stdlib path (src/stdlib/)
+    let stdlib = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src/stdlib")
+        .join(&name_with_ext);
+    if stdlib.exists() {
+        return Ok(stdlib.to_string_lossy().to_string());
+    }
+
+    // 3. Stdlib / Packages (MVP: check both direct and nested structure)
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let pkg_direct = Path::new(&home)
         .join(".snask/packages")

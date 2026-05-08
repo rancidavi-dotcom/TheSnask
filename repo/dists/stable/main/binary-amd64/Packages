@@ -13,3 +13,18 @@ SHA512: 6d9ebde6b2e16ee3beae316cb9d5c6af1f042ec41e57a35a5165e766601f9b7d3c7b79f8
 Description: Snask Programming Language with Orchestrated Memory (OM)
  A high-performance systems programming language with revolutionary memory safety.
 
+Package: snask
+Architecture: amd64
+Version: 04.2
+Priority: optional
+Section: devel
+Maintainer: Davi <davidev@snask.lang>
+Filename: pool/main/s/snask/snask_04.2_amd64.deb
+Size: 2118948
+MD5sum: b9570fc0d0fb57295f669f7fd8b7488e
+SHA1: 0e2e96a3477ca4984012252c5c3654a37b79af96
+SHA256: cce15947d7e7b1fb5269dfa0ef9ce70589768397d9d0d02e90cf4a96b229161d
+SHA512: 55678f39f0c5a9afdbf238fb2a626e5c5f28272ef48c8f65b4f3992eb01fca787e70629d4cf435a2a0d5b1aadc2e4c85faa7e9e19ebb79859b6a29da2d0428a5
+Description: Snask Programming Language with Orchestrated Memory (OM)
+ A high-performance systems programming language with revolutionary memory safety.
+

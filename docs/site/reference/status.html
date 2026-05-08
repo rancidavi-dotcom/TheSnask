@@ -187,6 +187,46 @@
         </section>
 
         <section id="changelog">
+          <h2><a href="#abi">#</a> ABI Runtime</h2>
+          <p>
+            A ABI (Application Binary Interface) entre o compilador e a runtime C é
+            versionada com <code>SNASK_ABI_VERSION</code>. A versão atual é <strong>1</strong>.
+          </p>
+          <table>
+            <thead><tr><th>Componente</th><th>Status</th><th>Notas</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>SnaskValue</code> (tag/num/ptr)</td>
+                <td><span class="status">estavel</span></td>
+                <td>Layout de 24 bytes congelado. Índices 0 (tag), 1 (num), 2 (ptr).</td>
+              </tr>
+              <tr>
+                <td><code>SnaskType</code> enum (0-6)</td>
+                <td><span class="status">estavel</span></td>
+                <td>Valores congelados. Novos tipos adicionados ao final.</td>
+              </tr>
+              <tr>
+                <td>Verificação de versão</td>
+                <td><span class="status">estavel</span></td>
+                <td><code>s_check_abi()</code> é chamada no startup. Mismatch → aborta com mensagem.</td>
+              </tr>
+              <tr>
+                <td>Funções runtime exportadas</td>
+                <td><span class="status partial">parcial</span></td>
+                <td>Assinaturas estáveis, mas novas funções podem ser adicionadas.</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            Se um binário compilado com uma versão do Snask encontrar uma runtime de versão
+            diferente, ele aborta imediatamente com a mensagem:
+          </p>
+          <pre><code>Snask ABI version mismatch: compiler expects v1, runtime provides v2.
+Recompile your program with the current Snask compiler, or update the Snask runtime.</code></pre>
+          <p>
+            Definição completa da ABI em <code>src/runtime/rt_abi.h</code>.
+          </p>
+
           <h2><a href="#changelog">#</a> Changelog de status</h2>
           <table>
             <thead><tr><th>Data</th><th>Feature</th><th>Alteracao</th></tr></thead>

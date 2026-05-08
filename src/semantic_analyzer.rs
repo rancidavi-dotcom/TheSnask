@@ -346,6 +346,14 @@ impl SemanticAnalyzer {
         self.define_module_as_any("string");
         self.define_module_as_any("collections");
 
+        // Runtime intrinsics — inline LLVM IR, no C dependency
+        self.define_builtin("__snask_type", vec![Type::Any], Type::Int, false);
+        self.define_builtin("__snask_get_str", vec![Type::Any], Type::String, false);
+        self.define_builtin("__snask_get_num", vec![Type::Any], Type::Float, false);
+        self.define_builtin("__snask_write", vec![Type::Int, Type::String, Type::Int], Type::Int, false);
+
+        // Print functions — implementação Snask pura via intrinsics (agora em src/stdlib/snask.snask)
+
         self.define_builtin("abs", vec![Type::Float], Type::Float, false);
         self.define_builtin("floor", vec![Type::Float], Type::Float, false);
         self.define_builtin("ceil", vec![Type::Float], Type::Float, false);

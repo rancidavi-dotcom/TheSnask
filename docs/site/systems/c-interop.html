@@ -370,7 +370,7 @@ import_c_om "stdio.h" as stdio           // stdio (puts, printf, etc.)</code></p
           <ul>
             <li>É identificada como destrutor (para evitar double-free);</li>
             <li>Recebe <code>void*</code> sem contexto de tamanho;</li>
-            <li>Usa <code>...</code> (variadic);</li>
+            <li>Usa <code>...</code> (variadic) — o scanner bloqueia, mas <code>.om.snif</code> com <code>variadic: true</code> desbloqueia;</li>
             <li>Retorna <code>void*</code>;</li>
             <li>Envolve function pointers.</li>
           </ul>

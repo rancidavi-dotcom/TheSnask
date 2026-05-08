@@ -1,0 +1,18 @@
+class main
+  fun start()
+    let t = __snask_type(42);
+    print("type of 42: " + num_to_str(t));
+
+    let n = __snask_get_num(42);
+    print("num of 42: " + num_to_str(n));
+
+    let s = __snask_get_str("hello");
+    print("str of hello: " + s);
+
+    let t2 = __snask_type("hello");
+    print("type of hello: " + num_to_str(t2));
+
+    let t3 = __snask_type(true);
+    print("type of true: " + num_to_str(t3));
+
+    print("done");

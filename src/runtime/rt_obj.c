@@ -10,6 +10,17 @@
 #include "rt_gc.h"
 #include "rt_json.h"
 
+// ABI version check — called by generated main() before anything else
+void s_check_abi(int expected_version) {
+    if (expected_version != SNASK_ABI_VERSION) {
+        fprintf(stderr,
+            "Snask ABI version mismatch: compiler expects v%d, runtime provides v%d.\n"
+            "Recompile your program with the current Snask compiler, or update the Snask runtime.\n",
+            expected_version, SNASK_ABI_VERSION);
+        exit(1);
+    }
+}
+
 // Bridge to avoid implicit int truncation on x64
 SnaskObject* jp_obj_new(int count);
 

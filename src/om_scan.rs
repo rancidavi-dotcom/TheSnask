@@ -171,6 +171,7 @@ fn convert_to_om_contract(
                 }
             })
             .collect(),
+        structs: Vec::new(),
     };
 
     for r in resources {
@@ -200,6 +201,8 @@ fn convert_to_om_contract(
                 c_param_types: f.c_param_types,
                 safety: Some(f.safety.as_str().to_string()),
                 reason: Some(f.reason),
+                variadic: false,
+                cleanup_group: None,
             });
         }
     }
@@ -720,6 +723,25 @@ fn classify_constructor(
         }
     }
 
+    // Pattern 3: FILE* (fopen returns FILE*, fclose accepts FILE*)
+    if is_FILE_pointer(&ret_ty) {
+        if let Some(destructor) = destructors.get(&normalize_type(&function.return_ty)) {
+            let resource_name = "File".to_string();
+            return Some(GeneratedResource {
+                name: resource_name.clone(),
+                c_type: normalize_type(&function.return_ty),
+                constructor: function.name.clone(),
+                destructor: destructor.clone(),
+                surface_type: format!("{lib}.{resource_name}"),
+                safety: Safety::Safe,
+                reason: format!(
+                    "constructor `{}` returns `{}` and paired destructor `{}` accepts `{}`",
+                    function.name, ret_ty, destructor, ret_ty
+                ),
+            });
+        }
+    }
+
     None
 }
 
@@ -1035,6 +1057,21 @@ fn is_const_char_pointer(ty: &str) -> bool {
     ty.contains("const char") || ty.contains("z_const char")
 }
 
+fn is_FILE_pointer(ty: &str) -> bool {
+    let ty = ty.trim().replace("struct ", "");
+    ty == "FILE*" || ty == "FILE *"
+}
+
+fn is_void_pointer(ty: &str) -> bool {
+    let ty = ty.trim();
+    ty == "void*" || ty == "void *"
+}
+
+fn is_size_t_or_length(ty: &str) -> bool {
+    let t = ty.trim();
+    t == "size_t" || t == "int" || t == "unsigned int" || t == "long" || t == "unsigned long"
+}
+
 fn infer_output(function: &CFunction) -> String {
     let ty = normalize_type(&function.return_ty);
     if ty == "void" {
@@ -1055,11 +1092,16 @@ fn returns_or_accepts_raw_pointer(function: &CFunction) -> bool {
 fn is_constructor_name(name: &str) -> bool {
     let n = name.to_ascii_lowercase();
     n.contains("open") || n.contains("create") || n.contains("new") || n.contains("init")
+        || n.contains("alloc") || n.contains("load") || n.contains("acquire")
+        || n.contains("fopen") || n.contains("tmpfile")
 }
 
 fn is_destructor_name(name: &str) -> bool {
     let n = name.to_ascii_lowercase();
     n.contains("close") || n.contains("free") || n.contains("destroy") || n.contains("finalize")
+        || n.contains("release") || n.contains("delete") || n.contains("dealloc")
+        || n.contains("cleanup") || n.contains("teardown") || n.contains("shutdown")
+        || n.contains("unload") || n.contains("fclose")
 }
 
 fn resource_name_from_c_type(lib: &str, c_type: &str) -> String {

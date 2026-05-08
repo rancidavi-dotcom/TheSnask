@@ -536,7 +536,6 @@ sdl2.render_present(renderer)</code></pre>
           <p>Essas limitações são conhecidas e definem onde o scanner deve ser conservador:</p>
           <ul>
             <li>callbacks C e function pointers</li>
-            <li>variadic functions complexas</li>
             <li>structs C por valor</li>
             <li>arrays e buffers mutáveis</li>
             <li>ownership ambíguo (ex: ponteiro de saída que pode ser free pelo caller)</li>
@@ -819,6 +818,42 @@ zone &quot;gfx&quot; {
 </div>
             <figcaption>Import C via OM — scanner deduz contratos automaticamente</figcaption>
           </figure>
+
+          <h3>5.10 Caso 6: Função variádica (<code>variadic: true</code>)</h3>
+          <p><strong>Problema:</strong> o scanner bloqueia funções com <code>...</code> (variadic)
+            porque não consegue inferir a aridade. A função <code>printf</code> de <code>stdio.h</code>
+            é um exemplo clássico.</p>
+          <p><strong>Sintoma:</strong> a função aparece como <code>BLOCKED</code> mesmo sendo segura.</p>
+          <p><strong>Solução:</strong> adicione <code>variadic: true</code> no <code>.om.snif</code>.</p>
+          <pre><code>// contracts/stdio.om.snif
+function printf:
+    c_function: printf
+    surface: stdio.printf
+    input: str
+    output: int
+    safety: SAFE
+    variadic: true                              // ← ativa suporte variádico
+    reason: standard variadic printf
+
+function scanf:
+    c_function: scanf
+    surface: stdio.scanf
+    input: str
+    output: int
+    safety: SAFE
+    variadic: true
+    reason: standard variadic scanf</code></pre>
+          <p>Quando <code>variadic: true</code> está ativo, o codegen aceita qualquer
+            número de argumentos maior ou igual aos parâmetros declarados. Os argumentos
+            extras são convertidos para tipos C padrão conforme o tipo Snask:
+            <code>Int</code> → <code>int</code>, <code>String</code> → <code>const char*</code>,
+            <code>Float</code> → <code>double</code>, etc.</p>
+          <p>Compile e teste:</p>
+          <pre><code>snask build Testes/om_stdio_printf.snask --output /tmp/test_printf
+/tmp/test_printf
+# → hello world 42
+# → 10 20 30
+# → just a string</code></pre>
 
           <h3>5.11 Boas práticas</h3>
           <p><strong>Use <code>.om.snif</code> para:</strong></p>

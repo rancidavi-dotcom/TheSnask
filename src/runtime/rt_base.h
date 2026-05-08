@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "rt_abi.h"
+
 // Base types for the Snask Runtime
 typedef enum { 
     SNASK_NIL, 

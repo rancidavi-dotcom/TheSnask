@@ -6,6 +6,7 @@ function printf:
     input: str
     output: int
     safety: SAFE
+    variadic: true
     reason: standard variadic printf
 
 function scanf:
@@ -14,6 +15,7 @@ function scanf:
     input: str
     output: int
     safety: SAFE
+    variadic: true
     reason: standard variadic scanf
 
 function fopen:

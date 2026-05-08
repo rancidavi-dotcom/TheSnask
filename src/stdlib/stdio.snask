@@ -1,0 +1,31 @@
+fun _val(val)
+  let tag = __snask_type(val);
+
+  if tag == 0
+    __snask_write(1, __snask_get_str("nil"), 3);
+    return nil;
+
+  if tag == 1
+    let s = num_to_str(__snask_get_num(val));
+    __snask_write(1, __snask_get_str(s), len(s));
+    return nil;
+
+  if tag == 2
+    let n = __snask_get_num(val);
+    if n == 0.0
+      __snask_write(1, __snask_get_str("false"), 5);
+    else
+      __snask_write(1, __snask_get_str("true"), 4);
+    return nil;
+
+  if tag == 3
+    let s = __snask_get_str(val);
+    __snask_write(1, s, len(s));
+    return nil;
+
+  __snask_write(1, __snask_get_str("<obj>"), 5);
+  return nil;
+
+fun println()
+  __snask_write(1, __snask_get_str("\n"), 1);
+  return nil;

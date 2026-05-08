@@ -1,5 +1,5 @@
 use crate::ast::{
-    BinaryOp, Expr, ExprKind, FuncDecl, LiteralValue, Program, Stmt, StmtKind, VarDecl,
+    BinaryOp, Expr, ExprKind, FuncDecl, LiteralValue, Location, Program, Stmt, StmtKind, VarDecl,
 };
 use crate::om_contract::{OmContract, OmFunctionContract, OmResourceContract};
 use inkwell::builder::Builder;
@@ -11,12 +11,22 @@ use inkwell::values::{
 };
 use std::collections::HashMap;
 
+// Snask ABI version — must match SNASK_ABI_VERSION in src/runtime/rt_abi.h
+const SNASK_ABI_VERSION: i32 = 1;
+
+// SnaskType enum values — must match SnaskType enum in src/runtime/rt_abi.h
 const TYPE_NIL: u32 = 0;
 const TYPE_NUM: u32 = 1;
 const TYPE_BOOL: u32 = 2;
 const TYPE_STR: u32 = 3;
 const TYPE_OBJ: u32 = 4;
 const TYPE_RESOURCE: u32 = 5;
+const TYPE_BYTES: u32 = 6;
+
+// SnaskValue struct field indices — must match SnaskValue layout in src/runtime/rt_abi.h
+const TAG_IDX: u32 = 0;
+const NUM_IDX: u32 = 1;
+const PTR_IDX: u32 = 2;
 
 fn is_library_native(name: &str) -> bool {
     if name.contains("::") {
@@ -996,6 +1006,85 @@ impl<'ctx> LLVMGenerator<'ctx> {
             .collect();
     }
 
+    fn emit_snask_intrinsic(
+        &self,
+        name: &str,
+        args: &[Expr],
+    ) -> Result<(BasicValueEnum<'ctx>, crate::types::Type), String> {
+        match name {
+            "__snask_type" => {
+                if args.len() != 1 {
+                    return Err("__snask_type expects 1 argument.".to_string());
+                }
+                let (v, ty) = self.evaluate_expression(args[0].clone())?;
+                let boxed = self.box_value(v, ty);
+                let tag_f = self
+                    .builder
+                    .build_extract_value(boxed, TAG_IDX, "intr_tag")
+                    .unwrap()
+                    .into_float_value();
+                let tag_i = self
+                    .builder
+                    .build_float_to_signed_int(tag_f, self.i64_type, "intr_tag_i")
+                    .unwrap();
+                Ok((tag_i.into(), crate::types::Type::Int))
+            }
+            "__snask_get_str" => {
+                if args.len() != 1 {
+                    return Err("__snask_get_str expects 1 argument.".to_string());
+                }
+                let (v, ty) = self.evaluate_expression(args[0].clone())?;
+                let boxed = self.box_value(v, ty);
+                let ptr = self
+                    .builder
+                    .build_extract_value(boxed, PTR_IDX, "intr_ptr")
+                    .unwrap()
+                    .into_pointer_value();
+                Ok((ptr.into(), crate::types::Type::String))
+            }
+            "__snask_get_num" => {
+                if args.len() != 1 {
+                    return Err("__snask_get_num expects 1 argument.".to_string());
+                }
+                let (v, ty) = self.evaluate_expression(args[0].clone())?;
+                let boxed = self.box_value(v, ty);
+                let num = self
+                    .builder
+                    .build_extract_value(boxed, NUM_IDX, "intr_num")
+                    .unwrap()
+                    .into_float_value();
+                Ok((num.into(), crate::types::Type::Float))
+            }
+            "__snask_write" => {
+                if args.len() != 3 {
+                    return Err("__snask_write expects 3 arguments.".to_string());
+                }
+                let (fd_val, fd_ty) = self.evaluate_expression(args[0].clone())?;
+                let (buf_val, buf_ty) = self.evaluate_expression(args[1].clone())?;
+                let (len_val, len_ty) = self.evaluate_expression(args[2].clone())?;
+                let fd = self.int_value_as(fd_val, fd_ty, &crate::types::Type::Int);
+                let buf = match buf_val {
+                    BasicValueEnum::PointerValue(p) => p,
+                    _ => return Err("__snask_write: buf must be a pointer.".to_string()),
+                };
+                let len = self.int_value_as(len_val, len_ty, &crate::types::Type::Int);
+                let f = self
+                    .module
+                    .get_function("s_write")
+                    .ok_or("__snask_write: s_write not declared".to_string())?;
+                let result = self
+                    .builder
+                    .build_call(f, &[fd.into(), buf.into(), len.into()], "write_res")
+                    .unwrap()
+                    .try_as_basic_value()
+                    .left()
+                    .ok_or("__snask_write: call returned void".to_string())?;
+                Ok((result.into(), crate::types::Type::Int))
+            }
+            _ => Err(format!("Unknown Snask intrinsic: {name}")),
+        }
+    }
+
     fn create_entry_block_alloca<T: inkwell::types::BasicType<'ctx>>(
         &self,
         ty: T,
@@ -1050,6 +1139,15 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.builder.position_at_end(entry);
         self.current_func = Some(main_func);
 
+        // ABI version check — aborta se runtime e compiler não combinam
+        if let Some(abi_check) = self.module.get_function("s_check_abi") {
+            self.builder.build_call(
+                abi_check,
+                &[self.context.i32_type().const_int(SNASK_ABI_VERSION as u64, false).into()],
+                "abi_check",
+            ).unwrap();
+        }
+
         // Always execute top-level statements (globals) before start.
         // Isso permite que módulos importados inicializem estado (mut/let/const) mesmo quando existe main::start.
         for stmt in &program {
@@ -1073,7 +1171,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     .into_struct_value();
                 let n = self
                     .builder
-                    .build_extract_value(v, 1, "use_skia_n")
+                    .build_extract_value(v, NUM_IDX, "use_skia_n")
                     .unwrap()
                     .into_float_value();
                 let is_true = self
@@ -1092,17 +1190,17 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 let mut bs = self.value_type.get_undef();
                 bs = self
                     .builder
-                    .build_insert_value(bs, self.context.f64_type().const_float(2.0), 0, "t")
+                    .build_insert_value(bs, self.context.f64_type().const_float(2.0), TAG_IDX, "t")
                     .unwrap()
                     .into_struct_value(); // BOOL
                 bs = self
                     .builder
-                    .build_insert_value(bs, b, 1, "v")
+                    .build_insert_value(bs, b, NUM_IDX, "v")
                     .unwrap()
                     .into_struct_value();
                 bs = self
                     .builder
-                    .build_insert_value(bs, self.ptr_type.const_null(), 2, "p")
+                    .build_insert_value(bs, self.ptr_type.const_null(), PTR_IDX, "p")
                     .unwrap()
                     .into_struct_value();
                 let b_ptr = self.create_entry_block_alloca(self.value_type, "use_skia_arg");
@@ -1210,14 +1308,20 @@ impl<'ctx> LLVMGenerator<'ctx> {
         let _i32_type = self.context.i32_type();
         let void_type = self.context.void_type();
 
-        // Novas funções de print
+        // ABI version check
         self.module.add_function(
-            "s_print",
-            void_type.fn_type(&[self.ptr_type.into()], false),
+            "s_check_abi",
+            void_type.fn_type(&[self.context.i32_type().into()], false),
             None,
         );
-        self.module
-            .add_function("s_println", void_type.fn_type(&[], false), None);
+
+        // s_write — única função C que o runtime Snask precisa (write syscall)
+        let i64_type = self.context.i64_type();
+        self.module.add_function(
+            "s_write",
+            i64_type.fn_type(&[i64_type.into(), self.ptr_type.into(), i64_type.into()], false),
+            None,
+        );
 
         let fn_1 = void_type.fn_type(&[self.ptr_type.into(), self.ptr_type.into()], false);
         let fn_2 = void_type.fn_type(
@@ -2851,11 +2955,11 @@ impl<'ctx> LLVMGenerator<'ctx> {
             .into_struct_value();
         s = self
             .builder
-            .build_insert_value(s, self.context.f64_type().const_float(0.0), 1, "str_v")
+            .build_insert_value(s, self.context.f64_type().const_float(0.0), NUM_IDX, "str_v")
             .unwrap()
             .into_struct_value();
         self.builder
-            .build_insert_value(s, g.as_pointer_value(), 2, "str_p")
+            .build_insert_value(s, g.as_pointer_value(), PTR_IDX, "str_p")
             .unwrap()
             .into_struct_value()
     }
@@ -2907,11 +3011,11 @@ impl<'ctx> LLVMGenerator<'ctx> {
             .trim();
 
         let fn_type = if return_ty == "void" {
-            self.context.void_type().fn_type(&param_types, false)
+            self.context.void_type().fn_type(&param_types, contract_fn.variadic)
         } else {
             self.c_type_to_llvm(return_ty)
                 .ok_or_else(|| format!("OM cannot map C return type `{return_ty}` yet."))?
-                .fn_type(&param_types, false)
+                .fn_type(&param_types, contract_fn.variadic)
         };
 
         Ok(self
@@ -3001,6 +3105,20 @@ impl<'ctx> LLVMGenerator<'ctx> {
         ))
     }
 
+    fn snask_type_to_variadic_c_type(&self, ty: &crate::types::Type) -> String {
+        match ty {
+            crate::types::Type::Int | crate::types::Type::I32 | crate::types::Type::Bool => "int".to_string(),
+            crate::types::Type::I64 | crate::types::Type::Usize | crate::types::Type::Isize => "long long".to_string(),
+            crate::types::Type::U8 | crate::types::Type::U16 | crate::types::Type::I8 | crate::types::Type::I16 => "int".to_string(),
+            crate::types::Type::U32 | crate::types::Type::U64 => "unsigned long long".to_string(),
+            crate::types::Type::Float | crate::types::Type::F32 => "double".to_string(),
+            crate::types::Type::F64 => "double".to_string(),
+            crate::types::Type::String => "const char*".to_string(),
+            crate::types::Type::Ptr | crate::types::Type::User(_) => "void*".to_string(),
+            _ => "int".to_string(),
+        }
+    }
+
     fn convert_to_c_arg(
         &self,
         value: BasicValueEnum<'ctx>,
@@ -3076,7 +3194,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     let boxed = value.into_struct_value();
                     let f = self
                         .builder
-                        .build_extract_value(boxed, 1, "om_num_arg")
+                        .build_extract_value(boxed, NUM_IDX, "om_num_arg")
                         .unwrap()
                         .into_float_value();
                     self.builder
@@ -3111,7 +3229,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 let boxed = value.into_struct_value();
                 let f = self
                     .builder
-                    .build_extract_value(boxed, 1, "om_any_num_arg")
+                    .build_extract_value(boxed, NUM_IDX, "om_any_num_arg")
                     .unwrap()
                     .into_float_value();
                 self.builder
@@ -3190,7 +3308,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
             .into_struct_value();
         Ok(self
             .builder
-            .build_insert_value(s, handle, 2, "om_resource_handle")
+            .build_insert_value(s, handle, PTR_IDX, "om_resource_handle")
             .unwrap()
             .into_struct_value())
     }
@@ -3537,18 +3655,38 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     .unwrap();
             }
             StmtKind::Print(exprs) => {
-                let p_func = self.module.get_function("s_print").unwrap();
-                let nl_func = self.module.get_function("s_println").unwrap();
+                let loc = || Location { line: 0, column: 0 };
+                let span = || loc().to_span();
                 for expr in exprs {
-                    let (v, ty) = self.evaluate_expression(expr)?;
-                    let boxed = self.box_value(v, ty);
-                    let v_ptr = self.create_entry_block_alloca(self.value_type, "pv");
-                    self.builder.build_store(v_ptr, boxed).unwrap();
-                    self.builder
-                        .build_call(p_func, &[v_ptr.into()], "c")
-                        .unwrap();
+                    let callee = Expr {
+                        kind: ExprKind::Variable("stdio::_val".to_string()),
+                        loc: loc(),
+                        span: span(),
+                    };
+                    let call = Expr {
+                        kind: ExprKind::FunctionCall {
+                            callee: Box::new(callee),
+                            args: vec![expr.clone()],
+                        },
+                        loc: loc(),
+                        span: span(),
+                    };
+                    self.evaluate_expression(call)?;
                 }
-                self.builder.build_call(nl_func, &[], "nl").unwrap();
+                let nl_callee = Expr {
+                    kind: ExprKind::Variable("stdio::println".to_string()),
+                    loc: loc(),
+                    span: span(),
+                };
+                let nl_call = Expr {
+                    kind: ExprKind::FunctionCall {
+                        callee: Box::new(nl_callee),
+                        args: vec![],
+                    },
+                    loc: loc(),
+                    span: span(),
+                };
+                self.evaluate_expression(nl_call)?;
             }
             StmtKind::Return(expr) => {
                 let (v, ty) = self.evaluate_expression(expr)?;
@@ -3593,7 +3731,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         let boxed = self.box_value(cond_val, cond_ty);
                         let n = self
                             .builder
-                            .build_extract_value(boxed, 1, "n")
+                            .build_extract_value(boxed, NUM_IDX, "n")
                             .unwrap()
                             .into_float_value();
                         self.builder
@@ -3662,7 +3800,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                             let boxed = self.box_value(cond_val, cond_ty);
                             let n = self
                                 .builder
-                                .build_extract_value(boxed, 1, "wn")
+                                .build_extract_value(boxed, NUM_IDX, "wn")
                                 .unwrap()
                                 .into_float_value();
                             self.builder
@@ -3747,7 +3885,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         .into_struct_value();
                     zero = self
                         .builder
-                        .build_insert_value(zero, self.ptr_type.const_null(), 2, "for_idx_p")
+                        .build_insert_value(zero, self.ptr_type.const_null(), PTR_IDX, "for_idx_p")
                         .unwrap()
                         .into_struct_value();
                     self.builder.build_store(index_ptr, zero).unwrap();
@@ -3777,7 +3915,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         .into_struct_value();
                     let len_num = self
                         .builder
-                        .build_extract_value(len_val, 1, "for_len_num")
+                        .build_extract_value(len_val, NUM_IDX, "for_len_num")
                         .unwrap()
                         .into_float_value();
 
@@ -3788,7 +3926,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         .into_struct_value();
                     let index_num = self
                         .builder
-                        .build_extract_value(index_val, 1, "for_index_num")
+                        .build_extract_value(index_val, NUM_IDX, "for_index_num")
                         .unwrap()
                         .into_float_value();
                     let has_more = self
@@ -3851,7 +3989,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         .into_struct_value();
                     let curr_num = self
                         .builder
-                        .build_extract_value(curr_index, 1, "for_index_step_num")
+                        .build_extract_value(curr_index, NUM_IDX, "for_index_step_num")
                         .unwrap()
                         .into_float_value();
                     let next_num = self
@@ -3875,12 +4013,12 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         .into_struct_value();
                     next_index = self
                         .builder
-                        .build_insert_value(next_index, next_num, 1, "for_next_v")
+                        .build_insert_value(next_index, next_num, NUM_IDX, "for_next_v")
                         .unwrap()
                         .into_struct_value();
                     next_index = self
                         .builder
-                        .build_insert_value(next_index, self.ptr_type.const_null(), 2, "for_next_p")
+                        .build_insert_value(next_index, self.ptr_type.const_null(), PTR_IDX, "for_next_p")
                         .unwrap()
                         .into_struct_value();
                     self.builder.build_store(index_ptr, next_index).unwrap();
@@ -4024,7 +4162,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
             | crate::types::Type::Isize => {
                 s = self
                     .builder
-                    .build_insert_value(s, f64_type.const_float(TYPE_NUM as f64), 0, "t")
+                    .build_insert_value(s, f64_type.const_float(TYPE_NUM as f64), TAG_IDX, "t")
                     .unwrap()
                     .into_struct_value();
                 let f_val = self
@@ -4033,19 +4171,19 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     .unwrap();
                 s = self
                     .builder
-                    .build_insert_value(s, f_val, 1, "v")
+                    .build_insert_value(s, f_val, NUM_IDX, "v")
                     .unwrap()
                     .into_struct_value();
                 s = self
                     .builder
-                    .build_insert_value(s, self.ptr_type.const_null(), 2, "p")
+                    .build_insert_value(s, self.ptr_type.const_null(), PTR_IDX, "p")
                     .unwrap()
                     .into_struct_value();
             }
             crate::types::Type::Float | crate::types::Type::F64 => {
                 s = self
                     .builder
-                    .build_insert_value(s, f64_type.const_float(TYPE_NUM as f64), 0, "t")
+                    .build_insert_value(s, f64_type.const_float(TYPE_NUM as f64), TAG_IDX, "t")
                     .unwrap()
                     .into_struct_value();
                 let f = if val.into_float_value().get_type() == self.f64_type {
@@ -4057,19 +4195,19 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 };
                 s = self
                     .builder
-                    .build_insert_value(s, f, 1, "v")
+                    .build_insert_value(s, f, NUM_IDX, "v")
                     .unwrap()
                     .into_struct_value();
                 s = self
                     .builder
-                    .build_insert_value(s, self.ptr_type.const_null(), 2, "p")
+                    .build_insert_value(s, self.ptr_type.const_null(), PTR_IDX, "p")
                     .unwrap()
                     .into_struct_value();
             }
             crate::types::Type::F32 => {
                 s = self
                     .builder
-                    .build_insert_value(s, f64_type.const_float(TYPE_NUM as f64), 0, "t")
+                    .build_insert_value(s, f64_type.const_float(TYPE_NUM as f64), TAG_IDX, "t")
                     .unwrap()
                     .into_struct_value();
                 let f_val = self
@@ -4078,19 +4216,19 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     .unwrap();
                 s = self
                     .builder
-                    .build_insert_value(s, f_val, 1, "v")
+                    .build_insert_value(s, f_val, NUM_IDX, "v")
                     .unwrap()
                     .into_struct_value();
                 s = self
                     .builder
-                    .build_insert_value(s, self.ptr_type.const_null(), 2, "p")
+                    .build_insert_value(s, self.ptr_type.const_null(), PTR_IDX, "p")
                     .unwrap()
                     .into_struct_value();
             }
             crate::types::Type::Bool => {
                 s = self
                     .builder
-                    .build_insert_value(s, f64_type.const_float(TYPE_BOOL as f64), 0, "t")
+                    .build_insert_value(s, f64_type.const_float(TYPE_BOOL as f64), TAG_IDX, "t")
                     .unwrap()
                     .into_struct_value();
                 let f_val = self
@@ -4099,46 +4237,46 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     .unwrap();
                 s = self
                     .builder
-                    .build_insert_value(s, f_val, 1, "v")
+                    .build_insert_value(s, f_val, NUM_IDX, "v")
                     .unwrap()
                     .into_struct_value();
                 s = self
                     .builder
-                    .build_insert_value(s, self.ptr_type.const_null(), 2, "p")
+                    .build_insert_value(s, self.ptr_type.const_null(), PTR_IDX, "p")
                     .unwrap()
                     .into_struct_value();
             }
             crate::types::Type::String => {
                 s = self
                     .builder
-                    .build_insert_value(s, f64_type.const_float(TYPE_STR as f64), 0, "t")
+                    .build_insert_value(s, f64_type.const_float(TYPE_STR as f64), TAG_IDX, "t")
                     .unwrap()
                     .into_struct_value();
                 s = self
                     .builder
-                    .build_insert_value(s, f64_type.const_float(0.0), 1, "v")
+                    .build_insert_value(s, f64_type.const_float(0.0), NUM_IDX, "v")
                     .unwrap()
                     .into_struct_value();
                 s = self
                     .builder
-                    .build_insert_value(s, val.into_pointer_value(), 2, "p")
+                    .build_insert_value(s, val.into_pointer_value(), PTR_IDX, "p")
                     .unwrap()
                     .into_struct_value();
             }
             crate::types::Type::Ptr => {
                 s = self
                     .builder
-                    .build_insert_value(s, f64_type.const_float(TYPE_RESOURCE as f64), 0, "t")
+                    .build_insert_value(s, f64_type.const_float(TYPE_RESOURCE as f64), TAG_IDX, "t")
                     .unwrap()
                     .into_struct_value();
                 s = self
                     .builder
-                    .build_insert_value(s, f64_type.const_float(0.0), 1, "v")
+                    .build_insert_value(s, f64_type.const_float(0.0), NUM_IDX, "v")
                     .unwrap()
                     .into_struct_value();
                 s = self
                     .builder
-                    .build_insert_value(s, val.into_pointer_value(), 2, "p")
+                    .build_insert_value(s, val.into_pointer_value(), PTR_IDX, "p")
                     .unwrap()
                     .into_struct_value();
             }
@@ -4170,7 +4308,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
             | crate::types::Type::Isize => {
                 let f_val = self
                     .builder
-                    .build_extract_value(val, 1, "f")
+                    .build_extract_value(val, NUM_IDX, "f")
                     .unwrap()
                     .into_float_value();
                 self.builder
@@ -4183,12 +4321,12 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     .into()
             }
             crate::types::Type::Float | crate::types::Type::F64 => {
-                self.builder.build_extract_value(val, 1, "f").unwrap()
+                self.builder.build_extract_value(val, NUM_IDX, "f").unwrap()
             }
             crate::types::Type::F32 => {
                 let f_val = self
                     .builder
-                    .build_extract_value(val, 1, "f")
+                    .build_extract_value(val, NUM_IDX, "f")
                     .unwrap()
                     .into_float_value();
                 self.builder
@@ -4199,7 +4337,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
             crate::types::Type::Bool => {
                 let f_val = self
                     .builder
-                    .build_extract_value(val, 1, "f")
+                    .build_extract_value(val, NUM_IDX, "f")
                     .unwrap()
                     .into_float_value();
                 let b = self
@@ -4214,7 +4352,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 b.into()
             }
             crate::types::Type::String | crate::types::Type::Ptr | crate::types::Type::User(_) => {
-                self.builder.build_extract_value(val, 2, "p").unwrap()
+                self.builder.build_extract_value(val, PTR_IDX, "p").unwrap()
             }
             _ => val.into(),
         }
@@ -4456,12 +4594,12 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     let rhs_boxed = self.box_value(rhs, rty);
                     let lf = self
                         .builder
-                        .build_extract_value(lhs_boxed, 1, "any_lnum")
+                        .build_extract_value(lhs_boxed, NUM_IDX, "any_lnum")
                         .unwrap()
                         .into_float_value();
                     let rf = self
                         .builder
-                        .build_extract_value(rhs_boxed, 1, "any_rnum")
+                        .build_extract_value(rhs_boxed, NUM_IDX, "any_rnum")
                         .unwrap()
                         .into_float_value();
                     let res = match op {
@@ -4902,7 +5040,9 @@ impl<'ctx> LLVMGenerator<'ctx> {
                             return Ok((res_v.into(), crate::types::Type::Any));
                         }
 
-                        if contract_fn.c_param_types.len() != args.len() {
+                        if (!contract_fn.variadic && contract_fn.c_param_types.len() != args.len())
+                            || (contract_fn.variadic && args.len() < contract_fn.c_param_types.len())
+                        {
                             return Err(format!(
                                 "OM function `{surface}` expects {} C arguments, got {}.",
                                 contract_fn.c_param_types.len(),
@@ -4912,9 +5052,17 @@ impl<'ctx> LLVMGenerator<'ctx> {
 
                         let f = self.declare_c_function(contract_fn)?;
                         let mut call_args: Vec<BasicMetadataValueEnum> = Vec::new();
+                        let fixed_count = contract_fn.c_param_types.len();
                         for (arg, c_type) in args.iter().zip(contract_fn.c_param_types.iter()) {
                             let (v, ty) = self.evaluate_expression(arg.clone())?;
                             call_args.push(self.convert_to_c_arg(v, ty, c_type)?);
+                        }
+                        if contract_fn.variadic {
+                            for arg in args.iter().skip(fixed_count) {
+                                let (v, ty) = self.evaluate_expression(arg.clone())?;
+                                let c_type = self.snask_type_to_variadic_c_type(&ty);
+                                call_args.push(self.convert_to_c_arg(v, ty, &c_type)?);
+                            }
                         }
 
                         let call = self.builder.build_call(f, &call_args, "om_c_call").unwrap();
@@ -4952,6 +5100,11 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 if let ExprKind::Variable(name) = &callee.kind {
                     if let Some(result) = self.emit_systems_low_level_builtin(name, &args)? {
                         return Ok(result);
+                    }
+
+                    // Runtime intrinsics — inline LLVM IR, no C runtime call
+                    if name.starts_with("__snask_") {
+                        return self.emit_snask_intrinsic(name, &args);
                     }
 
                     if matches!(
@@ -5089,7 +5242,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                             let boxed = self.box_value(raw, ty);
                             let n = self
                                 .builder
-                                .build_extract_value(boxed, 1, "n")
+                                .build_extract_value(boxed, NUM_IDX, "n")
                                 .unwrap()
                                 .into_float_value();
                             Ok((
@@ -5118,7 +5271,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
                                 let boxed = self.box_value(raw, ty);
                                 let n = self
                                     .builder
-                                    .build_extract_value(boxed, 1, "n")
+                                    .build_extract_value(boxed, NUM_IDX, "n")
                                     .unwrap()
                                     .into_float_value();
                                 self.builder

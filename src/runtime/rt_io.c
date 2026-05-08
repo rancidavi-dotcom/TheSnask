@@ -8,58 +8,9 @@
 #include "rt_io.h"
 #include "rt_obj.h"
 
-void s_print(SnaskValue* v) {
-    if (!v) {
-        printf("nil");
-        return;
-    }
-    int tag = (int)v->tag;
-#ifdef SNASK_TINY
-    if (tag == SNASK_STR && v->ptr) {
-        const char* s = (const char*)v->ptr;
-        write(1, s, strlen(s));
-        return;
-    }
-    if (tag == SNASK_BOOL) {
-        const char* s = v->num ? "true" : "false";
-        write(1, s, strlen(s));
-        return;
-    }
-    if (tag == SNASK_NIL) {
-        write(1, "nil", 3);
-        return;
-    }
-    if (tag == SNASK_NUM) {
-        char buf[64];
-        int n = snprintf(buf, sizeof(buf), "%.15g", v->num);
-        if (n > 0) write(1, buf, (size_t)n);
-        return;
-    }
-    write(1, "<obj>", 5);
-#else
-    if (tag == SNASK_NUM) printf("%.15g", v->num);
-    else if (tag == SNASK_STR) printf("%s", (char*)v->ptr ? (char*)v->ptr : "");
-    else if (tag == SNASK_BOOL) printf("%s", v->num ? "true" : "false");
-    else if (tag == SNASK_OBJ) printf("<obj at %p>", v->ptr);
-    else if (tag == SNASK_RESOURCE) {
-        SnaskOMResource* r = (SnaskOMResource*)v->ptr;
-        printf("<resource:%s>", r && r->type_name ? r->type_name : "unknown");
-    }
-    else if (tag == SNASK_BYTES) {
-        SnaskOMResource* r = (SnaskOMResource*)v->ptr;
-        SnaskBytes* bytes = r ? (SnaskBytes*)r->c_ptr : NULL;
-        printf("<bytes:%zu>", bytes ? bytes->len : 0);
-    }
-    else printf("nil");
-#endif
-}
-
-void s_println(void) {
-#ifdef SNASK_TINY
-    write(1, "\n", 1);
-#else
-    printf("\n"); fflush(stdout);
-#endif
+// Syscall shim for __snask_write intrinsic
+long s_write(long fd, const void* buf, long len) {
+    return (long)write((int)fd, buf, (size_t)len);
 }
 
 void s_time(SnaskValue* out) {

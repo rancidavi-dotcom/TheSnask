@@ -3,7 +3,7 @@
 
 #include "rt_base.h"
 
-void s_print(SnaskValue* v);
-void s_println(void);
+
+long s_write(long fd, const void* buf, long len);
 
 #endif // RT_IO_H
