@@ -174,13 +174,15 @@ update_aur() {
     # Atualiza versão no PKGBUILD local
     sed -i "s/^pkgver=.*/pkgver=${version}/" PKGBUILD
 
-    info "Gerando checksums e .SRCINFO via Docker (Arch Linux)..."
+    info "Gerando checksums reais e .SRCINFO via Docker (Arch Linux)..."
     docker run --rm -v "$(pwd):/work" -w /work archlinux:latest bash -c "
         pacman -Syu --noconfirm pacman-contrib sudo binutils --needed
         useradd -m builder
         echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
         chown -R builder:builder /work
         
+        # O updpkgsums precisa encontrar os arquivos baixados. 
+        # Como o PKGBUILD define 'source_x86_64', o updpkgsums baixará os arquivos se eles não existirem.
         sudo -u builder updpkgsums
         sudo -u builder makepkg --printsrcinfo > .SRCINFO
     " || { warn "Falha ao processar AUR via Docker."; return; }
