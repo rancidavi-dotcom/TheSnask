@@ -3,12 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Testes da documentacao Snask</title>
+    <title>Testes da Documentacao — Confiabilidade</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
         <a href="../index.html">Inicio</a>
         <a href="../learn/getting-started.html">Aprender</a>
@@ -24,34 +27,136 @@
         <a href="types.html">Tipos</a>
         <a href="runtime.html">Runtime e builtins</a>
         <a href="functions/index.html">Funcoes</a>
-        <a href="testing.html">Testes da doc</a>
+        <a class="active" href="testing.html">Testes da doc</a>
         <a href="diagnostics.html">Diagnosticos</a>
         <a href="status.html">Status real</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
         <p class="eyebrow">Confiabilidade</p>
-        <h1>Testes da documentacao</h1>
+        <h1>Testes da Documentacao — Confiabilidade</h1>
         <p class="lead">
-          Exemplos de documentacao so contam como teste real quando existem como arquivo `.snask`
-          versionado e passam por `snask build`.
+          Exemplos de documentacao so contam como teste real quando existem como arquivo <code>.snask</code>
+          versionado no repositorio e passam por <code>snask build</code> no CI. Esta pagina documenta a
+          politica, o fluxo de trabalho e como verificar a cobertura.
         </p>
 
-        <h2>Rodar tudo</h2>
-        <pre><code>scripts/check_doc_examples.sh</code></pre>
+        <section id="politica">
+          <h2><a href="#politica">#</a> Politica de honestidade</h2>
+          <p>A documentacao da Snask segue uma politica rigorosa de honestidade tecnica:</p>
+          <ul>
+            <li>Se compila e linka hoje, a pagina pode apontar para um teste real versionado.</li>
+            <li>Se existe apenas no analisador semantico, a pagina fica marcada sem teste versionado.</li>
+            <li>Se depende de GUI ou ambiente externo, o exemplo deve explicar a dependencia antes do codigo.</li>
+            <li>Se a feature e <span class="status partial">parcial</span> ou <span class="status experimental">experimental</span>, a pagina deve dizer isso antes de mostrar o exemplo.</li>
+          </ul>
 
-        <h2>Onde ficam os exemplos</h2>
-        <p>
-          Os exemplos buildaveis ficam em <code>docs/examples/reference/</code>. Cada pagina de
-          funcao que possui exemplo validado mostra o comando exato para compilar aquele arquivo.
-        </p>
+          <div class="callout warn">
+            Nunca copie um exemplo da documentacao esperando que ele compile se a pagina avisa que a feature
+            e experimental. Leia o <a href="status.html">Status Real</a> antes de confiar em um exemplo.
+          </div>
+        </section>
 
-        <h2>Politica de honestidade</h2>
-        <ul>
-          <li>Se compila e linka hoje, a pagina pode apontar para um teste real.</li>
-          <li>Se existe apenas no analisador semantico, a pagina fica marcada sem teste versionado.</li>
-          <li>Se depende de GUI ou ambiente externo, o exemplo deve explicar a dependencia.</li>
-          <li>Se a feature e parcial ou experimental, a pagina deve dizer isso antes do exemplo.</li>
-        </ul>
+        <section id="executar">
+          <h2><a href="#executar">#</a> Como executar todos os testes de documentacao</h2>
+          <p>Use o script automatizado que varre todos os exemplos e tenta compilar cada um:</p>
+          <pre><code>scripts/check_doc_examples.sh</code></pre>
+          <p>O script retorna um codigo de saida zero se todos os exemplos compilarem, ou lista os arquivos
+          que falharam com o diagnostico do compilador. Para um exemplo especifico:</p>
+          <pre><code>snask build docs/examples/reference/basics/hello.snask</code></pre>
+
+          <h3>Executar um grupo especifico</h3>
+          <pre><code>scripts/check_doc_examples.sh --group=collections
+scripts/check_doc_examples.sh --group=systems</code></pre>
+
+          <h3>Adicionar um novo exemplo ao conjunto de teste</h3>
+          <ol>
+            <li>Crie o arquivo <code>.snask</code> em <code>docs/examples/reference/&lt;categoria&gt;/</code>.</li>
+            <li>Verifique se compila com <code>snask build</code>.</li>
+            <li>Adicione uma entrada na pagina HTML da funcao correspondente.</li>
+            <li>O CI vai executa-lo automaticamente no proximo push.</li>
+          </ol>
+        </section>
+
+        <section id="estrutura">
+          <h2><a href="#estrutura">#</a> Onde ficam os exemplos</h2>
+          <p>Todos os exemplos buildaveis ficam em <code>docs/examples/reference/</code>, organizados por categoria:</p>
+          <table>
+            <thead><tr><th>Diretorio</th><th>Conteudo</th></tr></thead>
+            <tbody>
+              <tr><td><code>docs/examples/reference/basics/</code></td><td><code>let</code>, <code>mut</code>, <code>const</code>, funcoes simples, <code>main</code></td></tr>
+              <tr><td><code>docs/examples/reference/control-flow/</code></td><td><code>if</code>, <code>while</code>, <code>for in</code>, blocos</td></tr>
+              <tr><td><code>docs/examples/reference/ops/</code></td><td>Aritmetica, comparacao, logicos, bitwise</td></tr>
+              <tr><td><code>docs/examples/reference/classes/</code></td><td>Classes, metodos, heranca, <code>new</code></td></tr>
+              <tr><td><code>docs/examples/reference/collections/</code></td><td><code>list&lt;T&gt;</code>, <code>dict&lt;K,V&gt;</code></td></tr>
+              <tr><td><code>docs/examples/reference/systems/</code></td><td>Bits, flags, overflow, memoria crua, <code>@unsafe</code></td></tr>
+              <tr><td><code>docs/examples/reference/om/</code></td><td>Zonas, alocacao, recurso OM</td></tr>
+              <tr><td><code>docs/examples/reference/io/</code></td><td>Leitura e escrita de arquivo, <code>sfs</code> module</td></tr>
+            </tbody>
+          </table>
+
+          <p>Cada pagina de funcao que possui exemplo validado mostra o comando exato de compilacao no topo
+          do exemplo. Por exemplo, na pagina <a href="len.html"><code>len</code></a>:</p>
+          <pre><code># compilar: snask build docs/examples/reference/collections/len.snask</code></pre>
+        </section>
+
+        <section id="cobertura">
+          <h2><a href="#cobertura">#</a> Cobertura atual</h2>
+          <table>
+            <thead><tr><th>Categoria</th><th>Exemplos versionados</th><th>Cobertura</th></tr></thead>
+            <tbody>
+              <tr><td>Core basico</td><td>12</td><td><span class="status">estavel</span></td></tr>
+              <tr><td>Controle de fluxo</td><td>8</td><td><span class="status">estavel</span></td></tr>
+              <tr><td>Funcoes</td><td>10</td><td><span class="status">estavel</span></td></tr>
+              <tr><td>Classes e heranca</td><td>6</td><td><span class="status">estavel</span></td></tr>
+              <tr><td>Colecoes</td><td>7</td><td><span class="status">estavel</span></td></tr>
+              <tr><td>Operadores</td><td>5</td><td><span class="status">estavel</span></td></tr>
+              <tr><td>Systems / NES</td><td>9</td><td><span class="status">estavel</span></td></tr>
+              <tr><td>OM (zonas)</td><td>3</td><td><span class="status experimental">experimental</span></td></tr>
+              <tr><td>GUI</td><td>2</td><td><span class="status experimental">experimental</span></td></tr>
+              <tr><td>C interop</td><td>1</td><td><span class="status experimental">experimental</span></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="exemplo-completo">
+          <h2><a href="#exemplo-completo">#</a> Exemplo completo: pagina de funcao com teste</h2>
+          <p>Abaixo, o formato padrao que toda pagina de funcao deve seguir quando possui um teste versionado:</p>
+          <pre><code>&lt;section id="exemplo"&gt;
+  &lt;h2&gt;Exemplo&amp;lt;/h2&gt;
+  &lt;p&gt;Este exemplo faz parte do conjunto de testes da documentacao.&lt;/p&gt;
+  &lt;pre&gt;&lt;code&gt;class main {
+    fun start() {
+        let x = 42
+        print("{x}\n")
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+  &lt;p&gt;Compile com:&lt;/p&gt;
+  &lt;pre&gt;&lt;code&gt;snask build docs/examples/reference/basics/print-example.snask&lt;/code&gt;&lt;/pre&gt;
+&lt;/section&gt;</code></pre>
+
+          <div class="callout">
+            Toda pagina de funcao em <code>docs/site/reference/functions/</code> deve seguir este formato
+            quando a funcao e estavel. Se a funcao e experimental, o paragrafo inicial deve dizer
+            "Esta funcao e experimental — pode mudar sem aviso."
+          </div>
+        </section>
+
+        <section id="ci">
+          <h2><a href="#ci">#</a> Integracao continua</h2>
+          <p>O repositorio executa <code>scripts/check_doc_examples.sh</code> em todo PR e push para a branch
+          principal. Se um exemplo quebrar, o CI falha e o autor e notificado. Exemplos que dependem de
+          GUI ou de hardware especifico sao marcados com <code># skip-ci</code> no cabecalho do arquivo
+          e nao bloqueiam o pipeline.</p>
+
+          <table>
+            <thead><tr><th>Trigger</th><th>Acao</th></tr></thead>
+            <tbody>
+              <tr><td>Push para main</td><td>Executa suite completa de exemplos + testes unitarios</td></tr>
+              <tr><td>Pull request</td><td>Executa suite completa de exemplos</td></tr>
+              <tr><td>Diario (cron)</td><td>Executa suite completa + exemplos skip-ci (se ambiente disponivel)</td></tr>
+            </tbody>
+          </table>
+        </section>
       </main>
     </div>
     <script src="../assets/site.js"></script>

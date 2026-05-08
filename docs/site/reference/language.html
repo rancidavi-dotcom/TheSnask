@@ -3,14 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Referencia da linguagem Snask</title>
+    <title>Referência da Linguagem Snask</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
+        <a href="../index.html">Início</a>
         <a href="../learn/getting-started.html">Aprender</a>
         <a aria-current="page" href="language.html">Referencia</a>
         <a href="../systems/om.html">OM</a>
@@ -28,58 +31,445 @@
         <a href="diagnostics.html">Diagnosticos</a>
         <a href="status.html">Status real</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
         <p class="eyebrow">Referencia</p>
-        <h1>Linguagem Snask</h1>
+        <h1>Referência da Linguagem Snask</h1>
         <p class="lead">
-          Esta pagina resume a superficie atual. Para detalhes extensos, veja os Markdown originais
-          em `docs/reference/`.
+          Esta página documenta toda a superfície da linguagem Snask — desde a estrutura
+          de um executável até os perfis de compilação. Cada seção inclui exemplos e
+          o status atual da funcionalidade.
         </p>
 
-        <h2>Arquivo executavel</h2>
-        <p>Um executavel usa `class main` e o metodo `start` como entrada recomendada.</p>
-        <pre><code>class main {
+        <nav class="toc">
+          <h2>Conteúdo</h2>
+          <ul>
+            <li><a href="#file-structure">Estrutura de Arquivo</a></li>
+            <li><a href="#comments">Comentários</a></li>
+            <li><a href="#variables">Variáveis</a></li>
+            <li><a href="#blocks">Blocos</a></li>
+            <li><a href="#numbers-strings">Números, Strings e Interpolação</a></li>
+            <li><a href="#operators">Operadores</a></li>
+            <li><a href="#control-flow">Controle de Fluxo</a></li>
+            <li><a href="#functions">Funções</a></li>
+            <li><a href="#classes">Classes</a></li>
+            <li><a href="#collections">Coleções</a></li>
+            <li><a href="#modules">Módulos</a></li>
+            <li><a href="#safe-unsafe">Safe / Unsafe</a></li>
+            <li><a href="#om-integration">Integração OM</a></li>
+            <li><a href="#profiles">Perfis de Compilação</a></li>
+          </ul>
+        </nav>
+
+        <section id="file-structure">
+          <h2>Estrutura de Arquivo</h2>
+          <p>
+            Um executável Snask usa a classe <code>main</code> com o método <code>start()</code>
+            como ponto de entrada. Não é necessário declarar <code>fun main()</code> — o runtime
+            procura por <code>class main { fun start() }</code> automaticamente.
+          </p>
+          <pre><code>class main {
     fun start() {
-        print("ok\n")
+        print("Olá, Snask!\n")
     }
 }</code></pre>
+          <p>
+            O método <code>start()</code> não recebe parâmetros e não tem valor de retorno.
+            Todo o código de inicialização do programa deve estar dentro dele ou ser chamado
+            a partir dele.
+          </p>
+          <p><span class="status stable">estavel</span> Ponto de entrada com class main.</p>
+        </section>
 
-        <h2>Blocos</h2>
-        <p>Snask aceita blocos por indentacao e por chaves.</p>
-        <pre><code>if ready {
-    print("ready\n")
+        <section id="comments">
+          <h2>Comentários</h2>
+          <p>
+            Snask suporta comentários de linha única com <code>//</code>. Comentários de bloco
+            (<code>/* */</code>) ainda não foram implementados.
+          </p>
+          <pre><code>// Isto é um comentário de linha
+let x = 10  // comentário no final da linha
+
+// Não há suporte para comentários de bloco ainda
+// Use múltiplas linhas com //</code></pre>
+          <p><span class="status stable">estavel</span> Comentários de linha.</p>
+          <p><span class="status experimental">experimental</span> Comentários de bloco — planejados.</p>
+        </section>
+
+        <section id="variables">
+          <h2>Variáveis</h2>
+          <p>
+            Snask oferece três formas de declaração, cada uma com semântica distinta:
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Palavra-chave</th>
+                <th>Mutabilidade</th>
+                <th>Escopo</th>
+                <th>Exemplo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>let</code></td>
+                <td>Imutável — não pode ser reatribuída</td>
+                <td>Local / bloco</td>
+                <td><code>let nome = "Snask"</code></td>
+              </tr>
+              <tr>
+                <td><code>mut</code></td>
+                <td>Mutável — pode ser reatribuída</td>
+                <td>Local / bloco</td>
+                <td><code>mut contador = 0</code></td>
+              </tr>
+              <tr>
+                <td><code>const</code></td>
+                <td>Imutável — valor constante em tempo de compilação</td>
+                <td>Módulo</td>
+                <td><code>const MAX = 100</code></td>
+              </tr>
+            </tbody>
+          </table>
+          <pre><code>let nome: str = "Snask"
+let idade = 5            // inferido como int
+
+mut contador = 0
+contador = contador + 1   // OK: mut permite reatribuição
+
+const TAMANHO_MAX = 1024  // constante de módulo</code></pre>
+          <p><span class="status stable">estavel</span> Declarações let, mut e const.</p>
+        </section>
+
+        <section id="blocks">
+          <h2>Blocos</h2>
+          <p>
+            Snask aceita <strong>ambas</strong> as formas de delimitação de blocos:
+            indentação significativa (como Python) e chaves <code>{ }</code> (como C).
+            Você pode misturar as duas abordagens no mesmo arquivo.
+          </p>
+          <h3>Blocos por indentação</h3>
+          <pre><code>if ready
+    print("pronto\n")
+    processa()</code></pre>
+          <h3>Blocos por chaves</h3>
+          <pre><code>if ready {
+    print("pronto\n")
+    processa()
 }</code></pre>
-        <pre><code>if ready
-    print("ready\n")</code></pre>
+          <p>
+            A indentação padrão é de 4 espaços. Tabulações também são aceitas, mas não
+            devem ser misturadas com espaços no mesmo bloco.
+          </p>
+          <p><span class="status stable">estavel</span> Blocos por indentação e por chaves.</p>
+        </section>
 
-        <h2>Declaracoes</h2>
-        <table>
-          <thead><tr><th>Forma</th><th>Significado</th></tr></thead>
-          <tbody>
-            <tr><td><code>let</code></td><td>Variavel imutavel.</td></tr>
-            <tr><td><code>mut</code></td><td>Variavel mutavel.</td></tr>
-            <tr><td><code>const</code></td><td>Constante de modulo.</td></tr>
-            <tr><td><code>fun</code></td><td>Funcao.</td></tr>
-            <tr><td><code>class</code></td><td>Classe nominal.</td></tr>
-          </tbody>
-        </table>
+        <section id="numbers-strings">
+          <h2>Números, Strings e Interpolação</h2>
 
-        <h2>Operadores</h2>
-        <p>
-          Aritmetica comum, comparacoes, operadores logicos, bitwise e shifts existem. Semantica de
-          igualdade/comparacao mista ainda esta em consolidacao.
-        </p>
-        <pre><code>let a = 10 + 2
-let b = a & 0xFF
-let ok = a >= b and b != 0</code></pre>
+          <h3>Números</h3>
+          <p>
+            Snask tem dois tipos numéricos primários: <code>int</code> (inteiro com sinal,
+            tamanho da palavra da máquina) e <code>float</code> (ponto flutuante de 64 bits).
+            Literais numéricos podem usar <code>_</code> como separador visual.
+          </p>
+          <pre><code>let a = 42
+let b = 1_000_000
+let c = 0xFF        // hexadecimal
+let d = 0b1010      // binário
+let e = 3.14        // float
+let f = 1.5e-10     // notação científica</code></pre>
 
-        <h2>Modulos</h2>
-        <pre><code>import "sfs"
-from utils import math_helpers</code></pre>
-        <p>
-          Imports simples sao estaveis para arquivos e modulos nativos. `from ... import ...` ainda
-          e mais simples e deve amadurecer.
-        </p>
+          <h3>Strings</h3>
+          <p>
+            Strings são delimitadas por aspas duplas <code>"</code>. Caracteres de escape
+            usam barra invertida: <code>\n</code>, <code>\t</code>, <code>\\</code>,
+            <code>\"</code>.
+          </p>
+
+          <h3>Interpolação</h3>
+          <p>
+            Snask suporta interpolação de strings com a sintaxe <code>{expressão}</code>
+            dentro de strings delimitadas por aspas duplas. O runtime converte automaticamente
+            o valor para string.
+          </p>
+          <pre><code>let nome = "Snask"
+let versao = 5
+let msg = "{nome}: versão {versao}\n"
+// resultado: "Snask: versão 5\n"</code></pre>
+          <p><span class="status stable">estavel</span> Interpolação de strings.</p>
+        </section>
+
+        <section id="operators">
+          <h2>Operadores</h2>
+
+          <h3>Aritméticos</h3>
+          <table>
+            <thead><tr><th>Operador</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>+</code></td><td>Adição</td></tr>
+              <tr><td><code>-</code></td><td>Subtração</td></tr>
+              <tr><td><code>*</code></td><td>Multiplicação</td></tr>
+              <tr><td><code>/</code></td><td>Divisão</td></tr>
+              <tr><td><code>%</code></td><td>Módulo (resto)</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Comparação</h3>
+          <table>
+            <thead><tr><th>Operador</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>==</code></td><td>Igualdade</td></tr>
+              <tr><td><code>!=</code></td><td>Diferença</td></tr>
+              <tr><td><code>&lt;</code></td><td>Menor que</td></tr>
+              <tr><td><code>&gt;</code></td><td>Maior que</td></tr>
+              <tr><td><code>&lt;=</code></td><td>Menor ou igual</td></tr>
+              <tr><td><code>&gt;=</code></td><td>Maior ou igual</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Lógicos</h3>
+          <table>
+            <thead><tr><th>Operador</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>and</code></td><td>E lógico (short-circuit)</td></tr>
+              <tr><td><code>or</code></td><td>OU lógico (short-circuit)</td></tr>
+              <tr><td><code>not</code></td><td>Negação lógica</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Bitwise e shifts</h3>
+          <table>
+            <thead><tr><th>Operador</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>&amp;</code></td><td>E bitwise</td></tr>
+              <tr><td><code>|</code></td><td>OU bitwise</td></tr>
+              <tr><td><code>^</code></td><td>XOR bitwise</td></tr>
+              <tr><td><code>~</code></td><td>NOT bitwise (complemento)</td></tr>
+              <tr><td><code>&lt;&lt;</code></td><td>Shift left</td></tr>
+              <tr><td><code>&gt;&gt;</code></td><td>Shift right</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let soma = 10 + 2
+let mask = 0xFF & 0x0F
+let flag = a >= b and b != 0
+let shift = 1 << 8
+let invertido = ~0x00</code></pre>
+          <p><span class="status stable">estavel</span> Operadores aritméticos, comparação e lógicos.</p>
+          <p><span class="status stable">estavel</span> Operadores bitwise e shifts.</p>
+        </section>
+
+        <section id="control-flow">
+          <h2>Controle de Fluxo</h2>
+
+          <h3>if / else</h3>
+          <pre><code>if temperatura > 30 {
+    print("quente\n")
+} else if temperatura > 20 {
+    print("agradável\n")
+} else {
+    print("frio\n")
+}</code></pre>
+
+          <h3>while</h3>
+          <pre><code>mut i = 0
+while i < 10 {
+    print("{i}\n")
+    i = i + 1
+}</code></pre>
+
+          <h3>for in</h3>
+          <p>O loop <code>for in</code> itera sobre elementos de uma coleção ou range.</p>
+          <pre><code>let nomes = ["Ana", "Bia", "Carlos"]
+for nome in nomes {
+    print("{nome}\n")
+}
+
+for i in range(0, 5) {
+    print("{i}\n")
+}</code></pre>
+          <p><span class="status stable">estavel</span> if/else, while, for in.</p>
+        </section>
+
+        <section id="functions">
+          <h2>Funções</h2>
+          <p>
+            Funções são declaradas com a palavra-chave <code>fun</code>, seguidas do nome,
+            parâmetros entre parênteses e tipo de retorno opcional. O corpo pode ser delimitado
+            por indentação ou chaves.
+          </p>
+          <pre><code>fun saudacao(nome: str) -> str {
+    return "Olá, {nome}!"
+}
+
+fun dobro(x: int) -> int {
+    return x * 2
+}
+
+fun log(msg: str) {
+    print("[log] {msg}\n")
+}
+
+let msg = saudacao("Mundo")  // "Olá, Mundo!"
+let d = dobro(21)            // 42</code></pre>
+          <p>
+            Funções sem tipo de retorno explícito não retornam valor (equivalente a
+            <code>void</code>). O tipo de retorno é inferido quando possível, mas a anotação
+            explícita com <code>-> Tipo</code> é recomendada em APIs públicas.
+          </p>
+          <p><span class="status stable">estavel</span> Funções tipadas com parâmetros e retorno.</p>
+        </section>
+
+        <section id="classes">
+          <h2>Classes</h2>
+          <p>
+            Snask oferece um sistema de classes nominal com herança simples. Classes são
+            declaradas com <code>class</code>, campos com <code>let</code> e métodos
+            com <code>fun</code>.
+          </p>
+          <pre><code>class Animal {
+    let idade: int = 0
+
+    fun envelhecer() {
+        idade = idade + 1
+    }
+}
+
+class Dog extends Animal {
+    let nome: str = "rex"
+
+    fun latir() {
+        print("{nome} está latindo!\n")
+    }
+}
+
+let animal: Animal = new Dog()
+animal.envelhecer()</code></pre>
+          <p>
+            A herança usa <code>extends</code> e segue o princípio de subtipagem nominal:
+            uma instância de <code>Dog</code> pode ser atribuída a uma variável do tipo
+            <code>Animal</code>. A criação de instâncias usa a palavra-chave <code>new</code>.
+          </p>
+          <p><span class="status stable">estavel</span> Classes, herança com extends e new.</p>
+        </section>
+
+        <section id="collections">
+          <h2>Coleções</h2>
+          <p>
+            Snask tem duas coleções genéricas nativas: <code>list&lt;T&gt;</code> e
+            <code>dict&lt;K, V&gt;</code>. Ambas suportam literais, indexação e atribuição.
+          </p>
+
+          <h3>list&lt;T&gt;</h3>
+          <pre><code>let vazia: list&lt;int&gt; = []
+let numeros: list&lt;int&gt; = [1, 2, 3, 4, 5]
+let primeiro = numeros[0]    // 1
+numeros[2] = 42              // substitui o terceiro elemento</code></pre>
+
+          <h3>dict&lt;K, V&gt;</h3>
+          <pre><code>let vazio: dict&lt;str, int&gt; = {}
+let idades: dict&lt;str, int&gt; = { "Ana": 25, "Bia": 30 }
+let idade_ana = idades["Ana"]  // 25
+idades["Carlos"] = 35          // adiciona ou substitui</code></pre>
+          <p><span class="status stable">estavel</span> Coleções genéricas list e dict.</p>
+        </section>
+
+        <section id="modules">
+          <h2>Módulos</h2>
+          <p>
+            Snask suporta importação de módulos de duas formas:
+          </p>
+          <pre><code>import "sfs"                   // importa todo o módulo sfs
+from utils import math_helpers  // importa apenas math_helpers do módulo utils</code></pre>
+          <p>
+            O <code>import</code> simples é estável para arquivos locais e módulos nativos.
+            O <code>from ... import ...</code> é funcional mas ainda está em fase de
+            amadurecimento para casos complexos como importação seletiva com aliasing.
+          </p>
+          <p><span class="status stable">estavel</span> Import simples de módulos.</p>
+          <p><span class="status partial">parcial</span> From-import seletivo.</p>
+        </section>
+
+        <section id="safe-unsafe">
+          <h2>Safe / Unsafe</h2>
+          <p>
+            Snask usa a anotação <code>@unsafe</code> para demarcar regiões que realizam
+            operações de memória crua. Fora dessas regiões, operações como
+            <code>mem_alloc</code>, <code>mem_free</code> e ponteiros são bloqueadas
+            pelo compilador.
+          </p>
+          <pre><code>@unsafe {
+    let ptr = mem_alloc(64)
+    mem_write_u8(ptr, 0, 0xFF)
+    let val = mem_read_u8(ptr, 0)
+    mem_free(ptr)
+}</code></pre>
+          <p>
+            O gate <code>@unsafe</code> funciona como uma barreira explícita: qualquer
+            código que precise acessar memória bruta, chamar FFI inseguro ou manipular
+            ponteiros deve estar dentro de um bloco <code>@unsafe</code>.
+          </p>
+          <p><span class="status stable">estavel</span> @unsafe gate para operações de memória crua.</p>
+        </section>
+
+        <section id="om-integration">
+          <h2>Integração OM</h2>
+          <p>
+            O modelo OM (Owned Memory) da Snask permite gerenciamento de recursos
+            com zonas de alocação explícitas. A sintaxe <code>zone "nome" { }</code>
+            define uma zona de memória com ciclo de vida delimitado.
+          </p>
+          <pre><code>zone "render" {
+    let buffer = aloca_recursos()
+    renderiza(buffer)
+}  // buffer é liberado ao sair da zona</code></pre>
+          <p>
+            A integração com C usa <code>import_c_om</code> para importar cabeçalhos C
+            com adaptadores OM.
+          </p>
+          <pre><code>import_c_om "SDL2/SDL.h"</code></pre>
+          <p><span class="status partial">parcial</span> OM architecture existe, mas escape analysis e borrow checking ainda estão em desenvolvimento.</p>
+        </section>
+
+        <section id="profiles">
+          <h2>Perfis de Compilação</h2>
+          <p>
+            Snask oferece dois perfis de compilação que controlam quais funcionalidades
+            da linguagem estão disponíveis:
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Perfil</th>
+                <th>Flag</th>
+                <th>Descrição</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>humane</code></td>
+                <td>(padrão)</td>
+                <td>
+                  Perfil de alto nível com gerenciamento automático de memória.
+                  Acesso a IO, strings, coleções e GUI. Operações de memória crua
+                  são bloqueadas fora de <code>@unsafe</code>.
+                </td>
+              </tr>
+              <tr>
+                <td><code>systems</code></td>
+                <td><code>--profile systems</code></td>
+                <td>
+                  Perfil de baixo nível para sistemas embarcados, NES e programação
+                  próxima ao hardware. Acesso completo a tipos de tamanho fixo
+                  (u8, i8, etc.), operações de bits, memória crua e interrupções.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <pre><code># Compilar com perfil systems
+snask build --profile systems meu_programa.snask</code></pre>
+          <p><span class="status stable">estavel</span> Perfil humane (padrão).</p>
+          <p><span class="status partial">parcial</span> Perfil systems — primitivas existem, layout/ABI ainda em fechamento.</p>
+        </section>
       </main>
     </div>
     <script src="../assets/site.js"></script>

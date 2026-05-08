@@ -3,12 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Status real da Snask</title>
+    <title>Status Real das Features — Contrato Honesto</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
         <a href="../index.html">Inicio</a>
         <a href="../learn/getting-started.html">Aprender</a>
@@ -26,36 +29,174 @@
         <a href="functions/index.html">Funcoes</a>
         <a href="testing.html">Testes da doc</a>
         <a href="diagnostics.html">Diagnosticos</a>
-        <a href="status.html">Status real</a>
+        <a class="active" href="status.html">Status real</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
         <p class="eyebrow">Alpha honesto</p>
-        <h1>Status real das features</h1>
+        <h1>Status Real das Features — Contrato Honesto</h1>
         <p class="lead">
-          Esta pagina resume o contrato atual. O arquivo completo continua em
-          `docs/reference/FEATURE_STATUS.md`.
+          Esta pagina documenta o contrato atual de cada area da linguagem Snask. Cada feature e
+          classificada em uma das quatro faixas abaixo. O arquivo de referencia completo continua
+          em <code>docs/reference/FEATURE_STATUS.md</code>.
         </p>
 
-        <h2>Estavel hoje</h2>
-        <div class="grid">
-          <article class="card"><span class="status">estavel</span><h3>Core basico</h3><p>`let`, `mut`, `const`, `if`, `while`, `for in`, `return`, aritmetica e blocos.</p></article>
-          <article class="card"><span class="status">estavel</span><h3>Funcoes tipadas simples</h3><p>Aridade, parametros, retorno e missing return tem testes semanticos.</p></article>
-          <article class="card"><span class="status">estavel</span><h3>Classes nominais simples</h3><p>`new Class()`, propriedades, metodos e heranca simples com subtipo filho para pai.</p></article>
-          <article class="card"><span class="status">estavel</span><h3>Colecoes genericas simples</h3><p><code>list&lt;T&gt;</code> e <code>dict&lt;K, V&gt;</code> para literais homogeneos, indexacao e atribuicao.</p></article>
-          <article class="card"><span class="status">estavel</span><h3>@unsafe gate</h3><p>Memoria crua e nativos internos sao bloqueados fora de regioes explicitas.</p></article>
-          <article class="card"><span class="status">estavel</span><h3>Primitivas systems/NES</h3><p>Bits, flags, overflow/carry/borrow e memoria crua controlada.</p></article>
-        </div>
-
-        <h2>Parcial ou experimental</h2>
         <table>
-          <thead><tr><th>Area</th><th>Status</th><th>Motivo</th></tr></thead>
+          <thead><tr><th>Faixa</th><th>Classe CSS</th><th>Significado</th></tr></thead>
           <tbody>
-            <tr><td>OM formal</td><td><span class="status experimental">experimental</span></td><td>Arquitetura existe; faltam escape analysis, borrow checking e regras estaticas completas.</td></tr>
-            <tr><td>C interop universal</td><td><span class="status experimental">experimental</span></td><td>Funciona para casos seguros; callbacks, structs complexas e ownership ambiguo ainda precisam patch/regra.</td></tr>
-            <tr><td>GUI</td><td><span class="status experimental">experimental</span></td><td>Runtime existe, mas API ainda nao e contrato maduro.</td></tr>
-            <tr><td>LSP</td><td><span class="status partial">parcial</span></td><td>Recursos existem; falta suite automatizada de protocolo.</td></tr>
+            <tr><td><span class="status">estavel</span></td><td><code>.status</code></td><td>Funciona end-to-end no compilador atual. O contrato e confiavel.</td></tr>
+            <tr><td><span class="status partial">parcial</span></td><td><code>.status.partial</code></td><td>Existe mas tem limites relevantes. Use com atencao.</td></tr>
+            <tr><td><span class="status experimental">experimental</span></td><td><code>.status.experimental</code></td><td>Existe e pode mudar sem aviso. Nao use em producao.</td></tr>
+            <tr><td><span class="status" style="background:var(--panel-2);color:var(--muted)">planejada</span></td><td>—</td><td>Ainda nao faz parte do contrato da linguagem. Nao implementada.</td></tr>
           </tbody>
         </table>
+
+        <section id="estavel">
+          <h2><a href="#estavel">#</a> Estavel hoje</h2>
+          <p>Estas areas funcionam end-to-end no compilador atual e tem testes versionados.</p>
+
+          <div class="grid">
+            <article class="card">
+              <span class="status">estavel</span>
+              <h3>Core basico</h3>
+              <p><code>let</code>, <code>mut</code>, <code>const</code>, <code>if</code>, <code>while</code>, <code>for in</code>, <code>return</code>, aritmetica e blocos.</p>
+            </article>
+            <article class="card">
+              <span class="status">estavel</span>
+              <h3>Funcoes tipadas simples</h3>
+              <p>Aridade, parametros, retorno e missing return tem testes semanticos completos.</p>
+            </article>
+            <article class="card">
+              <span class="status">estavel</span>
+              <h3>Classes nominais simples</h3>
+              <p><code>new Class()</code>, propriedades, metodos e heranca simples com subtipo filho-para-pai.</p>
+            </article>
+            <article class="card">
+              <span class="status">estavel</span>
+              <h3>Colecoes genericas simples</h3>
+              <p><code>list&lt;T&gt;</code> e <code>dict&lt;K, V&gt;</code> para literais homogeneos, indexacao e atribuicao.</p>
+            </article>
+            <article class="card">
+              <span class="status">estavel</span>
+              <h3>@unsafe gate</h3>
+              <p>Memoria crua e nativos internos sao bloqueados fora de regioes explicitas <code>@unsafe</code>.</p>
+            </article>
+            <article class="card">
+              <span class="status">estavel</span>
+              <h3>Primitivas systems/NES</h3>
+              <p>Bits, flags, overflow/carry/borrow e memoria crua controlada com testes de compilacao.</p>
+            </article>
+          </div>
+
+          <h3>Detalhamento do core estavel</h3>
+          <table>
+            <thead><tr><th>Sub-area</th><th>Exemplo</th><th>Teste versionado</th></tr></thead>
+            <tbody>
+              <tr><td>Variaveis imutaveis</td><td><code>let x = 42</code></td><td><code>docs/examples/reference/basics/let.snask</code></td></tr>
+              <tr><td>Variaveis mutaveis</td><td><code>mut y = 10; y += 1</code></td><td><code>docs/examples/reference/basics/mut.snask</code></td></tr>
+              <tr><td>Constantes de modulo</td><td><code>const MAX = 100</code></td><td><code>docs/examples/reference/basics/const.snask</code></td></tr>
+              <tr><td>Controle de fluxo</td><td><code>if</code>, <code>while</code>, <code>for in</code></td><td><code>docs/examples/reference/control-flow/</code></td></tr>
+              <tr><td>Aritmetica</td><td><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>%</code></td><td><code>docs/examples/reference/ops/</code></td></tr>
+              <tr><td>Comparacao</td><td><code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;=</code></td><td><code>docs/examples/reference/ops/comparisons.snask</code></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="parcial-experimental">
+          <h2><a href="#parcial-experimental">#</a> Parcial ou experimental</h2>
+          <p>Estas areas existem mas ainda nao atingiram contrato estavel. Consulte o estado exato antes de usar.</p>
+
+          <table>
+            <thead><tr><th>Area</th><th>Status</th><th>Motivo</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>OM formal</td>
+                <td><span class="status experimental">experimental</span></td>
+                <td>Arquitetura existe; faltam escape analysis, borrow checking e regras estaticas completas. O runtime de zonas funciona, mas a verificacao estatica ainda e parcial.</td>
+              </tr>
+              <tr>
+                <td>C interop universal</td>
+                <td><span class="status experimental">experimental</span></td>
+                <td>Funciona para casos seguros (tipos primitivos, ponteiros opacos). Callbacks, structs complexas e ownership ambiguo ainda precisam de patch ou regra explicita.</td>
+              </tr>
+              <tr>
+                <td>GUI nativa</td>
+                <td><span class="status experimental">experimental</span></td>
+                <td>Runtime existe com janelas, botoes, labels e entrada de texto. API ainda nao e contrato maduro — mudancas quebradiças podem ocorrer.</td>
+              </tr>
+              <tr>
+                <td>snaskgui (OpenGL)</td>
+                <td><span class="status experimental">experimental</span></td>
+                <td>Polling de eventos, apresentacao de framebuffer RGBA, gerenciamento de janelas. Adequado para experimentos graficos, nao para producao.</td>
+              </tr>
+              <tr>
+                <td>LSP / IDE</td>
+                <td><span class="status partial">parcial</span></td>
+                <td>Recursos de diagnostico e parse existem. Falta suite automatizada de protocolo e suporte a completacao de codigo.</td>
+              </tr>
+              <tr>
+                <td>import com from</td>
+                <td><span class="status partial">parcial</span></td>
+                <td><code>from utils import math_helpers</code> funciona para casos simples. Namespaces aninhados e re-export ainda estao sendo definidos.</td>
+              </tr>
+              <tr>
+                <td>String interpolation avancada</td>
+                <td><span class="status partial">parcial</span></td>
+                <td><code>"ola {nome}"</code> funciona. Formatacao numerica (<code>:.2f</code>) e expressoes dentro de chaves ainda nao.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="planejada">
+          <h2><a href="#planejada">#</a> Planejada (fora do contrato)</h2>
+          <p>Features que estao no roteiro mas ainda nao implementadas ou especificadas como contrato.</p>
+
+          <table>
+            <thead><tr><th>Area</th><th>Previsao</th><th>Notas</th></tr></thead>
+            <tbody>
+              <tr><td>Pattern matching</td><td>Futuro</td><td>Analogia a <code>match</code> do Rust ou <code>switch</code> avancado.</td></tr>
+              <tr><td>Generics com traits</td><td>Futuro</td><td>Restricao de tipo em parametros genericos (<code>where T: Show</code>).</td></tr>
+              <tr><td>Enums com dados</td><td>Futuro</td><td>Variantes com campos internos (algebraic data types).</td></tr>
+              <tr><td>Iterators e closures</td><td>Futuro</td><td>Objetos que implementam <code>next()</code> e funcoes anonimas.</td></tr>
+              <tr><td>Async/await</td><td>Longo prazo</td><td>Depende de runtime de corrotinas.</td></tr>
+              <tr><td>FFI automatico com C ABI</td><td>Medio prazo</td><td>Geracao automatica de binding para cabecalhos C.</td></tr>
+              <tr><td>Garbage collector opcional</td><td>Longo prazo</td><td>Alternativa ao OM para perfis mais produtivos.</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="testes">
+          <h2><a href="#testes">#</a> Como essas classificacoes sao validadas</h2>
+          <p>Cada feature marcada como <span class="status">estavel</span> possui um ou mais testes versionados em <code>docs/examples/reference/</code> que compilam e passam no CI. Features <span class="status experimental">experimental</span> ou <span class="status partial">parcial</span> tem testes parciais ou apenas validacao no analisador semantico.</p>
+
+          <div class="callout">
+            Se voce encontrar uma feature marcada como estavel cujo teste esta quebrado, abra uma issue no repositorio. Honestidade do contrato e prioridade do projeto.
+          </div>
+
+          <h3>Criterios de cada faixa</h3>
+          <table>
+            <thead><tr><th>Faixa</th><th>Criterio</th></tr></thead>
+            <tbody>
+              <tr><td>estavel</td><td>Teste versionado compila e linka no CI. Comportamento documentado cobre casos de borda conhecidos.</td></tr>
+              <tr><td>parcial</td><td>Implementacao existe mas tem lacunas documentadas. Testes podem ser parciais ou faltar.</td></tr>
+              <tr><td>experimental</td><td>Implementacao existe e funciona em casos tipicos. API pode mudar. Testes minimos.</td></tr>
+              <tr><td>planejada</td><td>Nada implementado. Apenas especificacao preliminar ou discussao.</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="changelog">
+          <h2><a href="#changelog">#</a> Changelog de status</h2>
+          <table>
+            <thead><tr><th>Data</th><th>Feature</th><th>Alteracao</th></tr></thead>
+            <tbody>
+              <tr><td>2025-Q4</td><td>Core basico</td><td>Promovido de parcial para <span class="status">estavel</span> apos suite de testes semanticos.</td></tr>
+              <tr><td>2025-Q4</td><td>Classes nominais</td><td>Promovido de parcial para <span class="status">estavel</span> com testes de heranca.</td></tr>
+              <tr><td>2025-Q3</td><td>OM formal</td><td>Adicionado como <span class="status experimental">experimental</span> com runtime de zonas.</td></tr>
+              <tr><td>2025-Q2</td><td>@unsafe gate</td><td>Promovido de experimental para <span class="status">estavel</span>.</td></tr>
+            </tbody>
+          </table>
+        </section>
       </main>
     </div>
     <script src="../assets/site.js"></script>

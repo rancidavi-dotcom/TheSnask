@@ -3,12 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Exemplos Snask</title>
+    <title>Exemplos Snask — Cookbook</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
         <a href="../index.html">Inicio</a>
         <a href="../learn/getting-started.html">Aprender</a>
@@ -18,23 +21,130 @@
         <a aria-current="page" href="index.html">Exemplos</a>
       </nav>
     </header>
-    <main class="content">
+    <main class="content doc-page">
       <p class="eyebrow">Cookbook</p>
-      <h1>Exemplos</h1>
+      <h1>Exemplos Snask — Cookbook</h1>
       <p class="lead">
-        Exemplos pequenos e copiaveis para aprender a superficie atual da Snask.
+        Exemplos pequenos e copiaveis para aprender a superficie atual da Snask. Cada exemplo pode
+        ser compilado com <code>snask build</code>. Consulte o <a href="../reference/status.html">Status Real</a>
+        para saber o nivel de maturidade de cada area.
       </p>
 
-      <h2>CLI simples</h2>
-      <pre><code>class main {
+      <section id="cli-simples">
+        <h2><a href="#cli-simples">#</a> CLI simples</h2>
+        <p>Programa minimo que imprime uma saudacao com interpolacao de string:</p>
+        <pre><code>class main {
     fun start() {
         let name = "Snask"
         print("Ola, {name}!\n")
     }
 }</code></pre>
+        <pre><code>snask build hello.snask && ./hello</code></pre>
+        <table>
+          <thead><tr><th>Conceito</th><th>Demonstrado</th></tr></thead>
+          <tbody>
+            <tr><td><code>class main</code></td><td>Ponto de entrada do programa</td></tr>
+            <tr><td><code>fun start()</code></td><td>Metodo inicial chamado pelo runtime</td></tr>
+            <tr><td><code>let</code></td><td>Variavel imutavel</td></tr>
+            <tr><td><code>print()</code></td><td>Saida padrao com interpolacao</td></tr>
+          </tbody>
+        </table>
+      </section>
 
-      <h2>Leitura de arquivo via modulo nativo</h2>
-      <pre><code>import "sfs"
+      <section id="funcao-retorno">
+        <h2><a href="#funcao-retorno">#</a> Funcao com retorno</h2>
+        <p>Funcoes tipadas com parametros e retorno. O tipo de retorno vem depois dos <code>:</code>:</p>
+        <pre><code>class main {
+    fun soma(a: i32, b: i32): i32 {
+        return a + b
+    }
+
+    fun start() {
+        let r = soma(10, 20)
+        print("soma = {r}\n")
+    }
+}</code></pre>
+        <table>
+          <thead><tr><th>Conceito</th><th>Demonstrado</th></tr></thead>
+          <tbody>
+            <tr><td><code>fun nome(a: T): R</code></td><td>Funcao com parametro e retorno tipados</td></tr>
+            <tr><td><code>return</code></td><td>Retorno de valor</td></tr>
+            <tr><td>Inferencia de tipo</td><td><code>let r = soma(...)</code> infere <code>i32</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="classe-metodos">
+        <h2><a href="#classe-metodos">#</a> Classe com metodos e heranca</h2>
+        <p>Classes nominais com propriedades, metodos e heranca simples. Uma subclasse pode ser usada onde a classe pai e esperada:</p>
+        <pre><code>class Animal {
+    let nome: str
+
+    fun new(n: str): Animal {
+        return Animal { nome: n }
+    }
+
+    fun falar(self) {
+        print("{self.nome} faz: ...\n")
+    }
+}
+
+class Cachorro : Animal {
+    fun falar(self) {
+        print("{self.nome} faz: Au Au!\n")
+    }
+}
+
+class main {
+    fun start() {
+        let a: Animal = Cachorro::new("Rex")
+        a.falar()
+    }
+}</code></pre>
+        <table>
+          <thead><tr><th>Conceito</th><th>Demonstrado</th></tr></thead>
+          <tbody>
+            <tr><td><code>class Nome : Base</code></td><td>Heranca simples</td></tr>
+            <tr><td><code>fun new(...): Nome</code></td><td>Construtor nominal</td></tr>
+            <tr><td><code>Animal { campo: valor }</code></td><td>Inicializador de struct</td></tr>
+            <tr><td><code>self</code></td><td>Receptor de metodo</td></tr>
+            <tr><td>Subtipo</td><td><code>Cachorro</code> pode ser atribuido a <code>Animal</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="lista-dicionario">
+        <h2><a href="#lista-dicionario">#</a> Lista e dicionario</h2>
+        <p>Colecoes genericas homogeneas com literais, indexacao e atribuicao:</p>
+        <pre><code>class main {
+    fun start() {
+        let nums: list&lt;i32&gt; = [1, 2, 3, 4]
+        nums[2] = 99
+        print("{nums[2]}\n")
+
+        let mapa: dict&lt;str, i32&gt; = {
+            "um":   1,
+            "dois": 2,
+            "tres": 3
+        }
+        print("{mapa["dois"]}\n")
+    }
+}</code></pre>
+        <table>
+          <thead><tr><th>Conceito</th><th>Demonstrado</th></tr></thead>
+          <tbody>
+            <tr><td><code>list&lt;T&gt;</code></td><td>Lista generica homogenea</td></tr>
+            <tr><td><code>dict&lt;K, V&gt;</code></td><td>Dicionario generico homogeneo</td></tr>
+            <tr><td><code>lista[indice]</code></td><td>Indexacao e atribuicao</td></tr>
+            <tr><td><code>{"chave": valor}</code></td><td>Literal de dicionario</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="leitura-arquivo">
+        <h2><a href="#leitura-arquivo">#</a> Leitura de arquivo via modulo sfs</h2>
+        <p>O modulo nativo <code>sfs</code> fornece operacoes de arquivo seguras:</p>
+        <pre><code>import "sfs"
 
 class main {
     fun start() {
@@ -42,18 +152,42 @@ class main {
         print(text)
     }
 }</code></pre>
+        <table>
+          <thead><tr><th>Conceito</th><th>Demonstrado</th></tr></thead>
+          <tbody>
+            <tr><td><code>import "sfs"</code></td><td>Importacao de modulo nativo</td></tr>
+            <tr><td><code>sfs::read()</code></td><td>Leitura de arquivo como string</td></tr>
+          </tbody>
+        </table>
+      </section>
 
-      <h2>Flags de CPU</h2>
-      <pre><code>class main {
+      <section id="flags-cpu">
+        <h2><a href="#flags-cpu">#</a> Flags de CPU (bit operations)</h2>
+        <p>Operacoes de bits e flags do perfil Systems. Exige estar dentro do perfil correto:</p>
+        <pre><code>class main {
     fun start() {
         let flags: u8 = flag_write(0, 7, true)
         let negative: bool = flag_has(flags, 7)
         print("N={negative}\n")
+
+        let masked: u8 = flags & 0b1000_0000
+        print("masked={masked}\n")
     }
 }</code></pre>
+        <table>
+          <thead><tr><th>Conceito</th><th>Demonstrado</th></tr></thead>
+          <tbody>
+            <tr><td><code>flag_write</code></td><td>Escreve um bit em posicao</td></tr>
+            <tr><td><code>flag_has</code></td><td>Testa se um bit esta ligado</td></tr>
+            <tr><td><code>&</code></td><td>Operador bitwise AND</td></tr>
+          </tbody>
+        </table>
+      </section>
 
-      <h2>Memoria crua</h2>
-      <pre><code>class main {
+      <section id="memoria-crua">
+        <h2><a href="#memoria-crua">#</a> Memoria crua (bloco @unsafe)</h2>
+        <p>O perfil Systems permite acesso a memoria crua dentro de blocos <code>@unsafe</code>. Fora deles, o compilador bloqueia o uso:</p>
+        <pre><code>class main {
     fun start() {
         @unsafe {
             let mem: ptr = mem_alloc_zero(256)
@@ -64,13 +198,121 @@ class main {
         }
     }
 }</code></pre>
+        <div class="callout warn">
+          O uso de <code>@unsafe</code> desliga garantias de memoria para o bloco. Prefira o sistema OM
+          sempre que possivel.
+        </div>
+        <table>
+          <thead><tr><th>Conceito</th><th>Demonstrado</th></tr></thead>
+          <tbody>
+            <tr><td><code>@unsafe { ... }</code></td><td>Bloco de memoria nao segura</td></tr>
+            <tr><td><code>mem_alloc_zero</code></td><td>Aloca memoria inicializada com zero</td></tr>
+            <tr><td><code>mem_write_u8 / mem_read_u8</code></td><td>Acesso a byte na memoria</td></tr>
+            <tr><td><code>mem_free</code></td><td>Libera memoria alocada</td></tr>
+          </tbody>
+        </table>
+      </section>
 
-      <h2>Apps no repositorio</h2>
-      <div class="grid">
-        <article class="card"><h3>NES emulator</h3><p>`apps/nes_emulator` e laboratorio real do perfil systems.</p></article>
-        <article class="card"><h3>Snask Store</h3><p>`apps/snask_store` exercita GUI nativa experimental.</p></article>
-        <article class="card"><h3>Snask Vault</h3><p>`apps/snask_vault` exercita storage e app UI.</p></article>
-      </div>
+      <section id="zona-om">
+        <h2><a href="#zona-om">#</a> Uso de zona OM</h2>
+        <p>O Object Memory system gerencia alocacao por zonas. Recursos sao registrados e liberados automaticamente ao final da zona:</p>
+        <pre><code>import "om"
+
+class main {
+    fun start() {
+        om::zone_new("leitura")
+        let arquivo = om::resource_open("dados.txt")
+        let dados = om::resource_read(arquivo)
+        om::zone_end("leitura")
+        print(dados)
+    }
+}</code></pre>
+        <div class="callout">
+          OM e <span class="status experimental">experimental</span>. A API pode mudar. Consulte
+          <a href="../reference/status.html">Status Real</a> para detalhes.
+        </div>
+      </section>
+
+      <section id="string-interpolation">
+        <h2><a href="#string-interpolation">#</a> Interpolacao de strings</h2>
+        <p>Strings aceitam interpolacao de variaveis e tipos primitivos dentro de chaves:</p>
+        <pre><code>class main {
+    fun start() {
+        let nome = "Snask"
+        let versao = "0.1"
+        let ano = 2025
+        print("Bem-vindo ao {nome} v{versao} ({ano})\n")
+    }
+}</code></pre>
+        <table>
+          <thead><tr><th>Expressao</th><th>Resultado</th></tr></thead>
+          <tbody>
+            <tr><td><code>"ola {nome}"</code></td><td>Interpola variavel <code>nome</code></td></tr>
+            <tr><td><code>"v{versao}"</code></td><td>Interpola string adjacente</td></tr>
+            <tr><td><code>"({ano})"</code></td><td>Interpola inteiro</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="http-get">
+        <h2><a href="#http-get">#</a> HTTP GET request</h2>
+        <p>O modulo nativo <code>http</code> permite requisicoes HTTP simples:</p>
+        <pre><code>import "http"
+
+class main {
+    fun start() {
+        let res: str = http::get("https://api.example.com/data")
+        print(res)
+    }
+}</code></pre>
+        <div class="callout warn">
+          O modulo HTTP requer conectividade de rede. Exemplos que dependem de rede externa sao
+          marcados com <code># skip-ci</code> e nao bloqueiam o pipeline.
+        </div>
+      </section>
+
+      <section id="json-parse">
+        <h2><a href="#json-parse">#</a> JSON parsing</h2>
+        <p>O modulo nativo <code>json</code> permite parsear e consultar dados JSON:</p>
+        <pre><code>import "json"
+
+class main {
+    fun start() {
+        let dados = json::parse('{"nome": "Snask", "ano": 2025}')
+        let nome = json::get(dados, "nome")
+        let ano = json::get(dados, "ano")
+        print("{nome} ({ano})\n")
+    }
+}</code></pre>
+        <table>
+          <thead><tr><th>Funcao</th><th>Descricao</th></tr></thead>
+          <tbody>
+            <tr><td><code>json::parse()</code></td><td>Converte string JSON para objeto interno</td></tr>
+            <tr><td><code>json::get(objeto, chave)</code></td><td>Acessa campo do objeto</td></tr>
+            <tr><td><code>json::stringify()</code></td><td>Converte objeto de volta para string</td></tr>
+            <tr><td><code>json::has(objeto, chave)</code></td><td>Verifica se chave existe</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="apps">
+        <h2><a href="#apps">#</a> Apps no repositorio</h2>
+        <p>O repositorio inclui aplicacoes reais que exercitam diferentes aspectos da linguagem:</p>
+        <div class="grid">
+          <article class="card">
+            <h3>NES Emulator</h3>
+            <p><code>apps/nes_emulator</code> e um laboratorio real do perfil Systems. Exercita memoria crua, operacoes de bits, flags de CPU e rendering.</p>
+          </article>
+          <article class="card">
+            <h3>Snask Store</h3>
+            <p><code>apps/snask_store</code> exercita GUI nativa experimental, gerenciamento de estado e comunicacao HTTP.</p>
+          </article>
+          <article class="card">
+            <h3>Snask Vault</h3>
+            <p><code>apps/snask_vault</code> exercita storage persistente, criptografia basica e app UI com navegacao entre telas.</p>
+          </article>
+        </div>
+      </section>
     </main>
     <script src="../assets/site.js"></script>
   </body>

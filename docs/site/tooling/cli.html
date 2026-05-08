@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CLI Snask</title>
+    <title>CLI Snask — Referência Completa</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
+        <a href="../index.html">Início</a>
         <a href="../learn/getting-started.html">Aprender</a>
-        <a href="../reference/language.html">Referencia</a>
+        <a href="../reference/functions/index.html">Funções</a>
         <a href="../systems/om.html">OM</a>
         <a aria-current="page" href="installation.html">Tooling</a>
       </nav>
@@ -20,47 +23,401 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Tooling</h2>
-        <a href="installation.html">Instalacao</a>
-        <a href="cli.html">CLI</a>
+        <a href="installation.html">Instalação</a>
+        <a class="active" href="cli.html">CLI</a>
         <a href="sps.html">SPS e SNIF</a>
         <a href="lsp-neovim.html">LSP e Neovim</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
+
         <p class="eyebrow">Ferramentas</p>
-        <h1>CLI</h1>
+        <h1>CLI Snask</h1>
         <p class="lead">
-          A CLI `snask` e a entrada principal para compilar arquivos, projetos SPS, benchmarks
-          locais e experimentos systems.
+          A interface de linha de comando <code>snask</code> é o ponto de entrada único para
+          compilar, executar, gerenciar projetos, escanear bindings C, validar manifestos e
+          diagnosticar a instalação. Esta referência cobre todos os subcomandos e flags disponíveis.
         </p>
 
-        <h2>Build de arquivo</h2>
-        <pre><code>snask build main.snask --output app
+        <nav class="breadcrumbs">
+          <a href="#build">snask build</a> &middot;
+          <a href="#run">snask run</a> &middot;
+          <a href="#setup">snask setup</a> &middot;
+          <a href="#init">snask init</a> &middot;
+          <a href="#doctor">snask doctor</a> &middot;
+          <a href="#add-remove">snask add / remove</a> &middot;
+          <a href="#om">snask om scan</a> &middot;
+          <a href="#explain">snask explain</a> &middot;
+          <a href="#snif">snask snif</a> &middot;
+          <a href="#profiles">Perfis</a> &middot;
+          <a href="#size-flags">Flags de tamanho</a>
+        </nav>
+
+        <section id="build">
+          <h2><code>snask build</code></h2>
+          <p>
+            Compila um ou mais arquivos Snask. Pode ser usado no modo <strong>avulso</strong>
+            (passando um arquivo fonte diretamente) ou no modo <strong>projeto</strong>
+            (dentro de um diretório SPS com <code>snask.snif</code>).
+          </p>
+
+          <h3>Modo avulso</h3>
+          <p>Compila um único arquivo sem necessidade de manifesto:</p>
+          <pre><code>snask build main.snask --output app
 ./app</code></pre>
-        <p>Sem `--profile`, o compilador usa `humane`.</p>
+          <p>
+            O argumento posicional é o caminho para o arquivo de entrada. A flag
+            <code>--output</code> (ou <code>-o</code>) define o nome do binário gerado.
+            Se omitida, o compilador usa o nome do arquivo sem extensão.
+          </p>
 
-        <h2>Build com perfil</h2>
-        <pre><code>snask build apps/nes_emulator/nes_master.snask --profile systems --output /tmp/snask_nes</code></pre>
+          <h3>Modo projeto (SPS)</h3>
+          <p>
+            Dentro de um diretório que contém <code>snask.snif</code>, o comando sem argumentos
+            lê as configurações do manifesto automaticamente:
+          </p>
+          <pre><code>cd meu_projeto
+snask build</code></pre>
+          <p>
+            O manifesto define a entrada principal (<code>main</code>), perfil de compilação,
+            dependências e scripts. O comando respeita todas as seções do <code>snask.snif</code>
+            e gera o lockfile <code>snask.lock</code> automaticamente.
+          </p>
 
-        <h2>Projetos SPS</h2>
-        <pre><code>snask setup
-snask build
-snask run</code></pre>
+          <div class="callout">
+            <strong>Dica:</strong> use <code>--release-size</code>, <code>--min-runtime</code>,
+            <code>--tiny</code> ou <code>--extreme</code> para controlar o nível de
+            otimização de tamanho do binário. Consulte a seção
+            <a href="#size-flags">Flags de tamanho</a> para detalhes.
+          </div>
+        </section>
 
-        <h2>Flags de tamanho</h2>
-        <table>
-          <thead><tr><th>Flag</th><th>Uso</th></tr></thead>
-          <tbody>
-            <tr><td><code>--release-size</code></td><td>Build otimizado para tamanho.</td></tr>
-            <tr><td><code>--min-runtime</code></td><td>Remove partes opcionais do runtime.</td></tr>
-            <tr><td><code>--tiny</code></td><td>Modo mais agressivo para binarios pequenos.</td></tr>
-            <tr><td><code>--extreme</code></td><td>Experimento de tamanho minimo, com restricoes maiores.</td></tr>
-          </tbody>
-        </table>
+        <section id="run">
+          <h2><code>snask run</code></h2>
+          <p>
+            Compila e executa o projeto em um único passo. Equivalente a executar
+            <code>snask build && ./&lt;output&gt;</code>.
+          </p>
+          <pre><code>snask run</code></pre>
+          <p>
+            O nome do binário é resolvido a partir do manifesto <code>snask.snif</code> ou
+            do nome do diretório. A saída é armazenada em um diretório temporário ou no
+            diretório <code>build/</code> do projeto.
+          </p>
+          <div class="callout warn">
+            <strong>Atenção:</strong> em projetos com perfil <code>systems</code>, certifique-se
+            de que o ambiente tenha as permissões necessárias, pois o binário pode acessar
+            hardware ou memória diretamente.
+          </div>
+        </section>
+
+        <section id="setup">
+          <h2><code>snask setup</code></h2>
+          <p>
+            Configura o ambiente de desenvolvimento: instala o plugin Neovim
+            (<code>snask.nvim</code>), adiciona o diretório de binários ao PATH e verifica
+            as dependências do sistema.
+          </p>
+          <pre><code>snask setup</code></pre>
+          <p>O comando realiza as seguintes etapas:</p>
+          <table>
+            <thead><tr><th>Etapa</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td>Neovim plugin</td><td>Copia <code>snask.nvim</code> para o diretório de plugins do Neovim</td></tr>
+              <tr><td>PATH</td><td>Adiciona <code>~/.snask/bin</code> ao <code>~/.bashrc</code> ou <code>~/.zshrc</code></td></tr>
+              <tr><td>Verificação LLVM</td><td>Confirma que o LLVM 18 está instalado e acessível</td></tr>
+              <tr><td>LSP</td><td>Garante que <code>snask-lsp</code> está presente e funcional</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="init">
+          <h2><code>snask init</code></h2>
+          <p>
+            Cria um novo projeto SPS (Snask Project System) com a estrutura de diretórios
+            padrão e um manifesto <code>snask.snif</code> gerado automaticamente.
+          </p>
+          <pre><code>snask init meu_app
+cd meu_app
+snask build</code></pre>
+          <p>A estrutura gerada é:</p>
+          <pre><code>meu_app/
+  snask.snif        # Manifesto do projeto
+  src/
+    main.snask      # Ponto de entrada
+  snask.lock        # Lockfile (gerado no primeiro build)</code></pre>
+          <p>
+            O comando aceita um único argumento: o nome do diretório do projeto. Se o diretório
+            já existir, o comando falha a menos que a flag <code>--force</code> seja fornecida.
+          </p>
+          <div class="callout">
+            <strong>Nota:</strong> o manifesto gerado usa o perfil <code>humane</code> como
+            padrão. Para projetos <code>systems</code>, edite o campo <code>profile</code>
+            manualmente no <code>snask.snif</code>.
+          </div>
+        </section>
+
+        <section id="doctor">
+          <h2><code>snask doctor</code></h2>
+          <p>
+            Diagnostica a instalação do Snask e do ecossistema. Verifica a presença do
+            compilador, LSP, LLVM, Neovim (opcional) e dependências de sistema.
+          </p>
+          <pre><code>snask doctor</code></pre>
+          <p>Saída típica:</p>
+          <pre><code>Snask 0.4.1-alpha
+  Compilador:     /usr/bin/snask
+  LSP:            /usr/bin/snask-lsp
+  LLVM:           18.1.6
+  Neovim:         0.10.0
+  Dependências:   OK</code></pre>
+          <p>
+            Se alguma verificação falhar, o comando exibe uma mensagem descritiva e sugere
+            ações corretivas. Ideal para usar após a instalação ou ao encontrar erros
+            inesperados.
+          </p>
+        </section>
+
+        <section id="add-remove">
+          <h2><code>snask add</code> / <code>snask remove</code></h2>
+          <p>
+            Gerencia dependências do projeto adicionando ou removendo entradas na seção
+            <code>[dependencies]</code> do <code>snask.snif</code>, com resolução de
+            versões e atualização do lockfile.
+          </p>
+          <pre><code>snask add logger
+snask add json@1.0.0
+snask remove logger</code></pre>
+          <table>
+            <thead><tr><th>Comando</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>snask add &lt;pacote&gt;</code></td><td>Adiciona a dependência na versão mais recente compatível</td></tr>
+              <tr><td><code>snask add &lt;pacote&gt;@&lt;versão&gt;</code></td><td>Adiciona com versão específica</td></tr>
+              <tr><td><code>snask add &lt;pacote&gt; --registry &lt;url&gt;</code></td><td>Adiciona de um registry customizado</td></tr>
+              <tr><td><code>snask remove &lt;pacote&gt;</code></td><td>Remove a dependência do manifesto e lockfile</td></tr>
+            </tbody>
+          </table>
+          <div class="callout warn">
+            <strong>Status: parcial.</strong> A resolução de dependências avançada (gráfico
+            completo, resolução de conflitos) ainda está em maturação. Para projetos simples
+            o funcionamento é estável.
+          </div>
+        </section>
+
+        <section id="om">
+          <h2><code>snask om scan</code></h2>
+          <p>
+            Escaneia um cabeçalho C e gera bindings OM (Object Model) para uso no Snask.
+            Essencial para interoperar com bibliotecas C existentes.
+          </p>
+          <pre><code>snask om scan /usr/include/sdl2/SDL.h --lib SDL2 --output om/SDL.om</code></pre>
+          <table>
+            <thead><tr><th>Flag</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>&lt;header&gt;</code></td><td>Caminho para o arquivo de cabeçalho C a ser escaneado</td></tr>
+              <tr><td><code>--lib &lt;nome&gt;</code></td><td>Nome da biblioteca (usado nos nomes dos módulos gerados)</td></tr>
+              <tr><td><code>--output &lt;caminho&gt;</code></td><td>Diretório ou arquivo de saída para os bindings</td></tr>
+              <tr><td><code>--sysroot &lt;dir&gt;</code></td><td>Diretório raiz do sistema (para cross-compilação)</td></tr>
+              <tr><td><code>--include &lt;dir&gt;</code></td><td>Diretório adicional de includes</td></tr>
+            </tbody>
+          </table>
+          <p>
+            O scanner processa <code>#define</code>, <code>typedef</code>, <code>struct</code>,
+            <code>enum</code> e protótipos de função, gerando bindings tipados e seguros.
+          </p>
+        </section>
+
+        <section id="explain">
+          <h2><code>snask explain</code></h2>
+          <p>
+            Exibe uma explicação detalhada para códigos de erro, diagnóstico ou aviso
+            emitidos pelo compilador.
+          </p>
+          <pre><code>snask explain S1002
+snask explain T4001
+snask explain W2005</code></pre>
+          <p>
+            Cada código segue o formato <strong>X####</strong>, onde a letra indica a
+            categoria:
+          </p>
+          <table>
+            <thead><tr><th>Código</th><th>Categoria</th><th>Exemplo</th></tr></thead>
+            <tbody>
+              <tr><td><code>S</code></td><td>Sintaxe</td><td><code>S1002</code> — token inesperado</td></tr>
+              <tr><td><code>T</code></td><td>Tipo</td><td><code>T4001</code> — incompatibilidade de tipos</td></tr>
+              <tr><td><code>W</code></td><td>Aviso (warning)</td><td><code>W2005</code> — variável não utilizada</td></tr>
+              <tr><td><code>M</code></td><td>Memória</td><td><code>M3001</code> — vazamento de zona detectado</td></tr>
+              <tr><td><code>L</code></td><td>Linking</td><td><code>L1000</code> — símbolo não encontrado</td></tr>
+              <tr><td><code>I</code></td><td>Interno do compilador</td><td><code>I0001</code> — erro no backend LLVM</td></tr>
+            </tbody>
+          </table>
+          <div class="callout">
+            <strong>Dica:</strong> consulte a página <a href="../reference/diagnostics.html">Diagnósticos</a>
+            para a lista completa de códigos e suas descrições.
+          </div>
+        </section>
+
+        <section id="snif">
+          <h2><code>snask snif</code></h2>
+          <p>
+            Subcomando dedicado ao formato SNIF (Snask Native Interchange Format). Inclui
+            ferramentas de formatação, validação e geração de esquema.
+          </p>
+
+          <h3><code>snask snif fmt</code></h3>
+          <p>Formata um arquivo SNIF, normalizando indentação, espaçamento e ordem dos campos:</p>
+          <pre><code>snask snif fmt snask.snif
+snask snif fmt snask.snif --write</code></pre>
+          <p>
+            Sem <code>--write</code>, a saída formatada é exibida no terminal. Com
+            <code>--write</code>, o arquivo é sobrescrito in-place.
+          </p>
+
+          <h3><code>snask snif schema</code></h3>
+          <p>Exibe o esquema atual do formato SNIF em diferentes formatos:</p>
+          <pre><code>snask snif schema          # esquema textual
+snask snif schema --md     # tabela Markdown</code></pre>
+          <p>
+            A saída em Markdown é útil para documentação ou para incluir em READMEs.
+            O esquema lista todos os campos válidos, tipos esperados e se são obrigatórios.
+          </p>
+
+          <h3><code>snask snif check</code></h3>
+          <p>Valida um arquivo SNIF contra o esquema oficial:</p>
+          <pre><code>snask snif check snask.snif</code></pre>
+          <p>
+            O validador verifica tipos de campo, valores permitidos, integridade estrutural
+            e consistência das referências. Retorna código 0 se válido, ou lista os erros
+            encontrados.
+          </p>
+
+          <table>
+            <thead><tr><th>Subcomando</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>snif fmt &lt;arquivo&gt; [--write]</code></td><td>Formata arquivo SNIF</td></tr>
+              <tr><td><code>snif schema [--md]</code></td><td>Exibe o esquema SNIF</td></tr>
+              <tr><td><code>snif check &lt;arquivo&gt;</code></td><td>Valida arquivo contra o esquema</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="profiles">
+          <h2>Perfis de compilação</h2>
+          <p>
+            O Snask oferece dois perfis de compilação que controlam o nível de abstração,
+            segurança de memória e acesso a hardware. O perfil é definido via flag
+            <code>--profile</code> ou no manifesto <code>snask.snif</code>.
+          </p>
+          <table>
+            <thead><tr><th>Perfil</th><th>Flag</th><th>Padrão</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><strong>Humane</strong></td>
+                <td><code>--profile humane</code></td>
+                <td>Sim</td>
+                <td>
+                  Gerenciamento automático de memória via zonas. Sem ponteiros crus.
+                  Foco em produtividade e segurança. Ideal para aplicações, scripts e
+                  ferramentas do dia a dia.
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Systems</strong></td>
+                <td><code>--profile systems</code></td>
+                <td>Não</td>
+                <td>
+                  Acesso a ponteiros, alocação manual, operações de bits e hardware.
+                  Exige blocos <code>@unsafe</code>. Ideal para kernels, drivers,
+                  emuladores e sistemas embarcados.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <pre><code># Humane (padrão)
+snask build main.snask --output app
+
+# Systems
+snask build main.snask --profile systems --output app</code></pre>
+          <div class="callout">
+            <strong>Convivência:</strong> os dois perfis podem coexistir no mesmo programa.
+            Você começa no perfil Humane e ativa Systems apenas nos módulos que precisam
+            de acesso de baixo nível.
+          </div>
+        </section>
+
+        <section id="size-flags">
+          <h2>Flags de otimização de tamanho</h2>
+          <p>
+            Flags que controlam o nível de otimização voltado à redução do tamanho do
+            binário gerado. Podem ser combinadas com o perfil de compilação.
+          </p>
+          <table>
+            <thead><tr><th>Flag</th><th>Descrição</th><th>Uso típico</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>--release-size</code></td>
+                <td>Build otimizado para tamanho. Ativa passes do LLVM focados em <code>Oz</code>.</td>
+                <td>Redução geral de tamanho sem sacrificar funcionalidade.</td>
+              </tr>
+              <tr>
+                <td><code>--min-runtime</code></td>
+                <td>Remove partes opcionais do runtime (coletor de zonas, diagnóstico de memória, debug symbols).</td>
+                <td>Binários mínimos para distribuição ou embedded.</td>
+              </tr>
+              <tr>
+                <td><code>--tiny</code></td>
+                <td>Modo mais agressivo que combina <code>--release-size</code> e <code>--min-runtime</code> com stripping total de símbolos.</td>
+                <td>Projetos com restrições severas de espaço.</td>
+              </tr>
+              <tr>
+                <td><code>--extreme</code></td>
+                <td>Experimento de tamanho mínimo. Remove ainda mais componentes do runtime e aplica transformações experimentais no LLVM.</td>
+                <td>Pesquisa e exploração de limites. Pode quebrar funcionalidades.</td>
+              </tr>
+            </tbody>
+          </table>
+          <pre><code>snask build main.snask --output app --release-size
+snask build main.snask --output app --tiny
+snask build main.snask --output app --extreme</code></pre>
+          <div class="callout warn">
+            <strong>Cuidado:</strong> as flags <code>--tiny</code> e <code>--extreme</code>
+            podem remover funcionalidades do runtime que seu programa utiliza. Teste
+            exaustivamente antes de distribuir o binário.
+          </div>
+        </section>
+
+        <section id="global-flags">
+          <h2>Flags globais</h2>
+          <table>
+            <thead><tr><th>Flag</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>--help</code></td><td>Exibe ajuda do comando ou subcomando</td></tr>
+              <tr><td><code>--version</code></td><td>Exibe a versão do Snask</td></tr>
+              <tr><td><code>--verbose</code></td><td>Saída detalhada com informações de depuração</td></tr>
+              <tr><td><code>--quiet</code></td><td>Suprime saída não essencial</td></tr>
+              <tr><td><code>--color</code></td><td>Força ou desativa cores na saída (<code>always</code> / <code>never</code> / <code>auto</code>)</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="exit-codes">
+          <h2>Códigos de saída</h2>
+          <table>
+            <thead><tr><th>Código</th><th>Significado</th></tr></thead>
+            <tbody>
+              <tr><td><code>0</code></td><td>Sucesso</td></tr>
+              <tr><td><code>1</code></td><td>Erro genérico (falha de compilação, validação, etc.)</td></tr>
+              <tr><td><code>2</code></td><td>Erro de uso (flag inválida, argumento faltando)</td></tr>
+              <tr><td><code>3</code></td><td>Erro de instalação (LLVM ausente, LSP não encontrado)</td></tr>
+              <tr><td><code>4</code></td><td>Erro de configuração (manifesto inválido, lockfile corrompido)</td></tr>
+            </tbody>
+          </table>
+        </section>
 
         <div class="callout">
-          Use `docs/reference/FEATURE_STATUS.md` como fonte de verdade quando uma flag ainda
-          estiver marcada como parcial ou experimental.
+          Consulte <code>docs/reference/FEATURE_STATUS.md</code> como fonte de verdade quando
+          uma flag ou comando ainda estiver marcado como parcial ou experimental.
         </div>
+
       </main>
     </div>
     <script src="../assets/site.js"></script>

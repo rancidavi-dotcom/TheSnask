@@ -3,14 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tipos Snask</title>
+    <title>Sistema de Tipos Snask</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
+        <a href="../index.html">Início</a>
         <a href="../learn/getting-started.html">Aprender</a>
         <a aria-current="page" href="language.html">Referencia</a>
         <a href="../systems/om.html">OM</a>
@@ -28,47 +31,350 @@
         <a href="diagnostics.html">Diagnosticos</a>
         <a href="status.html">Status real</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
         <p class="eyebrow">Type system</p>
-        <h1>Tipos</h1>
+        <h1>Sistema de Tipos Snask</h1>
         <p class="lead">
-          O type system da Snask esta ficando mais forte. O nucleo estavel hoje inclui primitivos,
-          colecoes genericas simples e tipos nominais simples.
+          O sistema de tipos da Snask combina um núcleo estável de primitivos e coleções
+          genéricas com tipos nominais e um subsistema de tipos de baixo nível para o
+          perfil <code>systems</code>. Esta página documenta cada categoria, seu uso e
+          status atual.
         </p>
 
-        <h2>Primitivos</h2>
-        <table>
-          <thead><tr><th>Tipo</th><th>Uso</th></tr></thead>
-          <tbody>
-            <tr><td><code>int</code></td><td>Inteiro geral.</td></tr>
-            <tr><td><code>float</code></td><td>Numero de ponto flutuante.</td></tr>
-            <tr><td><code>str</code></td><td>String.</td></tr>
-            <tr><td><code>bool</code></td><td><code>true</code> ou <code>false</code>.</td></tr>
-          </tbody>
-        </table>
+        <nav class="toc">
+          <h2>Conteúdo</h2>
+          <ul>
+            <li><a href="#primitives">Tipos Primitivos</a></li>
+            <li><a href="#systems-types">Tipos Systems</a></li>
+            <li><a href="#collections">Coleções Genéricas</a></li>
+            <li><a href="#class-types">Tipos Nominais (Classes)</a></li>
+            <li><a href="#annotations">Anotações de Tipo</a></li>
+            <li><a href="#inference">Inferência de Tipos</a></li>
+            <li><a href="#string-interpolation">Tipos na Interpolação</a></li>
+            <li><a href="#om-resources">Tipos de Recurso OM</a></li>
+            <li><a href="#type-status">Status por Categoria</a></li>
+          </ul>
+        </nav>
 
-        <h2>Colecoes</h2>
-        <pre><code>let names: list&lt;str&gt; = ["ana", "bia"]
-let scores: dict&lt;str, int&gt; = { "ana": 10 }</code></pre>
+        <section id="primitives">
+          <h2>Tipos Primitivos</h2>
+          <p>
+            Os quatro tipos primitivos formam a base de toda a linguagem. Eles estão
+            disponíveis em todos os perfis de compilação.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Descrição</th>
+                <th>Literais</th>
+                <th>Exemplo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>int</code></td>
+                <td>Inteiro com sinal do tamanho da palavra da máquina</td>
+                <td><code>42</code>, <code>-7</code>, <code>0xFF</code>, <code>0b1010</code></td>
+                <td><code>let x: int = 10</code></td>
+              </tr>
+              <tr>
+                <td><code>float</code></td>
+                <td>Ponto flutuante de 64 bits (IEEE 754)</td>
+                <td><code>3.14</code>, <code>1.5e-10</code></td>
+                <td><code>let pi: float = 3.14159</code></td>
+              </tr>
+              <tr>
+                <td><code>str</code></td>
+                <td>String UTF-8 imutável</td>
+                <td><code>"ola"</code>, <code>"{x}\n"</code></td>
+                <td><code>let s: str = "Snask"</code></td>
+              </tr>
+              <tr>
+                <td><code>bool</code></td>
+                <td>Valor booleano</td>
+                <td><code>true</code>, <code>false</code></td>
+                <td><code>let ok: bool = true</code></td>
+              </tr>
+            </tbody>
+          </table>
 
-        <h2>Nominais</h2>
-        <pre><code>class Animal {
-    let age: int = 0
+          <h3>Detalhes: int</h3>
+          <p>
+            O tipo <code>int</code> é a representação nativa de inteiro com sinal.
+            Em plataformas de 64 bits, é equivalente a <code>i64</code>; em plataformas
+            de 32 bits, a <code>i32</code>. Operações aritméticas entre dois <code>int</code>
+            produzem <code>int</code>. Mistura com <code>float</code> segue as regras
+            de coerção numérica.
+          </p>
+
+          <h3>Detalhes: float</h3>
+          <p>
+            O tipo <code>float</code> segue o padrão IEEE 754 de precisão dupla (64 bits).
+            Literais devem conter um ponto decimal ou notação científica.
+          </p>
+
+          <h3>Detalhes: str</h3>
+          <p>
+            Strings são sequências de bytes codificadas em UTF-8. São imutáveis por padrão.
+            O runtime garante que strings sejam terminadas em nulo para compatibilidade com C.
+            A interpolação <code>"{expr}"</code> converte automaticamente qualquer expressão
+            para string.
+          </p>
+
+          <h3>Detalhes: bool</h3>
+          <p>
+            O tipo <code>bool</code> tem dois valores: <code>true</code> e <code>false</code>.
+            Os operadores lógicos <code>and</code>, <code>or</code> e <code>not</code>
+            operam exclusivamente sobre booleanos. Comparações como <code>==</code>,
+            <code>!=</code>, <code>&lt;</code>, etc. produzem <code>bool</code>.
+          </p>
+          <p><span class="status stable">estavel</span> Todos os quatro tipos primitivos.</p>
+        </section>
+
+        <section id="systems-types">
+          <h2>Tipos Systems</h2>
+          <p>
+            O perfil <code>systems</code> expõe tipos de tamanho fixo para programação
+            de baixo nível. Eles são usados pelas primitivas NES, operações de bits e
+            interface com hardware. O layout e ABI ainda estão em fase de fechamento.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Tamanho</th>
+                <th>Intervalo</th>
+                <th>Uso típico</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>u8</code></td><td>1 byte</td><td>0 a 255</td><td>Byte, pixel, register de 8 bits</td></tr>
+              <tr><td><code>u16</code></td><td>2 bytes</td><td>0 a 65535</td><td>Endereço NES, word de 16 bits</td></tr>
+              <tr><td><code>u32</code></td><td>4 bytes</td><td>0 a 2³²-1</td><td>Dword, tamanho de arquivo</td></tr>
+              <tr><td><code>u64</code></td><td>8 bytes</td><td>0 a 2⁶⁴-1</td><td>Qword, timestamps</td></tr>
+              <tr><td><code>i8</code></td><td>1 byte</td><td>-128 a 127</td><td>Signed byte</td></tr>
+              <tr><td><code>i16</code></td><td>2 bytes</td><td>-32768 a 32767</td><td>Signed word</td></tr>
+              <tr><td><code>i32</code></td><td>4 bytes</td><td>-2³¹ a 2³¹-1</td><td>Signed dword</td></tr>
+              <tr><td><code>i64</code></td><td>8 bytes</td><td>-2⁶³ a 2⁶³-1</td><td>Signed qword</td></tr>
+              <tr><td><code>usize</code></td><td>palavra da máquina</td><td>0 a 2^(n)-1</td><td>Tamanho de memória, índices</td></tr>
+              <tr><td><code>isize</code></td><td>palavra da máquina</td><td>-2^(n-1) a 2^(n-1)-1</td><td>Offset com sinal</td></tr>
+              <tr><td><code>ptr</code></td><td>palavra da máquina</td><td>endereço de memória</td><td>Ponteiro cru (requer @unsafe)</td></tr>
+            </tbody>
+          </table>
+          <pre><code>// Disciplina de tipos systems exige conversão explícita
+let byte: u8 = as_u8(255)
+let word: u16 = make_u16(lo, hi)
+let endereco: ptr = mem_alloc(64)</code></pre>
+          <p><span class="status partial">parcial</span> Tipos systems existem e são usados por primitivas NES, mas layout/ABI ainda precisa de fechamento completo.</p>
+        </section>
+
+        <section id="collections">
+          <h2>Coleções Genéricas</h2>
+          <p>
+            Snask tem duas coleções genéricas nativas. Ambas suportam literais com tipo
+            inferido, indexação e atribuição.
+          </p>
+
+          <h3>list&lt;T&gt;</h3>
+          <p>
+            Listas são sequências ordenadas e homogêneas de elementos do tipo <code>T</code>.
+            O acesso é feito por índice numérico começando em 0.
+          </p>
+          <pre><code>let vazia: list&lt;int&gt; = []
+let nums: list&lt;int&gt; = [1, 2, 3, 4, 5]
+let primeiro = nums[0]    // 1
+nums[2] = 42              // [1, 2, 42, 4, 5]
+
+let nomes: list&lt;str&gt; = ["Ana", "Bia", "Carlos"]
+for nome in nomes {
+    print("{nome}\n")
+}</code></pre>
+
+          <h3>dict&lt;K, V&gt;</h3>
+          <p>
+            Dicionários são mapas de chave-valor com chaves do tipo <code>K</code> e
+            valores do tipo <code>V</code>. As chaves devem ser comparáveis com <code>==</code>.
+          </p>
+          <pre><code>let vazio: dict&lt;str, int&gt; = {}
+let idades: dict&lt;str, int&gt; = { "Ana": 25, "Bia": 30 }
+let idade_ana = idades["Ana"]  // 25
+idades["Carlos"] = 35          // insere ou atualiza
+
+let lookup: dict&lt;int, str&gt; = { 1: "um", 2: "dois" }</code></pre>
+          <p><span class="status stable">estavel</span> Coleções genéricas para literais homogêneos, indexação e atribuição.</p>
+        </section>
+
+        <section id="class-types">
+          <h2>Tipos Nominais (Classes)</h2>
+          <p>
+            Snask usa tipagem nominal baseada em classes. Dois tipos são compatíveis
+            apenas se um é subtipo do outro por herança explícita com <code>extends</code>.
+          </p>
+          <pre><code>class Animal {
+    let idade: int = 0
 }
 
 class Dog extends Animal {
-    let name: str = "rex"
+    let nome: str = "rex"
 }
 
+let animal: Animal = new Dog()  // Dog é subtipo de Animal
 let dog: Dog = new Dog()
-let animal: Animal = dog</code></pre>
 
-        <h2>Systems</h2>
-        <p>
-          `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64`, `usize`, `isize` e `ptr`
-          existem para baixo nivel. Eles ja sao usados por primitivas systems/NES, mas ainda
-          precisam fechamento completo de layout/ABI.
-        </p>
+// animal.nome     // erro de tipo: Animal não tem campo 'nome'
+// let err: Dog = animal  // erro: Animal não é subtipo de Dog</code></pre>
+
+          <h3>Propriedades e métodos</h3>
+          <p>
+            Campos de classe são acessados com <code>.</code> e são imutáveis por padrão
+            (a menos que declarados com <code>mut</code>). Métodos são funções declaradas
+            dentro do corpo da classe e têm acesso aos campos da instância.
+          </p>
+          <pre><code>class Contador {
+    let valor: int = 0
+
+    fun incrementar() {
+        valor = valor + 1
+    }
+
+    fun total() -> int {
+        return valor
+    }
+}
+
+let c = new Contador()
+c.incrementar()
+print("{c.total()}\n")</code></pre>
+          <p><span class="status stable">estavel</span> Classes nominais com herança, subtipagem e new.</p>
+        </section>
+
+        <section id="annotations">
+          <h2>Anotações de Tipo</h2>
+          <p>
+            Snask permite anotar explicitamente o tipo de qualquer declaração usando
+            a sintaxe <code>: Tipo</code>. A anotação é opcional na maioria dos contextos
+            e pode ser usada para documentação ou para restringir a inferência.
+          </p>
+          <pre><code>let nome: str = "ola"
+let idade: int = 25
+let altura: float = 1.75
+let ativo: bool = true
+
+fun soma(a: int, b: int) -> int {
+    return a + b
+}
+
+let lista: list&lt;str&gt; = ["a", "b"]
+let mapa: dict&lt;str, int&gt; = { "chave": 1 }</code></pre>
+          <p>
+            Anotações de tipo são obrigatórias em parâmetros de função e no tipo de
+            retorno quando a função é exportada de um módulo.
+          </p>
+          <p><span class="status stable">estavel</span> Anotações de tipo com <code>: Tipo</code>.</p>
+        </section>
+
+        <section id="inference">
+          <h2>Inferência de Tipos</h2>
+          <p>
+            Quando o tipo não é explicitamente anotado, Snask infere o tipo a partir
+            do valor da expressão. A inferência é local e monomórfica.
+          </p>
+          <pre><code>let x = 10        // infere int
+let y = 3.14      // infere float
+let s = "Snask"   // infere str
+let b = true      // infere bool
+let nums = [1, 2, 3]   // infere list&lt;int&gt;
+
+let resultado = soma(10, 20)  // infere int pelo retorno de soma()</code></pre>
+          <p>
+            A inferência funciona em declarações locais, retorno de funções e literais
+            de coleções homogêneas. Coleções vazias (<code>[]</code> ou <code>{}</code>)
+            exigem anotação explícita.
+          </p>
+          <p><span class="status stable">estavel</span> Inferência local de tipos.</p>
+        </section>
+
+        <section id="string-interpolation">
+          <h2>Tipos na Interpolação</h2>
+          <p>
+            A interpolação de strings <code>"{expr}"</code> aceita qualquer expressão
+            cujo tipo implemente a conversão para string. Todos os tipos primitivos,
+            coleções e classes têm conversão automática.
+          </p>
+          <pre><code>let nome = "Snask"
+let versao = 5
+let ativo = true
+let preco = 29.99
+
+let msg = "{nome}: v{versao}, ativo={ativo}, preco={preco}"
+// "Snask: v5, ativo=true, preco=29.99"</code></pre>
+          <p><span class="status stable">estavel</span> Interpolação com conversão automática para string.</p>
+        </section>
+
+        <section id="om-resources">
+          <h2>Tipos de Recurso OM</h2>
+          <p>
+            O modelo OM (Owned Memory) introduz tipos de recurso que funcionam como
+            handles opacos. Eles não podem ser copiados implicitamente — a transferência
+            de posse é explícita.
+          </p>
+          <pre><code>zone "recurso" {
+    let handle = abre_arquivo("dados.bin")
+    usa_recurso(handle)
+}  // handle é liberado automaticamente ao sair da zona</code></pre>
+          <p>
+            Tipos de recurso OM são criados por funções que retornam handles gerenciados.
+            O ciclo de vida é delimitado pela zona de alocação. A implementação formal
+            de escape analysis e borrow checking ainda está em desenvolvimento.
+          </p>
+          <p><span class="status experimental">experimental</span> Tipos de recurso OM — arquitetura existe, faltam regras estáticas completas.</p>
+        </section>
+
+        <section id="type-status">
+          <h2>Status por Categoria</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Categoria</th>
+                <th>Status</th>
+                <th>Observação</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Primitivos (int, float, str, bool)</td>
+                <td><span class="status stable">estavel</span></td>
+                <td>Núcleo estável e testado</td>
+              </tr>
+              <tr>
+                <td>Coleções genéricas (list, dict)</td>
+                <td><span class="status stable">estavel</span></td>
+                <td>Literais, indexação e atribuição funcionam</td>
+              </tr>
+              <tr>
+                <td>Classes nominais</td>
+                <td><span class="status stable">estavel</span></td>
+                <td>Herança, subtipagem, new</td>
+              </tr>
+              <tr>
+                <td>Anotações e inferência</td>
+                <td><span class="status stable">estavel</span></td>
+                <td>Inferência local e anotações explícitas</td>
+              </tr>
+              <tr>
+                <td>Tipos systems (u8, i8, etc.)</td>
+                <td><span class="status partial">parcial</span></td>
+                <td>Primitivas existem; layout/ABI em fechamento</td>
+              </tr>
+              <tr>
+                <td>Recursos OM</td>
+                <td><span class="status experimental">experimental</span></td>
+                <td>Zonas funcionam; borrow checking pendente</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
       </main>
     </div>
     <script src="../assets/site.js"></script>

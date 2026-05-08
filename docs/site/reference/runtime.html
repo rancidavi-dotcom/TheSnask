@@ -3,14 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Runtime e Builtins Snask</title>
+    <title>Runtime e Builtins — Referência Completa</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
+        <a href="../index.html">Início</a>
         <a href="../learn/getting-started.html">Aprender</a>
         <a aria-current="page" href="language.html">Referencia</a>
         <a href="../systems/om.html">OM</a>
@@ -28,61 +31,569 @@
         <a href="diagnostics.html">Diagnosticos</a>
         <a href="status.html">Status real</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
         <p class="eyebrow">Referencia</p>
-        <h1>Runtime e builtins</h1>
+        <h1>Runtime e Builtins — Referência Completa</h1>
         <p class="lead">
-          Builtins sao funcoes fornecidas pelo compilador/runtime. Algumas existem em `humane`,
-          outras so fazem sentido no perfil `systems` e algumas exigem `@unsafe`.
+          Builtins são funções fornecidas pelo compilador/runtime da Snask. Algumas
+          estão disponíveis em <code>humane</code>, outras exigem o perfil <code>systems</code>
+          e algumas requerem <code>@unsafe</code>. Cada função listada aqui possui uma
+          página dedicada com assinatura, exemplo e comando de teste.
         </p>
 
         <div class="actions">
-          <a class="button primary" href="functions/index.html">Abrir indice completo de funcoes</a>
+          <a class="button primary" href="functions/index.html">Abrir índice completo de funções</a>
         </div>
 
-        <h2>IO basico</h2>
-        <table>
-          <thead><tr><th>Funcao</th><th>Perfil</th><th>Observacao</th></tr></thead>
-          <tbody>
-            <tr><td><a href="functions/print.html"><code>print(value)</code></a></td><td><code>humane</code></td><td>Saida padrao do runtime.</td></tr>
-            <tr><td><a href="functions/println.html"><code>println()</code></a></td><td><code>humane</code></td><td>Quando disponivel, imprime com quebra de linha.</td></tr>
-          </tbody>
-        </table>
+        <nav class="toc">
+          <h2>Conteúdo</h2>
+          <ul>
+            <li><a href="#io">IO Básico</a></li>
+            <li><a href="#numeric-conversion">Conversão Numérica</a></li>
+            <li><a href="#parts">Partes (lo / hi / make)</a></li>
+            <li><a href="#math">Matemática</a></li>
+            <li><a href="#bits-cpu">Bits e CPU</a></li>
+            <li><a href="#memory-raw">Memória Crua</a></li>
+            <li><a href="#string">Operações de String</a></li>
+            <li><a href="#file-io">Arquivo e IO</a></li>
+            <li><a href="#sfs">Módulo SFS</a></li>
+            <li><a href="#json">JSON</a></li>
+            <li><a href="#http">HTTP</a></li>
+            <li><a href="#time">Tempo</a></li>
+            <li><a href="#gui">GUI (Experimental)</a></li>
+            <li><a href="#snaskgui">SnaskGUI (Experimental)</a></li>
+            <li><a href="#calc">Calc</a></li>
+            <li><a href="#range">Range</a></li>
+            <li><a href="#is">Predicados is_*</a></li>
+            <li><a href="#flatten">Flatten</a></li>
+            <li><a href="#unique">Unique</a></li>
+            <li><a href="#sort">Sort</a></li>
+          </ul>
+        </nav>
 
-        <h2>Inteiros e bits</h2>
-        <table>
-          <thead><tr><th>Grupo</th><th>Funcoes</th></tr></thead>
-          <tbody>
-            <tr><td>Conversao</td><td><code>as_u8</code>, <code>as_u16</code>, <code>as_u32</code>, <code>as_i8</code>, <code>as_i16</code>, <code>as_usize</code></td></tr>
-            <tr><td>Partes</td><td><code>lo_u8</code>, <code>hi_u8</code>, <code>make_u16</code></td></tr>
-            <tr><td>Flags</td><td><code>bit_test</code>, <code>bit_set</code>, <code>bit_clear</code>, <code>flag_write</code></td></tr>
-            <tr><td>CPU</td><td><code>carry_add_u8</code>, <code>borrow_sub_u8</code>, <code>overflow_add_i8</code>, <code>overflow_sub_i8</code></td></tr>
-          </tbody>
-        </table>
+        <section id="io">
+          <h2>IO Básico</h2>
+          <table>
+            <thead><tr><th>Função</th><th>Perfil</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><a href="functions/print.html"><code>print(value)</code></a></td><td><code>humane</code></td><td>Imprime o valor na saída padrão. Aceita qualquer tipo com conversão para string.</td></tr>
+              <tr><td><a href="functions/println.html"><code>println(value)</code></a></td><td><code>humane</code></td><td>Imprime o valor seguido de uma quebra de linha.</td></tr>
+            </tbody>
+          </table>
+          <pre><code>print("Hello, World!\n")
+println("Hello, World!")     // com quebra de linha automática
+print(42)                     // imprime "42"
+print("{nome}: {idade}\n")    // com interpolação</code></pre>
+          <p><span class="status stable">estavel</span> IO básico no perfil humane.</p>
+        </section>
 
-        <p>
-          Cada funcao acima tem pagina propria na <a href="functions/index.html">referencia de
-          funcoes</a>, com assinatura, status, exemplo e comando de teste quando existe exemplo
-          versionado.
-        </p>
+        <section id="numeric-conversion">
+          <h2>Conversão Numérica</h2>
+          <p>
+            Funções de conversão explícita entre tipos numéricos. Necessárias para
+            o perfil <code>systems</code> onde a coerção implícita não é permitida.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Entrada</th><th>Saída</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>as_u8(val)</code></td><td>int</td><td>u8</td><td>Converte para unsigned 8-bit (trunca)</td></tr>
+              <tr><td><code>as_u16(val)</code></td><td>int</td><td>u16</td><td>Converte para unsigned 16-bit</td></tr>
+              <tr><td><code>as_u32(val)</code></td><td>int</td><td>u32</td><td>Converte para unsigned 32-bit</td></tr>
+              <tr><td><code>as_u64(val)</code></td><td>int</td><td>u64</td><td>Converte para unsigned 64-bit</td></tr>
+              <tr><td><code>as_i8(val)</code></td><td>int</td><td>i8</td><td>Converte para signed 8-bit</td></tr>
+              <tr><td><code>as_i16(val)</code></td><td>int</td><td>i16</td><td>Converte para signed 16-bit</td></tr>
+              <tr><td><code>as_i32(val)</code></td><td>int</td><td>i32</td><td>Converte para signed 32-bit</td></tr>
+              <tr><td><code>as_i64(val)</code></td><td>int</td><td>i64</td><td>Converte para signed 64-bit</td></tr>
+              <tr><td><code>as_usize(val)</code></td><td>int</td><td>usize</td><td>Converte para usize (tamanho de memória)</td></tr>
+              <tr><td><code>as_isize(val)</code></td><td>int</td><td>isize</td><td>Converte para isize (offset com sinal)</td></tr>
+              <tr><td><code>num_to_str(val)</code></td><td>int/float</td><td>str</td><td>Converte número para string</td></tr>
+              <tr><td><code>str_to_num(s)</code></td><td>str</td><td>int</td><td>Converte string para inteiro</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let byte: u8 = as_u8(255)
+let grande: u64 = as_u64(1_000_000)
+let s = num_to_str(42)     // "42"
+let n = str_to_num("42")   // 42</code></pre>
+          <p><span class="status stable">estavel</span> Conversão explícita entre tipos numéricos.</p>
+        </section>
 
-        <h2>Memoria crua</h2>
-        <p>
-          Funcoes de memoria crua sao para systems programming. Elas ficam protegidas por
-          `@unsafe` porque podem invalidar garantias comuns de memoria.
-        </p>
-        <table>
-          <thead><tr><th>Funcao</th><th>Uso</th></tr></thead>
-          <tbody>
-            <tr><td><code>mem_alloc(size)</code></td><td>Aloca bloco cru.</td></tr>
-            <tr><td><code>mem_alloc_zero(size)</code></td><td>Aloca bloco cru zerado.</td></tr>
-            <tr><td><code>mem_free(ptr)</code></td><td>Libera bloco alocado manualmente.</td></tr>
-            <tr><td><code>mem_read_u8(ptr, offset)</code></td><td>Le byte em offset.</td></tr>
-            <tr><td><code>mem_write_u8(ptr, offset, value)</code></td><td>Escreve byte em offset.</td></tr>
-            <tr><td><code>mem_read_u16(ptr, offset)</code></td><td>Le word little-endian.</td></tr>
-            <tr><td><code>mem_write_u16(ptr, offset, value)</code></td><td>Escreve word little-endian.</td></tr>
-          </tbody>
-        </table>
+        <section id="parts">
+          <h2>Partes (lo / hi / make)</h2>
+          <p>
+            Funções para manipular partes de words de 16 bits, usadas em programação
+            de sistemas e emuladores NES.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>lo_u8(word)</code></td><td>Extrai o byte baixo (bits 0-7) de uma word u16</td></tr>
+              <tr><td><code>hi_u8(word)</code></td><td>Extrai o byte alto (bits 8-15) de uma word u16</td></tr>
+              <tr><td><code>make_u16(lo, hi)</code></td><td>Monta uma word u16 a partir de dois bytes u8</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let word: u16 = 0xABCD
+let lo = lo_u8(word)    // 0xCD
+let hi = hi_u8(word)    // 0xAB
+let reconstruida = make_u16(lo, hi)  // 0xABCD</code></pre>
+          <p><span class="status stable">estavel</span> Funções de parte para sistemas/emulação.</p>
+        </section>
+
+        <section id="math">
+          <h2>Matemática</h2>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>abs(val)</code></td><td>Valor absoluto</td></tr>
+              <tr><td><code>min(a, b)</code></td><td>Menor de dois valores</td></tr>
+              <tr><td><code>max(a, b)</code></td><td>Maior de dois valores</td></tr>
+              <tr><td><code>ceil(val)</code></td><td>Teto (arredonda para cima)</td></tr>
+              <tr><td><code>floor(val)</code></td><td>Piso (arredonda para baixo)</td></tr>
+              <tr><td><code>round(val)</code></td><td>Arredondamento padrão</td></tr>
+              <tr><td><code>sqrt(val)</code></td><td>Raiz quadrada</td></tr>
+              <tr><td><code>pow(base, exp)</code></td><td>Potência</td></tr>
+              <tr><td><code>sin(val)</code></td><td>Seno (radianos)</td></tr>
+              <tr><td><code>cos(val)</code></td><td>Cosseno (radianos)</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let absoluto = abs(-10)       // 10
+let maior = max(3, 7)         // 7
+let raiz = sqrt(144)          // 12.0
+let potencia = pow(2, 10)     // 1024.0
+let seno = sin(3.14159 / 2)   // ~1.0</code></pre>
+          <p><span class="status stable">estavel</span> Funções matemáticas no perfil humane.</p>
+        </section>
+
+        <section id="bits-cpu">
+          <h2>Bits e CPU</h2>
+          <p>
+            Primitivas de manipulação de bits e operações de CPU com detecção de
+            carry/overflow. Essenciais para emulação NES e programação de sistemas.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th><th>Perfil</th></tr></thead>
+            <tbody>
+              <tr><td><code>bit_test(val, n)</code></td><td>Testa se o bit n está setado</td><td>systems</td></tr>
+              <tr><td><code>bit_set(val, n)</code></td><td>Seta o bit n</td><td>systems</td></tr>
+              <tr><td><code>bit_clear(val, n)</code></td><td>Limpa o bit n</td><td>systems</td></tr>
+              <tr><td><code>bit_toggle(val, n)</code></td><td>Inverte o bit n</td><td>systems</td></tr>
+              <tr><td><code>bit_write(val, n, v)</code></td><td>Escreve o valor v no bit n</td><td>systems</td></tr>
+              <tr><td><code>flag_write(flags, mask, v)</code></td><td>Escreve v em flags com máscara</td><td>systems</td></tr>
+              <tr><td><code>flag_has(flags, mask)</code></td><td>Testa se flags contém mask</td><td>systems</td></tr>
+              <tr><td><code>flag_set(flags, mask)</code></td><td>Seta flags com mask</td><td>systems</td></tr>
+              <tr><td><code>flag_clear(flags, mask)</code></td><td>Limpa flags com mask</td><td>systems</td></tr>
+              <tr><td><code>carry_add_u8(a, b)</code></td><td>Soma u8 com detecção de carry</td><td>systems</td></tr>
+              <tr><td><code>borrow_sub_u8(a, b)</code></td><td>Subtração u8 com detecção de borrow</td><td>systems</td></tr>
+              <tr><td><code>overflow_add_i8(a, b)</code></td><td>Soma i8 com detecção de overflow</td><td>systems</td></tr>
+              <tr><td><code>overflow_sub_i8(a, b)</code></td><td>Subtração i8 com detecção de overflow</td><td>systems</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let flags = 0b0000
+flags = flag_set(flags, 0b0001)     // flags = 0b0001
+let tem = flag_has(flags, 0b0001)   // true
+
+let (result, carry) = carry_add_u8(0xFF, 0x01)
+// result = 0x00, carry = true (overflow)</code></pre>
+          <p><span class="status stable">estavel</span> Primitivas de bits e CPU para systems/NES.</p>
+        </section>
+
+        <section id="memory-raw">
+          <h2>Memória Crua</h2>
+          <p>
+            Funções de acesso direto à memória. Requerem <code>@unsafe</code> porque
+            podem invalidar as garantias de segurança de memória da Snask.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th><th>Requer</th></tr></thead>
+            <tbody>
+              <tr><td><code>mem_alloc(size)</code></td><td>Aloca bloco de memória do tamanho especificado</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_alloc_zero(size)</code></td><td>Aloca bloco zerado</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_free(ptr)</code></td><td>Libera bloco alocado manualmente</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_copy(dst, src, n)</code></td><td>Copia n bytes de src para dst</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_fill_u8(ptr, val, n)</code></td><td>Preenche n bytes com val</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_read_u8(ptr, offset)</code></td><td>Lê um byte no offset</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_read_u16(ptr, offset)</code></td><td>Lê uma word (little-endian) no offset</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_read_u32(ptr, offset)</code></td><td>Lê uma dword (little-endian) no offset</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_write_u8(ptr, offset, val)</code></td><td>Escreve um byte no offset</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_write_u16(ptr, offset, val)</code></td><td>Escreve uma word (little-endian) no offset</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_write_u32(ptr, offset, val)</code></td><td>Escreve uma dword (little-endian) no offset</td><td>@unsafe</td></tr>
+              <tr><td><code>ptr_add(ptr, offset)</code></td><td>Desloca o ponteiro por offset bytes</td><td>@unsafe</td></tr>
+            </tbody>
+          </table>
+          <pre><code>@unsafe {
+    let ptr = mem_alloc(64)
+    mem_write_u8(ptr, 0, 0xFF)
+    let val = mem_read_u8(ptr, 0)   // 0xFF
+    mem_free(ptr)
+}</code></pre>
+          <p><span class="status stable">estavel</span> Memória crua sob <code>@unsafe</code>.</p>
+        </section>
+
+        <section id="string">
+          <h2>Operações de String</h2>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>len(s)</code></td><td>Retorna o número de caracteres (code points) da string</td></tr>
+              <tr><td><code>upper(s)</code></td><td>Converte para maiúsculas</td></tr>
+              <tr><td><code>lower(s)</code></td><td>Converte para minúsculas</td></tr>
+              <tr><td><code>trim(s)</code></td><td>Remove espaços em branco das extremidades</td></tr>
+              <tr><td><code>replace(s, old, new)</code></td><td>Substitui todas as ocorrências de old por new</td></tr>
+              <tr><td><code>split(s, delim)</code></td><td>Divide a string pelo delimitador, retorna list&lt;str&gt;</td></tr>
+              <tr><td><code>substring(s, start, end)</code></td><td>Extrai substring do índice start até end (exclusivo)</td></tr>
+              <tr><td><code>contains(s, substr)</code></td><td>Verifica se s contém substr</td></tr>
+              <tr><td><code>starts_with(s, prefix)</code></td><td>Verifica se s começa com prefix</td></tr>
+              <tr><td><code>ends_with(s, suffix)</code></td><td>Verifica se s termina com suffix</td></tr>
+              <tr><td><code>chars(s)</code></td><td>Retorna list&lt;str&gt; com cada caractere da string</td></tr>
+              <tr><td><code>reverse(s)</code></td><td>Inverte a string</td></tr>
+              <tr><td><code>format(fmt, args...)</code></td><td>Formata string com argumentos (similar a sprintf)</td></tr>
+              <tr><td><code>join(list, sep)</code></td><td>Junta uma list&lt;str&gt; com o separador</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let s = "  Snask Language  "
+let trimmed = trim(s)                     // "Snask Language"
+let upper = upper(trimmed)                // "SNASK LANGUAGE"
+let parts = split("a,b,c", ",")           // ["a", "b", "c"]
+let joined = join(parts, " | ")           // "a | b | c"
+let sub = substring("Hello World", 0, 5)  // "Hello"
+let tem = contains("Snask", "ask")        // true
+let invertida = reverse("Snask")          // "ksanS"</code></pre>
+          <p><span class="status stable">estavel</span> Operações de string no perfil humane.</p>
+        </section>
+
+        <section id="file-io">
+          <h2>Arquivo e IO</h2>
+          <p>
+            Funções para operações básicas de arquivo e ambiente. Disponíveis no
+            perfil <code>humane</code>.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>read_file(path)</code></td><td>Lê o conteúdo de um arquivo como string</td></tr>
+              <tr><td><code>write_file(path, content)</code></td><td>Escreve conteúdo em um arquivo (sobrescreve)</td></tr>
+              <tr><td><code>append_file(path, content)</code></td><td>Adiciona conteúdo ao final do arquivo</td></tr>
+              <tr><td><code>exists(path)</code></td><td>Verifica se o caminho existe</td></tr>
+              <tr><td><code>is_file(path)</code></td><td>Verifica se o caminho é um arquivo</td></tr>
+              <tr><td><code>is_dir(path)</code></td><td>Verifica se o caminho é um diretório</td></tr>
+              <tr><td><code>create_dir(path)</code></td><td>Cria um diretório</td></tr>
+              <tr><td><code>delete(path)</code></td><td>Remove arquivo ou diretório vazio</td></tr>
+              <tr><td><code>cwd()</code></td><td>Retorna o diretório de trabalho atual</td></tr>
+              <tr><td><code>set_env(key, value)</code></td><td>Define uma variável de ambiente</td></tr>
+              <tr><td><code>env(key)</code></td><td>Obtém o valor de uma variável de ambiente</td></tr>
+              <tr><td><code>args()</code></td><td>Retorna list&lt;str&gt; com os argumentos da linha de comando</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let conteudo = read_file("dados.txt")
+write_file("saida.txt", "Hello, Snask!\n")
+
+if exists("config.json") {
+    let config = read_file("config.json")
+}
+
+let atual = cwd()
+let home = env("HOME")
+let argumentos = args()</code></pre>
+          <p><span class="status stable">estavel</span> Operações de arquivo e ambiente.</p>
+        </section>
+
+        <section id="sfs">
+          <h2>Módulo SFS</h2>
+          <p>
+            O módulo <code>sfs</code> (Snask File System) oferece operações avançadas
+            de sistema de arquivos. Deve ser importado com <code>import "sfs"</code>.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>sfs::read(path)</code></td><td>Lê arquivo como string</td></tr>
+              <tr><td><code>sfs::write(path, data)</code></td><td>Escreve string em arquivo</td></tr>
+              <tr><td><code>sfs::append(path, data)</code></td><td>Adiciona ao final do arquivo</td></tr>
+              <tr><td><code>sfs::copy(src, dst)</code></td><td>Copia arquivo</td></tr>
+              <tr><td><code>sfs::move(src, dst)</code></td><td>Move/renomeia arquivo</td></tr>
+              <tr><td><code>sfs::delete(path)</code></td><td>Remove arquivo</td></tr>
+              <tr><td><code>sfs::exists(path)</code></td><td>Verifica se caminho existe</td></tr>
+              <tr><td><code>sfs::is_file(path)</code></td><td>Verifica se é arquivo</td></tr>
+              <tr><td><code>sfs::is_dir(path)</code></td><td>Verifica se é diretório</td></tr>
+              <tr><td><code>sfs::mkdir(path)</code></td><td>Cria diretório</td></tr>
+              <tr><td><code>sfs::rmdir(path)</code></td><td>Remove diretório vazio</td></tr>
+              <tr><td><code>sfs::listdir(path)</code></td><td>Lista conteúdo do diretório (list&lt;str&gt;)</td></tr>
+              <tr><td><code>sfs::size(path)</code></td><td>Tamanho do arquivo em bytes</td></tr>
+              <tr><td><code>sfs::mtime(path)</code></td><td>Timestamp de modificação</td></tr>
+            </tbody>
+          </table>
+          <pre><code>import "sfs"
+
+if sfs::exists("dados.txt") {
+    let conteudo = sfs::read("dados.txt")
+    sfs::copy("dados.txt", "backup.txt")
+}
+
+let arquivos = sfs::listdir(".")
+for f in arquivos {
+    print("{f}\n")
+}
+
+let tamanho = sfs::size("video.bin")
+let modificado = sfs::mtime("video.bin")</code></pre>
+          <p><span class="status stable">estavel</span> Módulo sfs para operações de sistema de arquivos.</p>
+        </section>
+
+        <section id="json">
+          <h2>JSON</h2>
+          <p>
+            Funções para manipulação de JSON. Permitem parsing, serialização e
+            acesso a valores em documentos JSON.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>json_parse(s)</code></td><td>Analisa string JSON e retorna objeto</td></tr>
+              <tr><td><code>json_parse_ex(s)</code></td><td>Analisa com tratamento de erro explícito</td></tr>
+              <tr><td><code>json_stringify(val)</code></td><td>Serializa valor para string JSON</td></tr>
+              <tr><td><code>json_stringify_pretty(val)</code></td><td>Serializa com indentação</td></tr>
+              <tr><td><code>json_get(obj, key)</code></td><td>Obtém valor pela chave</td></tr>
+              <tr><td><code>json_set(obj, key, val)</code></td><td>Define valor pela chave</td></tr>
+              <tr><td><code>json_has(obj, key)</code></td><td>Verifica se chave existe</td></tr>
+              <tr><td><code>json_index(arr, i)</code></td><td>Acessa elemento de array por índice</td></tr>
+              <tr><td><code>json_keys(obj)</code></td><td>Retorna list&lt;str&gt; com as chaves</td></tr>
+              <tr><td><code>json_len(val)</code></td><td>Comprimento de array ou objeto</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let json = json_parse('{"nome": "Snask", "versao": 5}')
+let nome = json_get(json, "nome")        // "Snask"
+let tem = json_has(json, "versao")       // true
+let chaves = json_keys(json)             // ["nome", "versao"]
+
+let saida = json_stringify_pretty(json)
+write_file("dados.json", saida)
+
+let arr = json_parse('[10, 20, 30]')
+let val = json_index(arr, 1)             // 20</code></pre>
+          <p><span class="status stable">estavel</span> Funções JSON para parsing e serialização.</p>
+        </section>
+
+        <section id="http">
+          <h2>HTTP</h2>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>http_get(url)</code></td><td>Realiza requisição GET e retorna o corpo como string</td></tr>
+              <tr><td><code>http_post(url, body)</code></td><td>Realiza requisição POST com corpo e retorna resposta</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let resposta = http_get("https://api.exemplo.com/dados")
+let post = http_post("https://api.exemplo.com/enviar", '{"key": "value"}')</code></pre>
+          <p><span class="status stable">estavel</span> HTTP básico (GET/POST).</p>
+        </section>
+
+        <section id="time">
+          <h2>Tempo</h2>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>time()</code></td><td>Retorna timestamp Unix atual em segundos (int)</td></tr>
+              <tr><td><code>sleep(ms)</code></td><td>Dorme por ms milissegundos</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let agora = time()
+print("timestamp: {agora}\n")
+
+sleep(1000)  // pausa de 1 segundo
+print("passou 1 segundo\n")</code></pre>
+          <p><span class="status stable">estavel</span> Funções de tempo.</p>
+        </section>
+
+        <section id="gui">
+          <h2>GUI (Experimental)</h2>
+          <p>
+            A API GUI da Snask permite criar interfaces gráficas simples usando GTK.
+            O runtime existe, mas a API ainda não é um contrato maduro.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>gui_init()</code></td><td>Inicializa o subsistema GUI</td></tr>
+              <tr><td><code>gui_window(title)</code></td><td>Cria uma janela com o título especificado</td></tr>
+              <tr><td><code>gui_set_child(window, widget)</code></td><td>Define o widget filho da janela</td></tr>
+              <tr><td><code>gui_set_text(widget, text)</code></td><td>Define o texto de um widget</td></tr>
+              <tr><td><code>gui_get_text(widget)</code></td><td>Obtém o texto de um widget</td></tr>
+              <tr><td><code>gui_label(text)</code></td><td>Cria um widget de rótulo</td></tr>
+              <tr><td><code>gui_button(text)</code></td><td>Cria um botão</td></tr>
+              <tr><td><code>gui_entry()</code></td><td>Cria um campo de entrada de texto</td></tr>
+              <tr><td><code>gui_textview()</code></td><td>Cria uma área de texto multilinha</td></tr>
+              <tr><td><code>gui_hbox()</code></td><td>Cria um container de layout horizontal</td></tr>
+              <tr><td><code>gui_vbox()</code></td><td>Cria um container de layout vertical</td></tr>
+              <tr><td><code>gui_add(parent, child)</code></td><td>Adiciona widget filho a um container</td></tr>
+              <tr><td><code>gui_on_click(button, callback)</code></td><td>Registra callback para clique do botão</td></tr>
+              <tr><td><code>gui_run()</code></td><td>Inicia o loop principal da GUI</td></tr>
+              <tr><td><code>gui_quit()</code></td><td>Encerra o loop da GUI</td></tr>
+              <tr><td><code>gui_show_all(window)</code></td><td>Exibe todos os widgets da janela</td></tr>
+            </tbody>
+          </table>
+          <pre><code>gui_init()
+let win = gui_window("Exemplo")
+let vbox = gui_vbox()
+let btn = gui_button("Clique aqui")
+gui_on_click(btn, fun() {
+    print("botão clicado!\n")
+})
+gui_add(vbox, btn)
+gui_set_child(win, vbox)
+gui_show_all(win)
+gui_run()</code></pre>
+          <p><span class="status experimental">experimental</span> API GUI — runtime existe, API ainda não é contrato maduro.</p>
+        </section>
+
+        <section id="snaskgui">
+          <h2>SnaskGUI (Experimental)</h2>
+          <p>
+            SnaskGUI é uma alternativa leve à GUI baseada em GTK, voltada para
+            renderização de gráficos pixel-a-pixel (útil para emuladores e
+            ferramentas gráficas simples).
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>snaskgui_init()</code></td><td>Inicializa o subsistema SnaskGUI</td></tr>
+              <tr><td><code>snaskgui_window(w, h, title)</code></td><td>Cria janela com largura e altura</td></tr>
+              <tr><td><code>snaskgui_poll()</code></td><td>Processa eventos pendentes</td></tr>
+              <tr><td><code>snaskgui_delay(ms)</code></td><td>Atraso em milissegundos</td></tr>
+              <tr><td><code>snaskgui_should_close()</code></td><td>Verifica se a janela deve fechar</td></tr>
+              <tr><td><code>snaskgui_present_rgba(data, w, h)</code></td><td>Renderiza buffer RGBA na janela</td></tr>
+              <tr><td><code>snaskgui_close()</code></td><td>Fecha a janela</td></tr>
+              <tr><td><code>snaskgui_key_down(key)</code></td><td>Verifica se uma tecla está pressionada</td></tr>
+            </tbody>
+          </table>
+          <pre><code>snaskgui_init()
+let win = snaskgui_window(256, 240, "Emulador")
+
+let framebuffer: list&lt;u8&gt; = []
+// preencher framebuffer com pixels RGBA...
+
+while not snaskgui_should_close() {
+    snaskgui_poll()
+    snaskgui_present_rgba(framebuffer, 256, 240)
+    snaskgui_delay(16)
+
+    if snaskgui_key_down("escape") {
+        snaskgui_close()
+    }
+}</code></pre>
+          <p><span class="status experimental">experimental</span> SnaskGUI para renderização gráfica.</p>
+        </section>
+
+        <section id="calc">
+          <h2>Calc</h2>
+          <p>
+            Avaliador de expressões matemáticas em tempo de execução.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>calc_eval(expr)</code></td><td>Avalia uma expressão matemática string e retorna o resultado como int</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let r = calc_eval("2 + 3 * 4")  // 14
+print("{r}\n")</code></pre>
+          <p><span class="status stable">estavel</span> calc_eval para expressões matemáticas.</p>
+        </section>
+
+        <section id="range">
+          <h2>Range</h2>
+          <p>
+            Gera uma sequência de números inteiros para iteração.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>range(end)</code></td><td>Gera sequência de 0 a end-1</td></tr>
+              <tr><td><code>range(start, end)</code></td><td>Gera sequência de start a end-1</td></tr>
+            </tbody>
+          </table>
+          <pre><code>for i in range(5) {
+    print("{i}\n")   // 0, 1, 2, 3, 4
+}
+
+for i in range(2, 6) {
+    print("{i}\n")   // 2, 3, 4, 5
+}</code></pre>
+          <p><span class="status stable">estavel</span> Range para iteração numérica.</p>
+        </section>
+
+        <section id="is">
+          <h2>Predicados is_*</h2>
+          <p>
+            Funções para verificação dinâmica de tipo em tempo de execução.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>is_nil(val)</code></td><td>Verifica se o valor é nulo</td></tr>
+              <tr><td><code>is_str(val)</code></td><td>Verifica se o valor é string</td></tr>
+              <tr><td><code>is_obj(val)</code></td><td>Verifica se o valor é um objeto</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let x = "Snask"
+if is_str(x) {
+    print("é uma string\n")
+}
+
+let y = nil
+if is_nil(y) {
+    print("é nulo\n")
+}</code></pre>
+          <p><span class="status stable">estavel</span> Predicados de verificação de tipo.</p>
+        </section>
+
+        <section id="flatten">
+          <h2>Flatten</h2>
+          <p>
+            Achata uma lista de listas em uma única lista.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>flatten(list)</code></td><td>Recebe list&lt;list&lt;T&gt;&gt; e retorna list&lt;T&gt;</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let matriz = [[1, 2], [3, 4], [5]]
+let plana = flatten(matriz)  // [1, 2, 3, 4, 5]</code></pre>
+          <p><span class="status stable">estavel</span> Flatten de listas aninhadas.</p>
+        </section>
+
+        <section id="unique">
+          <h2>Unique</h2>
+          <p>
+            Remove elementos duplicados de uma lista, preservando a ordem original.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>unique(list)</code></td><td>Retorna list&lt;T&gt; sem elementos duplicados</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let nums = [1, 2, 2, 3, 1, 4, 3]
+let unicos = unique(nums)  // [1, 2, 3, 4]</code></pre>
+          <p><span class="status stable">estavel</span> Unique para eliminação de duplicatas.</p>
+        </section>
+
+        <section id="sort">
+          <h2>Sort</h2>
+          <p>
+            Ordena uma lista in-place ou retorna uma nova lista ordenada.
+          </p>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>sort(list)</code></td><td>Ordena a lista em ordem crescente</td></tr>
+            </tbody>
+          </table>
+          <pre><code>let nums = [3, 1, 4, 1, 5, 9]
+sort(nums)
+// nums agora é [1, 1, 3, 4, 5, 9]</code></pre>
+          <p><span class="status stable">estavel</span> Sort para ordenação de listas.</p>
+        </section>
+
       </main>
     </div>
     <script src="../assets/site.js"></script>

@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Interop C via OM</title>
+    <title>Interoperabilidade C — ABI Nativa via OM</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
+        <a href="../index.html">Início</a>
         <a href="../learn/getting-started.html">Aprender</a>
-        <a href="../reference/language.html">Referencia</a>
+        <a href="../reference/functions/index.html">Funções</a>
         <a aria-current="page" href="om.html">OM</a>
         <a href="../tooling/installation.html">Tooling</a>
       </nav>
@@ -20,38 +23,574 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Systems</h2>
-        <a href="om.html">OM-Snask-System</a>
-        <a href="systems-profile.html">Perfil systems</a>
-        <a href="low-level.html">Low-level</a>
-        <a href="c-interop.html">Interop C</a>
+        <a href="om.html">OM — Orquestração</a>
+        <a href="systems-profile.html">Perfil Systems</a>
+        <a href="low-level.html">Low-Level</a>
+        <a class="active" href="c-interop.html">Interoperabilidade C</a>
+        <h2>Nesta página</h2>
+        <a href="#como-funciona">Como Funciona</a>
+        <a href="#scanner-om">Scanner OM</a>
+        <a href="#sintaxe-de-import">Sintaxe de Import</a>
+        <a href="#modelo-4-passos">Modelo em 4 Passos</a>
+        <a href="#o-que-funciona">O que Funciona Hoje</a>
+        <a href="#limitacoes">Limitações Atuais</a>
+        <a href="#niveis-de-seguranca">Níveis de Segurança</a>
+        <a href="#patch-system">Sistema de Patch .om.snif</a>
+        <a href="#exemplo-sdl2">Exemplo Completo: SDL2</a>
+        <a href="#pkg-config">Linking com pkg-config</a>
+        <a href="#boas-praticas">Boas Práticas</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
+
         <p class="eyebrow">ABI nativa</p>
-        <h1>Interop C via OM</h1>
+        <h1>Interoperabilidade C via OM</h1>
         <p class="lead">
-          Bibliotecas C entram como ABI nativa no LLVM. O usuario escreve Snask; o OM tenta deduzir
-          contratos de recursos a partir dos headers.
+          Bibliotecas C entram como ABI nativa no LLVM. O usuário escreve Snask; o OM
+          (Orquestrador de Memória) tenta deduzir contratos de recursos a partir dos
+          headers automaticamente, eliminando a necessidade de bindings manuais.
         </p>
 
-        <h2>Scanner</h2>
-        <pre><code>snask om scan SDL2/SDL.h --lib sdl2 --output /tmp/sdl2.generated.om.snif</code></pre>
+        <section id="como-funciona">
+          <h2>Como Funciona</h2>
+          <p>
+            A interoperabilidade C do Snask não é feita via FFI genérico ou bindings
+            escritos à mão. Em vez disso, o sistema usa o <strong>scanner OM</strong>
+            para ler headers C diretamente com Clang, extrair funções, tipos, enums e
+            macros, e produzir um <strong>contrato</strong> que o compilador Snask usa
+            para gerar chamadas LLVM nativas.
+          </p>
+          <p>
+            O resultado é que você escreve Snask puro — sem arquivos <code>.c</code>,
+            sem bindings manuais, sem arquivos de configuração de FFI. O sistema se
+            encarrega de:
+          </p>
+          <ul>
+            <li>Parsear o header C com Clang (análise sintática e semântica completa);</li>
+            <li>Extrair funções, tipos, enums, macros e constantes;</li>
+            <li>Aplicar heurísticas de ownership (construtor, destrutor, método, função pura);</li>
+            <li>Produzir um contrato em memória que o LLVM usa para emitir chamadas nativas;</li>
+            <li>Registrar recursos opacos no runtime OM para limpeza automática via zonas.</li>
+          </ul>
 
-        <h2>Import conceitual</h2>
-        <pre><code>import_c_om "SDL2/SDL.h" as sdl2</code></pre>
+          <div class="callout">
+            <strong>Frase guia:</strong> você importa um header C como se fosse um módulo
+            Snask. O compilador faz o resto.
+          </div>
+        </section>
 
-        <h2>Modelo</h2>
-        <ol>
-          <li>O scanner le o header com Clang.</li>
-          <li>Heuristicas classificam construtores, destruidores, metodos e funcoes seguras.</li>
-          <li>O contrato final entra no compilador.</li>
-          <li>LLVM emite chamada nativa; recursos opacos podem ser registrados no runtime OM.</li>
-        </ol>
+        <section id="scanner-om">
+          <h2>Scanner OM</h2>
+          <p>
+            O scanner OM é a ferramenta que analisa headers C e produz contratos. Use-o
+            manualmente para diagnóstico ou deixe o compilador chamá-lo automaticamente
+            durante o build.
+          </p>
 
-        <h2>Limites atuais</h2>
-        <p>
-          Callbacks, structs complexas por valor, ownership ambiguo e varargs avancado ainda exigem
-          novas regras ou patches `.om.snif`.
-        </p>
+          <h3>Uso básico</h3>
+          <pre><code>snask om scan SDL2/SDL.h --lib sdl2 --output /tmp/sdl2.generated.om.snif</code></pre>
+
+          <p>Parâmetros:</p>
+          <table>
+            <thead>
+              <tr><th>Parâmetro</th><th>Descrição</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>snask om scan &lt;header&gt;</code></td><td>Caminho do header C a ser analisado</td></tr>
+              <tr><td><code>--lib &lt;nome&gt;</code></td><td>Nome da biblioteca (usado como namespace)</td></tr>
+              <tr><td><code>--output &lt;arquivo&gt;</code></td><td>Opcional: exporta o contrato para arquivo .om.snif</td></tr>
+              <tr><td><code>--patches &lt;dir&gt;</code></td><td>Diretório com patches .om.snif para aplicar sobre o contrato gerado</td></tr>
+            </tbody>
+          </table>
+
+          <p>O contrato gerado mostra:</p>
+          <ul>
+            <li>Constantes extraídas (macros numéricas, enums);</li>
+            <li>Funções mapeadas com seus níveis de segurança;</li>
+            <li>Recursos descobertos (pares construtor/destrutor);</li>
+            <li>Funções bloqueadas (que o scanner considerou inseguras);</li>
+            <li>Razões para cada classificação.</li>
+          </ul>
+
+          <div class="callout warn">
+            <strong>Dica:</strong> sempre gere o contrato com <code>--output</code> na
+            primeira vez que importar uma biblioteca nova. Revise as funções bloqueadas
+            e decida se você precisa de um patch <code>.om.snif</code>.
+          </div>
+        </section>
+
+        <section id="sintaxe-de-import">
+          <h2>Sintaxe de Import</h2>
+          <p>
+            A importação de uma biblioteca C em Snask usa a sintaxe <code>import_c_om</code>:
+          </p>
+
+          <pre><code>import_c_om "SDL2/SDL.h" as sdl2
+
+class main {
+    fun start() {
+        zone "sdl" {
+            sdl2.init(sdl2.INIT_VIDEO)
+            let window = sdl2.create_window("Hello", 100, 100, 800, 600, 0)
+            let renderer = sdl2.create_renderer(window, -1, 0)
+            sdl2.render_clear(renderer)
+            sdl2.render_present(renderer)
+            sdl2.delay(2000)
+        }
+    }
+}</code></pre>
+
+          <p>A sintaxe completa do import é:</p>
+          <pre><code>import_c_om "caminho/para/header.h" as namespace
+import_c_om "SDL2/SDL.h" as sdl2        // importa e usa como sdl2.funcao()
+import_c_om "GL/gl.h" as gl              // OpenGL
+import_c_om "zlib.h" as zlib             // zlib
+import_c_om "stdio.h" as stdio           // stdio (puts, printf, etc.)</code></pre>
+
+          <p>O caminho do header pode ser:</p>
+          <ul>
+            <li>Absoluto ou relativo ao arquivo fonte;</li>
+            <li>Resolvido via <code>-I</code> flags do compilador;</li>
+            <li>Resolvido via <code>pkg-config</code> (veja seção abaixo).</li>
+          </ul>
+        </section>
+
+        <section id="modelo-4-passos">
+          <h2>Modelo em 4 Passos</h2>
+          <p>O pipeline de interop C do Snask segue exatamente 4 passos:</p>
+
+          <table>
+            <thead>
+              <tr><th>Passo</th><th>Descrição</th><th>Ferramenta</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>1. Scanner lê o header com Clang</strong></td>
+                <td>O scanner invoca o Clang para fazer o parse completo do header C.
+                    Extrai funções, tipos, enums, macros, structs e typedefs.</td>
+                <td><code>snask om scan</code></td>
+              </tr>
+              <tr>
+                <td><strong>2. Heurísticas classificam</strong></td>
+                <td>O scanner aplica heurísticas para classificar cada função em:
+                    construtor, destrutor, método, função segura, cópia ou bloqueada.
+                    A classificação é conservadora.</td>
+                <td>Scanner OM (automático)</td>
+              </tr>
+              <tr>
+                <td><strong>3. Contrato final entra no compilador</strong></td>
+                <td>O contrato gerado (possivelmente com patches .om.snif aplicados)
+                    é carregado pelo compilador Snask. Cada função vira um símbolo
+                    com assinatura e nível de segurança.</td>
+                <td>Compilador Snask</td>
+              </tr>
+              <tr>
+                <td><strong>4. LLVM emite chamada nativa</strong></td>
+                <td>O codegen LLVM emite uma chamada de função direta para a biblioteca C.
+                    Recursos opacos são registrados no runtime OM para cleanup automático
+                    via zonas.</td>
+                <td>LLVM + runtime OM</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>Importante:</strong> o passo 2 é o mais crítico. Se a heurística classificar
+            uma função perigosa como segura, o usuário pode correr riscos. Se classificar
+            uma função segura como bloqueada, o usuário precisa de um patch. O scanner
+            prefere o erro conservador (bloquear demais) a expor uma função insegura.
+          </div>
+        </section>
+
+        <section id="o-que-funciona">
+          <h2>O que Funciona Hoje</h2>
+          <p>O scanner OM cobre a maioria dos casos comuns de chamada de bibliotecas C:</p>
+
+          <table>
+            <thead>
+              <tr><th>Categoria</th><th>Funciona</th><th>Exemplo</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Parâmetros numéricos</td><td><span class="status stable">sim</span></td><td><code>sdl2.delay(50)</code></td></tr>
+              <tr><td>Parâmetros string</td><td><span class="status stable">sim</span></td><td><code>sdl2.create_window("title", ...)</code></td></tr>
+              <tr><td>Retorno numérico</td><td><span class="status stable">sim</span></td><td><code>sdl2.get_ticks()</code></td></tr>
+              <tr><td>Retorno void</td><td><span class="status stable">sim</span></td><td><code>sdl2.render_clear(renderer)</code></td></tr>
+              <tr><td>const char* (copiável)</td><td><span class="status stable">sim</span></td><td><code>sdl2.get_platform()</code> (retorna string Snask)</td></tr>
+              <tr><td>Recursos opacos (construtor/destrutor)</td><td><span class="status stable">sim</span></td><td><code>sdl2.create_window / SDL_DestroyWindow</code></td></tr>
+              <tr><td>Métodos com resource como primeiro parâmetro</td><td><span class="status stable">sim</span></td><td><code>sdl2.render_clear(renderer)</code></td></tr>
+              <tr><td>Linking via pkg-config</td><td><span class="status stable">sim</span></td><td><code>pkg-config sdl2 --cflags --libs</code></td></tr>
+              <tr><td>Override via .om.snif</td><td><span class="status stable">sim</span></td><td>Patch de funções bloqueadas ou mal classificadas</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Como o scanner identifica recursos opacos</h3>
+          <p>O scanner busca pares que seguem convenções C comuns:</p>
+          <ul>
+            <li>Função que retorna <code>Tipo*</code> → candidato a <strong>construtor</strong>;</li>
+            <li>Função <code>void destroy(Tipo*)</code> ou <code>void free(Tipo*)</code> → candidato a <strong>destrutor</strong>;</li>
+            <li>Função que recebe <code>Tipo*</code> como primeiro argumento → candidato a <strong>método</strong> do recurso;</li>
+            <li>Prefixos comuns: <code>Create</code>, <code>Destroy</code>, <code>New</code>, <code>Free</code>, <code>Open</code>, <code>Close</code>.</li>
+          </ul>
+          <p>
+            Se o scanner encontrar um par, o recurso é registrado no runtime OM. Quando
+            a zona fecha, o destrutor é chamado automaticamente. O usuário nunca vê o
+            ponteiro C cru.
+          </p>
+        </section>
+
+        <section id="limitacoes">
+          <h2>Limitações Atuais</h2>
+          <p>
+            O scanner é conservador por design e ainda não cobre todos os padrões C.
+            Estas são as limitações conhecidas:
+          </p>
+
+          <table>
+            <thead>
+              <tr><th>Categoria</th><th>Status</th><th>Descrição</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Callbacks</td>
+                <td><span class="status experimental">limitado</span></td>
+                <td>Function pointers como parâmetro ainda não são mapeados. APIs que
+                  registram callbacks (ex: <code>SDL_AddEventWatch</code>) são bloqueadas.</td>
+              </tr>
+              <tr>
+                <td>Function pointers complexos</td>
+                <td><span class="status experimental">limitado</span></td>
+                <td>Retorno ou campo de struct com function pointer não é suportado.</td>
+              </tr>
+              <tr>
+                <td>Variadic avançado</td>
+                <td><span class="status experimental">limitado</span></td>
+                <td><code>printf</code> com número variável de argumentos não é mapeado
+                  automaticamente. Funções com <code>...</code> são bloqueadas.</td>
+              </tr>
+              <tr>
+                <td>Structs por valor</td>
+                <td><span class="status experimental">limitado</span></td>
+                <td>Structs C passadas ou retornadas por valor ainda não têm suporte.
+                  Apenas ponteiros opacos (<code>Tipo*</code>) funcionam.</td>
+              </tr>
+              <tr>
+                <td>Arrays e buffers mutáveis</td>
+                <td><span class="status experimental">limitado</span></td>
+                <td>Parâmetros <code>char*</code> ou <code>void*</code> com semântica de
+                  buffer mutável não são distinguidos de strings de entrada.</td>
+              </tr>
+              <tr>
+                <td>Output pointers com ownership ambíguo</td>
+                <td><span class="status experimental">limitado</span></td>
+                <td>Parâmetros de saída (<code>Tipo**</code>) onde o caller pode ser
+                  responsável por liberar são bloqueados.</td>
+              </tr>
+              <tr>
+                <td>Ponteiros globais</td>
+                <td><span class="status experimental">limitado</span></td>
+                <td>Variáveis globais C (ex: <code>extern int*</code>) não são expostas.</td>
+              </tr>
+              <tr>
+                <td>Destrutores dependentes de contexto</td>
+                <td><span class="status experimental">limitado</span></td>
+                <td>Quando o destrutor correto depende do estado do recurso, o scanner
+                  não consegue determinar automaticamente.</td>
+              </tr>
+              <tr>
+                <td>Thread affinity</td>
+                <td><span class="status experimental">limitado</span></td>
+                <td>Recursos que só podem ser destruídos na thread que os criou não
+                  são detectados.</td>
+              </tr>
+              <tr>
+                <td>Unions</td>
+                <td><span class="status experimental">limitado</span></td>
+                <td>Unions C não são mapeadas para tipos Snask.</td>
+              </tr>
+              <tr>
+                <td>Bitfields</td>
+                <td><span class="status experimental">limitado</span></td>
+                <td>Campos bitfield em structs não são suportados.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="callout warn">
+            <strong>Nota:</strong> essas limitações são conhecidas e estão no roadmap.
+            Para todas elas, a saída atual é o <strong>patch .om.snif</strong> ou um
+            wrapper manual em Systems com <code>@unsafe</code>.
+          </div>
+        </section>
+
+        <section id="niveis-de-seguranca">
+          <h2>Níveis de Segurança</h2>
+          <p>
+            Cada função no contrato gerado recebe um nível de segurança. Esses níveis
+            determinam como a função é exposta na superfície Snask:
+          </p>
+
+          <table>
+            <thead>
+              <tr><th>Nível</th><th>Significado</th><th>Exemplo</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="status stable">SAFE</span></td>
+                <td>Pode ser chamada diretamente da superfície Snask. O scanner verificou
+                  que todos os parâmetros e retorno são seguros.</td>
+                <td><code>sdl2.delay(50)</code><br/><code>sdl2.init(sdl2.INIT_VIDEO)</code></td>
+              </tr>
+              <tr>
+                <td><span class="status partial">COPY_ONLY</span></td>
+                <td>Pode ser usada, mas o runtime OM copia o resultado para memória
+                  Snask. Usado para funções que retornam <code>const char*</code> onde
+                  o ownership não é transferido.</td>
+                <td><code>sdl2.get_platform()</code> — copia string</td>
+              </tr>
+              <tr>
+                <td><span class="status experimental">BLOCKED</span></td>
+                <td>Não é exposta na superfície Snask. A função é considerada perigosa
+                  ou não mapeável pelo scanner. Requer patch .om.snif para ser liberada.</td>
+                <td>Destrutores, callbacks, funções com <code>void*</code></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>Critérios para SAFE</h3>
+          <p>Uma função é classificada como <code>SAFE</code> quando:</p>
+          <ul>
+            <li>Todos os parâmetros são tipos numéricos, strings, ou recursos opacos já registrados;</li>
+            <li>O retorno é void, numérico, string copiável, ou recurso opaco com destrutor conhecido;</li>
+            <li>Não há ponteiros de saída com ownership ambíguo;</li>
+            <li>Não há function pointers nos parâmetros.</li>
+          </ul>
+
+          <h3>Critérios para BLOCKED</h3>
+          <p>Uma função é <strong>sempre</strong> bloqueada quando:</p>
+          <ul>
+            <li>É identificada como destrutor (para evitar double-free);</li>
+            <li>Recebe <code>void*</code> sem contexto de tamanho;</li>
+            <li>Usa <code>...</code> (variadic);</li>
+            <li>Retorna <code>void*</code>;</li>
+            <li>Envolve function pointers.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Regra de ouro:</strong> o scanner prefere falso positivo (bloquear
+            função segura) a falso negativo (expor função perigosa). Patches .om.snif
+            existem para corrigir os falsos positivos.
+          </div>
+        </section>
+
+        <section id="patch-system">
+          <h2>Sistema de Patch .om.snif</h2>
+          <p>
+            O arquivo <code>.om.snif</code> é um <strong>patch opcional</strong> sobre
+            o contrato deduzido. Ele não substitui o scanner — apenas corrige casos
+            específicos. Uma biblioteca enorme pode ter um patch de 5 linhas.
+          </p>
+
+          <h3>Quando usar patch</h3>
+          <ul>
+            <li>Renomear uma função mal mapeada;</li>
+            <li>Adicionar <code>safety: BLOCKED</code> a uma função perigosa que o scanner classificou como SAFE;</li>
+            <li>Declarar um recurso manualmente (construtor/destrutor não pareado);</li>
+            <li>Corrigir ownership ambíguo com <code>COPY_ONLY</code>;</li>
+            <li>Documentar decisões de segurança.</li>
+          </ul>
+
+          <h3>Exemplo de patch</h3>
+          <pre><code>// contracts/sdl2.om.snif
+library sdl2
+
+// Função segura bloqueada pelo scanner conservador
+function get_performance_counter:
+    c_function: SDL_GetPerformanceCounter
+    surface: sdl2.performance_counter
+    input: none
+    output: value
+    safety: SAFE
+    reason: returns Uint64, safe numeric type
+
+// Função com string const que precisa de cópia
+function get_error:
+    c_function: SDL_GetError
+    surface: sdl2.error
+    input: none
+    output: copy
+    safety: COPY_ONLY
+    reason: returns const char*, must be copied to Snask string</code></pre>
+
+          <div class="callout warn">
+            <strong>Atenção:</strong> o patch não é um binding completo. Ele é aplicado
+            <em>sobre</em> o contrato gerado. Tudo que não estiver no patch continua
+            vindo do scanner.
+          </div>
+        </section>
+
+        <section id="exemplo-sdl2">
+          <h2>Exemplo Completo: SDL2</h2>
+          <p>
+            Abaixo, um exemplo funcional de uso do SDL2 via OM. O exemplo inicializa
+            o SDL, cria uma janela com renderer, pinta a tela de preto, espera 2
+            segundos e finaliza — tudo com gerenciamento automático via zonas.
+          </p>
+
+          <pre><code>import_c_om "SDL2/SDL.h" as sdl2
+
+class main {
+    fun start() {
+        zone "sdl_lifecycle" {
+            // Inicializa SDL com subsistema de vídeo
+            if sdl2.init(sdl2.INIT_VIDEO) != 0 {
+                print("Falha ao inicializar SDL2")
+                return
+            }
+
+            // Cria janela — recurso registrado no OM
+            let window = sdl2.create_window(
+                "Snask + SDL2",
+                100,    // x
+                100,    // y
+                800,    // largura
+                600,    // altura
+                sdl2.WINDOW_HIDDEN  // flags
+            )
+
+            // Cria renderer — também registrado
+            let renderer = sdl2.create_renderer(
+                window,
+                -1,    // driver index (default)
+                0      // flags
+            )
+
+            // Mostra a janela
+            sdl2.show_window(window)
+
+            // Loop de renderização simples
+            zone "frame" {
+                sdl2.set_render_draw_color(renderer, 0, 0, 0, 255)
+                sdl2.render_clear(renderer)
+                sdl2.render_present(renderer)
+            }
+
+            // Aguarda 2 segundos
+            sdl2.delay(2000)
+
+        } // ← window e renderer são destruídos automaticamente aqui
+          //   SDL_DestroyRenderer e SDL_DestroyWindow chamados pelo OM
+    }
+}</code></pre>
+
+          <h3>O que acontece nos bastidores</h3>
+          <ol>
+            <li><code>sdl2.init</code> é chamada como função SAFE direta;</li>
+            <li><code>sdl2.create_window</code> retorna um recurso opaco. O runtime OM registra o ponteiro e associa <code>SDL_DestroyWindow</code> como destrutor;</li>
+            <li><code>sdl2.create_renderer</code> recebe o recurso <code>window</code> como primeiro parâmetro (método) e retorna outro recurso;</li>
+            <li>As funções <code>render_clear</code>, <code>render_present</code> recebem o recurso <code>renderer</code> como primeiro parâmetro;</li>
+            <li>Ao fechar a zona <code>"sdl_lifecycle"</code>, o OM chama <code>SDL_DestroyRenderer</code> e <code>SDL_DestroyWindow</code> na ordem inversa;</li>
+            <li>O programador nunca viu um <code>SDL_Window*</code> ou chamou <code>free</code>.</li>
+          </ol>
+
+          <div class="callout">
+            <strong>Dica:</strong> zonas aninhadas permitem ciclos de vida mais granulares.
+            No exemplo, a zona <code>"frame"</code> poderia conter alocações temporárias
+            de textura que são liberadas a cada quadro.
+          </div>
+        </section>
+
+        <section id="pkg-config">
+          <h2>Linking com pkg-config</h2>
+          <p>
+            O Snask pode usar <code>pkg-config</code> para localizar headers e bibliotecas
+            automaticamente. Isso elimina a necessidade de configurar caminhos manualmente.
+          </p>
+
+          <h3>Como funciona</h3>
+          <p>
+            Quando você usa <code>import_c_om "SDL2/SDL.h" as sdl2</code>, o compilador
+            procura por <code>sdl2</code> no pkg-config. Se encontrado, ele usa as flags
+            de compilação e linking automaticamente:
+          </p>
+
+          <pre><code># O compilador faz internamente:
+pkg-config sdl2 --cflags   # → -I/usr/include/SDL2
+pkg-config sdl2 --libs     # → -lSDL2</code></pre>
+
+          <p>
+            Para bibliotecas com nome diferente do namespace, especifique manualmente:
+          </p>
+
+          <pre><code>// Força o nome do pacote pkg-config
+import_c_om "SDL2/SDL.h" as sdl2 using "sdl2"</code></pre>
+
+          <h3>Resolução de caminhos</h3>
+          <p>A ordem de resolução do header é:</p>
+          <ol>
+            <li>Caminho absoluto ou relativo fornecido no <code>import_c_om</code>;</li>
+            <li>Flags <code>-I</code> passadas ao compilador;</li>
+            <li><code>pkg-config --cflags</code> para o nome da biblioteca;</li>
+            <li>Diretórios padrão do sistema (<code>/usr/include</code>, <code>/usr/local/include</code>).</li>
+          </ol>
+
+          <div class="callout warn">
+            <strong>Nota:</strong> pkg-config precisa estar instalado e o pacote correspondente
+            disponível. Para sistemas sem pkg-config, passe os caminhos manualmente com
+            flags do compilador.
+          </div>
+        </section>
+
+        <section id="boas-praticas">
+          <h2>Boas Práticas para Interoperabilidade C</h2>
+
+          <div class="grid">
+            <article class="card">
+              <h3>Sempre inspecione o contrato</h3>
+              <p>Use <code>snask om scan</code> para gerar e revisar o contrato antes de
+                compilar. Verifique funções bloqueadas e níveis de segurança.</p>
+            </article>
+            <article class="card">
+              <h3>Use zonas para recursos C</h3>
+              <p>Nunca gerencie recursos C manualmente. Coloque toda chamada que cria
+                um recurso dentro de uma zona. O OM limpa automaticamente.</p>
+            </article>
+            <article class="card">
+              <h3>Patches pequenos e focados</h3>
+              <p>Um patch .om.snif com 5-10 regras é saudável. Mais que 50 linhas sugere
+                que o scanner precisa de melhoria, não mais patches.</p>
+            </article>
+            <article class="card">
+              <h3>Evite expor ponteiros</h3>
+              <p>Nunca use @unsafe para expor ponteiros C crus para código seguro. Prefira
+                COPY_ONLY para strings e recursos opacos para objetos.</p>
+            </article>
+            <article class="card">
+              <h3>Diagnostique com trace</h3>
+              <p>Use <code>SNASK_OM_TRACE=1</code> para ver o ciclo de vida dos recursos:
+                registro, uso e destruição. Essencial para debugar contratos.</p>
+            </article>
+            <article class="card">
+              <h3>Teste com leak check</h3>
+              <p>Use <code>snask test --leak-check</code> para detectar vazamentos de
+                recursos C. O runtime OM instrumenta todas as alocações em modo debug.</p>
+            </article>
+          </div>
+
+          <h3>Resumo do fluxo de trabalho</h3>
+          <ol>
+            <li><strong>Importe o header</strong> com <code>import_c_om "minhalib.h" as lib</code>;</li>
+            <li><strong>Gere o contrato</strong> com <code>snask om scan</code> e revise funções bloqueadas;</li>
+            <li><strong>Crie patches</strong> .om.snif apenas para as exceções necessárias;</li>
+            <li><strong>Escreva código Snask</strong> usando as funções expostas dentro de zonas;</li>
+            <li><strong>Teste</strong> com leak detection e trace ativado.</li>
+          </ol>
+
+          <p>
+            Bibliotecas C entram como ABI nativa no LLVM. O usuário escreve Snask; o OM
+            tenta deduzir contratos de recursos a partir dos headers. O resultado é uma
+            chamada nativa, sem overhead, com gerenciamento automático de ciclo de vida.
+          </p>
+        </section>
+
       </main>
     </div>
     <script src="../assets/site.js"></script>

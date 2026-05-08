@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SPS e SNIF</title>
+    <title>SPS e SNIF — Sistema de Projetos</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
+        <a href="../index.html">Início</a>
         <a href="../learn/getting-started.html">Aprender</a>
-        <a href="../reference/language.html">Referencia</a>
+        <a href="../reference/functions/index.html">Funções</a>
         <a href="../systems/om.html">OM</a>
         <a aria-current="page" href="installation.html">Tooling</a>
       </nav>
@@ -20,36 +23,421 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Tooling</h2>
-        <a href="installation.html">Instalacao</a>
+        <a href="installation.html">Instalação</a>
         <a href="cli.html">CLI</a>
-        <a href="sps.html">SPS e SNIF</a>
+        <a class="active" href="sps.html">SPS e SNIF</a>
         <a href="lsp-neovim.html">LSP e Neovim</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
+
         <p class="eyebrow">Projetos</p>
         <h1>SPS e SNIF</h1>
         <p class="lead">
-          SPS e o sistema de projeto. SNIF e o formato usado pelo manifesto `snask.snif`.
+          SPS (Snask Project System) é o sistema de gerenciamento de projetos do Snask.
+          SNIF (Snask Native Interchange Format) é o formato de manifesto que define
+          metadados, dependências, build e scripts do projeto. Juntos, formam a base
+          para compilações reproduzíveis e gerenciamento de dependências.
         </p>
 
-        <h2>Manifesto</h2>
-        <pre><code>{
-  package: { name: "store", version: "0.1.0", entry: "main.snask" },
-  dependencies: { json: "*" },
-  build: { profile: "humane", opt_level: 2 },
-  scripts: { run: "snask run" },
+        <nav class="breadcrumbs">
+          <a href="#criar-projeto">Criar projeto</a> &middot;
+          <a href="#manifesto">Manifesto</a> &middot;
+          <a href="#dependencies">Dependências</a> &middot;
+          <a href="#build">Build</a> &middot;
+          <a href="#scripts">Scripts</a> &middot;
+          <a href="#snif-alt">SNIF alternativo</a> &middot;
+          <a href="#lockfile">Lockfile</a> &middot;
+          <a href="#comandos">Comandos</a> &middot;
+          <a href="#snif-format">Formato SNIF</a> &middot;
+          <a href="#status">Status</a>
+        </nav>
+
+        <section id="criar-projeto">
+          <h2>Criar um projeto</h2>
+          <p>
+            Use o comando <code>snask init</code> para gerar a estrutura inicial de um
+            projeto SPS:
+          </p>
+          <pre><code>snask init meu_app
+cd meu_app</code></pre>
+          <p>A estrutura gerada contém:</p>
+          <pre><code>meu_app/
+  snask.snif        # Manifesto do projeto (formato SNIF)
+  src/
+    main.snask      # Código fonte principal
+  snask.lock        # Lockfile (gerado no primeiro build)</code></pre>
+          <p>
+            O manifesto é criado com valores padrão: perfil <code>humane</code>,
+            entrada <code>src/main.snask</code> e versão <code>0.1.0</code>.
+            Edite o arquivo para ajustar nome, versão, dependências e configurações
+            de build.
+          </p>
+        </section>
+
+        <section id="manifesto">
+          <h2>Manifesto <code>snask.snif</code></h2>
+          <p>
+            O arquivo <code>snask.snif</code> é o manifesto do projeto. Escrito em SNIF,
+            ele define todas as configurações do projeto em seções organizadas.
+          </p>
+
+          <h3>Exemplo mínimo</h3>
+          <pre><code>[project]
+name = "hello_snask"
+version = "0.4.1-alpha"
+main = "src/main.snask"</code></pre>
+
+          <h3>Seção <code>[project]</code></h3>
+          <table>
+            <thead><tr><th>Campo</th><th>Tipo</th><th>Obrigatório</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>name</code></td><td>string</td><td>Sim</td><td>Nome do projeto</td></tr>
+              <tr><td><code>version</code></td><td>string</td><td>Sim</td><td>Versão semântica (ex: <code>0.4.1-alpha</code>)</td></tr>
+              <tr><td><code>main</code></td><td>string</td><td>Sim</td><td>Caminho relativo para o arquivo de entrada</td></tr>
+              <tr><td><code>description</code></td><td>string</td><td>Não</td><td>Descrição curta do projeto</td></tr>
+              <tr><td><code>authors</code></td><td>array de string</td><td>Não</td><td>Lista de autores</td></tr>
+              <tr><td><code>license</code></td><td>string</td><td>Não</td><td>Identificador SPDX da licença</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Exemplo completo</h3>
+          <pre><code>[project]
+name = "hello_snask"
+version = "0.4.1-alpha"
+main = "src/main.snask"
+description = "Um projeto de exemplo"
+authors = ["Alice", "Bob"]
+license = "MIT"
+
+[dependencies]
+logger = "1.0.0"
+json = "0.2.0"
+
+[build]
+profile = "humane"
+target = "native"
+strip = false
+
+[scripts]
+test = "snask build && ./test_runner"
+bench = "snask build --profile systems && ./bench"
+doc = "snask snif schema --md > SCHEMA.md"</code></pre>
+        </section>
+
+        <section id="dependencies">
+          <h2>Seção <code>[dependencies]</code></h2>
+          <p>
+            Lista as dependências externas do projeto. Cada chave é o nome do pacote e
+            o valor é a restrição de versão.
+          </p>
+          <table>
+            <thead><tr><th>Formato</th><th>Exemplo</th><th>Significado</th></tr></thead>
+            <tbody>
+              <tr><td>Versão exata</td><td><code>logger = "1.0.0"</code></td><td>Apenas a versão 1.0.0</td></tr>
+              <tr><td>Caret (compatível)</td><td><code>logger = "^1.0.0"</code></td><td>Qualquer versão &gt;=1.0.0 e &lt;2.0.0</td></tr>
+              <tr><td>Tilde (aproximada)</td><td><code>logger = "~1.0.0"</code></td><td>Qualquer versão &gt;=1.0.0 e &lt;1.1.0</td></tr>
+              <tr><td>Wildcard</td><td><code>logger = "*"</code></td><td>Qualquer versão (não recomendado para produção)</td></tr>
+              <tr><td>Intervalo</td><td><code>logger = "&gt;=1.0.0 &lt;2.0.0"</code></td><td>Intervalo arbitrário de versões</td></tr>
+            </tbody>
+          </table>
+          <pre><code>[dependencies]
+logger = "1.0.0"
+json = "^0.2.0"
+sdl = "~2.28.0"</code></pre>
+          <p>
+            O Snask resolve as versões no momento do build (ou ao executar
+            <code>snask add</code>) e registra as versões exatas no lockfile.
+          </p>
+        </section>
+
+        <section id="build">
+          <h2>Seção <code>[build]</code></h2>
+          <p>
+            Configurações de compilação do projeto. Substitui flags de linha de comando
+            quando definidas no manifesto.
+          </p>
+          <table>
+            <thead><tr><th>Campo</th><th>Tipo</th><th>Padrão</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>profile</code></td><td>string</td><td><code>"humane"</code></td><td>Perfil de compilação: <code>humane</code> ou <code>systems</code></td></tr>
+              <tr><td><code>target</code></td><td>string</td><td><code>"native"</code></td><td>Triplet da arquitetura alvo (ex: <code>x86_64-linux-gnu</code>)</td></tr>
+              <tr><td><code>strip</code></td><td>bool</td><td><code>false</code></td><td>Remove símbolos de depuração do binário</td></tr>
+              <tr><td><code>opt_level</code></td><td>int</td><td><code>2</code></td><td>Nível de otimização (0-3, ou <code>z</code> para tamanho)</td></tr>
+              <tr><td><code>release_size</code></td><td>bool</td><td><code>false</code></td><td>Equivalente a <code>--release-size</code></td></tr>
+              <tr><td><code>min_runtime</code></td><td>bool</td><td><code>false</td><td>Equivalente a <code>--min-runtime</code></td></tr>
+              <tr><td><code>output</code></td><td>string</td><td>—</td><td>Nome do binário de saída</td></tr>
+            </tbody>
+          </table>
+          <pre><code>[build]
+profile = "humane"
+target = "native"
+strip = false
+opt_level = 2</code></pre>
+        </section>
+
+        <section id="scripts">
+          <h2>Seção <code>[scripts]</code></h2>
+          <p>
+            Define comandos personalizados que podem ser executados via
+            <code>snask run-script &lt;nome&gt;</code>. Útil para automação de tarefas
+            como teste, benchmark e documentação.
+          </p>
+          <pre><code>[scripts]
+test = "snask build && ./test_runner"
+bench = "snask build --profile systems && ./bench"
+doc = "snask snif schema --md > SCHEMA.md"
+lint = "snask snif check snask.snif"</code></pre>
+          <table>
+            <thead><tr><th>Chave</th><th>Comando associado</th></tr></thead>
+            <tbody>
+              <tr><td><code>test</code></td><td><code>snask run-script test</code></td></tr>
+              <tr><td><code>bench</code></td><td><code>snask run-script bench</code></td></tr>
+              <tr><td><code>doc</code></td><td><code>snask run-script doc</code></td></tr>
+              <tr><td><code>lint</code></td><td><code>snask run-script lint</code></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="snif-alt">
+          <h2>Formato SNIF alternativo (histórico)</h2>
+          <p>
+            Antes da sintaxe de seções (<code>[project]</code>, <code>[dependencies]</code>),
+            o SNIF era escrito em um formato de objeto único. Ainda reconhecido pelo
+            compilador para compatibilidade retroativa:
+          </p>
+          <pre><code>{
+  package: {
+    name: "store",
+    version: "0.1.0",
+    entry: "main.snask"
+  },
+  dependencies: {
+    json: "*"
+  },
+  build: {
+    profile: "humane",
+    opt_level: 2
+  },
+  scripts: {
+    run: "snask run"
+  }
+}</code></pre>
+          <table>
+            <thead><tr><th>Mapeamento</th><th>Formato moderno</th><th>Formato histórico</th></tr></thead>
+            <tbody>
+              <tr><td><code>[project]</code></td><td><code>name</code>, <code>version</code>, <code>main</code></td><td><code>package.name</code>, <code>package.version</code>, <code>package.entry</code></td></tr>
+              <tr><td><code>[dependencies]</code></td><td><code>dependencies</code> (seção)</td><td><code>dependencies</code> (objeto)</td></tr>
+              <tr><td><code>[build]</code></td><td><code>build</code> (seção)</td><td><code>build</code> (objeto)</td></tr>
+              <tr><td><code>[scripts]</code></td><td><code>scripts</code> (seção)</td><td><code>scripts</code> (objeto)</td></tr>
+            </tbody>
+          </table>
+          <div class="callout">
+            <strong>Nota:</strong> o formato de seções é recomendado para projetos novos.
+            O formato de objeto único é mantido para não quebrar projetos existentes.
+          </div>
+        </section>
+
+        <section id="lockfile">
+          <h2>Lockfile <code>snask.lock</code></h2>
+          <p>
+            O arquivo <code>snask.lock</code> é gerado automaticamente no primeiro build
+            e atualizado sempre que as dependências mudam. Ele registra as versões exatas
+            resolvidas e hashes de integridade, garantindo compilações reproduzíveis.
+          </p>
+          <pre><code># snask.lock
+version = 1
+
+[[packages]]
+name = "logger"
+version = "1.0.0"
+sha256 = "a1b2c3d4e5f6..."
+registry = "https://registry.snask.dev"
+
+[[packages]]
+name = "json"
+version = "0.2.0"
+sha256 = "f6e5d4c3b2a1..."
+registry = "https://registry.snask.dev"</code></pre>
+          <table>
+            <thead><tr><th>Campo</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>version</code></td><td>Versão do formato do lockfile</td></tr>
+              <tr><td><code>[[packages]]</code></td><td>Lista de pacotes resolvidos</td></tr>
+              <tr><td><code>name</code></td><td>Nome do pacote</td></tr>
+              <tr><td><code>version</code></td><td>Versão exata resolvida</td></tr>
+              <tr><td><code>sha256</code></td><td>Hash SHA-256 do conteúdo do pacote (verificação de integridade)</td></tr>
+              <tr><td><code>registry</code></td><td>URL do registry de origem (opcional, usado para validação)</td></tr>
+            </tbody>
+          </table>
+          <p>
+            O lockfile deve ser versionado no repositório (commitar no git) para que todos
+            os desenvolvedores usem as mesmas versões das dependências.
+          </p>
+          <div class="callout warn">
+            <strong>Importante:</strong> nunca edite o <code>snask.lock</code> manualmente.
+            Use <code>snask add</code> e <code>snask remove</code> para gerenciar
+            dependências — o lockfile é atualizado automaticamente.
+          </div>
+        </section>
+
+        <section id="comandos">
+          <h2>Comandos relacionados</h2>
+          <table>
+            <thead><tr><th>Comando</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>snask build</code></td><td>Compila o projeto usando as configurações do <code>snask.snif</code></td></tr>
+              <tr><td><code>snask run</code></td><td>Compila e executa o projeto</td></tr>
+              <tr><td><code>snask add &lt;pacote&gt;</code></td><td>Adiciona dependência ao manifesto e lockfile</td></tr>
+              <tr><td><code>snask remove &lt;pacote&gt;</code></td><td>Remove dependência do manifesto e lockfile</td></tr>
+              <tr><td><code>snask snif fmt &lt;arquivo&gt; [--write]</code></td><td>Formata o manifesto SNIF</td></tr>
+              <tr><td><code>snask snif check &lt;arquivo&gt;</code></td><td>Valida o manifesto contra o esquema</td></tr>
+              <tr><td><code>snask snif schema [--md]</code></td><td>Exibe o esquema SNIF atual</td></tr>
+              <tr><td><code>snask run-script &lt;nome&gt;</code></td><td>Executa um script definido em <code>[scripts]</code></td></tr>
+            </tbody>
+          </table>
+          <pre><code># Fluxo de trabalho típico
+snask init meu_app
+cd meu_app
+snask add logger
+snask build
+snask run</code></pre>
+        </section>
+
+        <section id="snif-format">
+          <h2>Formato SNIF — referência completa</h2>
+          <p>
+            SNIF (Snask Native Interchange Format) é um formato de serialização de dados
+            usado pelo manifesto <code>snask.snif</code> e pelo lockfile. Abaixo estão
+            todos os elementos da sintaxe.
+          </p>
+
+          <h3>Tipos de valor</h3>
+          <table>
+            <thead><tr><th>Tipo</th><th>Exemplo</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td>string</td><td><code>"hello"</code></td><td>Texto entre aspas duplas</td></tr>
+              <tr><td>integer</td><td><code>42</code></td><td>Número inteiro (64 bits)</td></tr>
+              <tr><td>float</td><td><code>3.14</code></td><td>Número de ponto flutuante</td></tr>
+              <tr><td>bool</td><td><code>true</code></td><td>Booleano (<code>true</code> / <code>false</code>)</td></tr>
+              <tr><td>null</td><td><code>null</code></td><td>Ausência de valor</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Objetos</h3>
+          <p>Delimitados por chaves <code>{}</code>, campos separados por vírgula:</p>
+          <pre><code>{
+  name: "exemplo",
+  versao: 2,
+  ativo: true
 }</code></pre>
 
-        <h2>Comandos SNIF</h2>
-        <pre><code>snask snif fmt snask.snif --write
-snask snif schema --md
-snask snif check snask.snif</code></pre>
+          <h3>Arrays</h3>
+          <p>Delimitados por colchetes <code>[]</code>, elementos separados por vírgula:</p>
+          <pre><code>[1, 2, 3, "quatro"]</code></pre>
 
-        <h2>Lockfile</h2>
-        <p>
-          `snask.lock` registra pacote, registry e dependencias com `version`, `sha256` e URL
-          opcional. Isso ja tem roundtrip testado.
-        </p>
+          <h3>Comma-final (trailing comma)</h3>
+          <p>Vírgula após o último elemento é opcional e permitida — válida:</p>
+          <pre><code>{
+  a: 1,
+  b: 2,
+}
+
+[1, 2, 3,]</code></pre>
+
+          <h3>Literais tipados</h3>
+          <p>SNIF suporta literais com prefixo de tipo para valores especiais:</p>
+          <table>
+            <thead><tr><th>Literal</th><th>Exemplo</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>@date</code></td><td><code>@date("2024-12-01")</code></td><td>Data ISO 8601</td></tr>
+              <tr><td><code>@dec</code></td><td><code>@dec("3.14159265358979323846")</code></td><td>Decimal de precisão arbitrária</td></tr>
+              <tr><td><code>@enum</code></td><td><code>@enum("debug")</code></td><td>Valor enumerado</td></tr>
+              <tr><td><code>@path</code></td><td><code>@path("src/main.snask")</code></td><td>Caminho de arquivo normalizado</td></tr>
+              <tr><td><code>@regex</code></td><td><code>@regex("^\\w+$")</code></td><td>Expressão regular</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Big integers</h3>
+          <p>Inteiros além do limite de 64 bits podem ser escritos com o sufixo <code>big</code> ou usando <code>@dec</code>:</p>
+          <pre><code>valor_muito_grande: 12345678901234567890big
+preciso: @dec("12345678901234567890.123456789")</code></pre>
+
+          <h3>Referências</h3>
+          <p>SNIF suporta referências a valores definidos em outro ponto do mesmo documento:</p>
+          <table>
+            <thead><tr><th>Sintaxe</th><th>Significado</th></tr></thead>
+            <tbody>
+              <tr><td><code>&amp;nome</code></td><td>Define um âncora chamada <code>nome</code> no valor atual</td></tr>
+              <tr><td><code>*nome</code></td><td>Referencia o valor da âncora <code>nome</code></td></tr>
+            </tbody>
+          </table>
+          <pre><code>{
+  config_padrao: &padrao {
+    timeout: 30,
+    retry: 3
+  },
+  servidor_a: {
+    url: "http://a.com",
+    config: *padrao
+  },
+  servidor_b: {
+    url: "http://b.com",
+    config: *padrao
+  }
+}</code></pre>
+
+          <h3>O que NÃO é válido em SNIF</h3>
+          <table>
+            <thead><tr><th>Inválido</th><th>Exemplo</th><th>Motivo</th></tr></thead>
+            <tbody>
+              <tr><td>Barewords sem aspas</td><td><code>name: hello</code></td><td>Strings devem estar entre aspas duplas: <code>"hello"</code></td></tr>
+              <tr><td>Separador <code>=</code></td><td><code>name = "hello"</code></td><td>SNIF usa <code>:</code> como separador, não <code>=</code>. O formato de seções (<code>[project]</code>) é uma exceção que usa <code>=</code>.</td></tr>
+              <tr><td>Vírgula faltando</td><td><code>{a: 1 b: 2}</code></td><td>Campos em objetos devem ser separados por vírgula</td></tr>
+              <tr><td>Comentários de barra</td><td><code>// comentário</code></td><td>SNIF não suporta comentários (o manifesto usa seções e o lockfile usa <code>#</code> como exceção)</td></tr>
+              <tr><td>Tabulação em indentação</td><td><code>\tname: "x"</code></td><td>SNIF usa espaços para indentação (tabs não são permitidos)</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>Dica:</strong> use <code>snask snif check</code> para validar seu arquivo
+            SNIF contra o esquema oficial e <code>snask snif fmt</code> para formatá-lo
+            automaticamente.
+          </div>
+        </section>
+
+        <section id="status">
+          <h2>Status atual</h2>
+          <p>
+            O sistema SPS e o formato SNIF estão em estágio <strong>parcial</strong>.
+            São funcionais e úteis para projetos simples, mas algumas funcionalidades
+            ainda estão em maturação:
+          </p>
+          <table>
+            <thead><tr><th>Funcionalidade</th><th>Status</th><th>Observação</th></tr></thead>
+            <tbody>
+              <tr><td>Projeto simples (sem dependências)</td><td>Estável</td><td>Build e run funcionam sem ressalvas</td></tr>
+              <tr><td>Dependências básicas</td><td>Estável</td><td>Resolução de versão única e lockfile funcionam</td></tr>
+              <tr><td>Workspaces (múltiplos pacotes)</td><td>Parcial</td><td>Estrutura básica existe, resolução entre pacotes ainda limitada</td></tr>
+              <tr><td>Resolução avançada de dependências</td><td>Parcial</td><td>Gráfico completo e resolução de conflitos ainda em desenvolvimento</td></tr>
+              <tr><td>Registries remotos</td><td>Parcial</td><td>Registry público em fase de protótipo</td></tr>
+              <tr><td>Cache de dependências</td><td>Experimental</td><td>Cache local funcional, mas sem garbage collection</td></tr>
+              <tr><td>Formato SNIF (moderno)</td><td>Estável</td><td>Sintaxe de seções e validação completas</td></tr>
+              <tr><td>Formato SNIF (histórico)</td><td>Estável</td><td>Compatibilidade retroativa mantida</td></tr>
+            </tbody>
+          </table>
+          <div class="callout warn">
+            <strong>Atenção:</strong> para projetos que exigem resolução complexa de
+            dependências ou workspaces com muitos pacotes, monitore o arquivo
+            <code>docs/reference/FEATURE_STATUS.md</code> para atualizações sobre
+            o progresso dessas funcionalidades.
+          </div>
+        </section>
+
+        <div class="callout">
+          Consulte a página <a href="cli.html">CLI</a> para a referência completa de todos
+          os subcomandos e flags disponíveis.
+        </div>
+
       </main>
     </div>
     <script src="../assets/site.js"></script>

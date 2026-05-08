@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Perfil systems</title>
+    <title>Perfil Systems — Baixo Nível Controlado</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
+        <a href="../index.html">Início</a>
         <a href="../learn/getting-started.html">Aprender</a>
-        <a href="../reference/language.html">Referencia</a>
+        <a href="../reference/functions/index.html">Funções</a>
         <a aria-current="page" href="om.html">OM</a>
         <a href="../tooling/installation.html">Tooling</a>
       </nav>
@@ -20,45 +23,398 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Systems</h2>
-        <a href="om.html">OM-Snask-System</a>
-        <a href="systems-profile.html">Perfil systems</a>
-        <a href="low-level.html">Low-level</a>
-        <a href="c-interop.html">Interop C</a>
+        <a href="om.html">OM — Orquestração</a>
+        <a class="active" href="systems-profile.html">Perfil Systems</a>
+        <a href="low-level.html">Low-Level</a>
+        <a href="c-interop.html">Interoperabilidade C</a>
+        <h2>Nesta página</h2>
+        <a href="#visao-geral">Visão Geral</a>
+        <a href="#quando-usar">Quando Usar Systems</a>
+        <a href="#build">Build</a>
+        <a href="#memoria-crua">Memória Crua</a>
+        <a href="#primitivas">Primitivas Úteis</a>
+        <a href="#modelo-de-memoria">Modelo de Memória</a>
+        <a href="#seguranca">Segurança</a>
+        <a href="#comparacao">Humane vs Systems</a>
+        <a href="#boas-praticas">Boas Práticas</a>
       </aside>
-      <main class="content">
-        <p class="eyebrow">Baixo nivel</p>
-        <h1>Perfil systems</h1>
+      <main class="content doc-page">
+
+        <p class="eyebrow">Baixo nível</p>
+        <h1>Perfil Systems</h1>
         <p class="lead">
-          `systems` e o perfil para emuladores, parsers binarios, memoria crua controlada e codigo
-          mais perto da maquina.
+          O perfil <code>systems</code> é a porta de entrada para código de baixo nível em Snask.
+          Ele libera primitivas determinísticas, acesso a memória crua e operações de bit/registrador
+          que o perfil Humane oculta por segurança.
         </p>
 
-        <h2>Build</h2>
-        <pre><code>snask build apps/nes_emulator/nes_master.snask --profile systems --output /tmp/snask_nes</code></pre>
+        <section id="visao-geral">
+          <h2>Visão Geral</h2>
+          <p>
+            Snask oferece dois perfis de compilação: <strong>Humane</strong> (padrão) e
+            <strong>Systems</strong>. O perfil Humane prioriza produtividade, segurança e
+            gerenciamento automático de memória via zonas OM. O perfil Systems existe para
+            quando você precisa de controle total sobre a máquina.
+          </p>
+          <p>
+            No perfil Systems, você pode:
+          </p>
+          <ul>
+            <li>Acessar primitivas de memória crua: <code>mem_alloc</code>, <code>mem_free</code>, <code>mem_copy</code>;</li>
+            <li>Usar blocos <code>@unsafe</code> para operações que o analisador não consegue verificar;</li>
+            <li>Trabalhar com ponteiros (<code>ptr</code>) e aritmética de endereços;</li>
+            <li>Chamar funções built-in de bit/registrador sem restrições;</li>
+            <li>Controlar layout de memória e endianness manualmente.</li>
+          </ul>
+          <div class="callout">
+            <strong>Importante:</strong> Systems não é "Humane sem segurança". É um perfil diferente
+            com regras diferentes. O código Systems deve ser pequeno, testado e cercado por APIs
+            Snask seguras.
+          </div>
+        </section>
 
-        <h2>Memoria crua</h2>
-        <pre><code>class main {
+        <section id="quando-usar">
+          <h2>Quando Usar Systems</h2>
+          <p>O perfil Systems é a escolha certa para domínios onde o custo do gerenciamento automático
+            supera seus benefícios. Os casos de uso típicos incluem:</p>
+
+          <table>
+            <thead>
+              <tr><th>Domínio</th><th>Por que Systems</th><th>Exemplo</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Emuladores</td><td>Mapeamento direto de registradores e memória da CPU alvo</td><td>NES, Game Boy, Chip-8</td></tr>
+              <tr><td>Parsers binários</td><td>Leitura/escrita de bytes em offsets específicos</td><td>ELF, PNG, TCP/IP</td></tr>
+              <tr><td>Kernels e bare-metal</td><td>Sem runtime, sem alocador, sem syscalls</td><td>Bootloader, driver</td></tr>
+              <tr><td>Controle de memória real</td><td>Alocação determinística sem GC ou pausas</td><td>Pool allocator, frame arena</td></tr>
+              <tr><td>Processamento de áudio/vídeo</td><td>Buffers contíguos, zero-copy, sem latência</td><td>Codec, sample buffer</td></tr>
+              <tr><td>FFI com C</td><td>Chamadas nativas via OM com ponteiros crus</td><td>SDL2, zlib, OpenGL</td></tr>
+            </tbody>
+          </table>
+
+          <p>
+            Se seu código se encaixa em um desses domínios, o perfil Systems oferece as ferramentas
+            certas. Caso contrário, comece com Humane — você sempre pode migrar módulos específicos
+            para Systems conforme a necessidade.
+          </p>
+        </section>
+
+        <section id="build">
+          <h2>Build</h2>
+          <p>Para compilar um projeto com o perfil Systems, use a flag <code>--profile systems</code>:</p>
+          <pre><code>snask build apps/nes_emulator/nes_master.snask --profile systems --output /tmp/snask_nes</code></pre>
+          <p>O compilador irá:</p>
+          <ol>
+            <li>Habilitar as primitivas de baixo nível (memória crua, ponteiros, builtins de bit);</li>
+            <li>Permitir blocos <code>@unsafe</code> sem warning;</li>
+            <li>Não inserir runtime OM para zonas (você gerencia manualmente);</li>
+            <li>Emitir chamadas LLVM otimizadas para o alvo.</li>
+          </ol>
+          <div class="callout warn">
+            <strong>Atenção:</strong> nem todo código Snask compila no perfil Systems. Código
+            que depende de zonas, recursos automáticos ou coleta de lixo do runtime precisa
+            do perfil Humane. Módulos Systems devem ser intencionalmente isolados.
+          </div>
+        </section>
+
+        <section id="memoria-crua">
+          <h2>Memória Crua</h2>
+          <p>
+            O perfil Systems expõe funções de alocação direta. Todo acesso a memória crua deve
+            ocorrer dentro de blocos <code>@unsafe</code>:
+          </p>
+
+          <pre><code>class main {
     fun start() {
         @unsafe {
+            // Aloca 64KB de memória zero-inicializada
             let mem: ptr = mem_alloc_zero(65536)
+
+            // Escreve o reset vector do 6502 em 0xFFFC
             mem_write_u8(mem, 0xFFFC, 0x00)
             mem_write_u8(mem, 0xFFFD, 0x80)
+
+            // Lê o vetor como little-endian u16
             let pc: u16 = mem_read_u16(mem, 0xFFFC)
+
+            // Libera a memória alocada
             mem_free(mem)
         }
     }
 }</code></pre>
 
-        <h2>Primitivas uteis</h2>
-        <table>
-          <thead><tr><th>Grupo</th><th>Funcoes</th></tr></thead>
-          <tbody>
-            <tr><td>Conversao</td><td><code>as_u8</code>, <code>as_u16</code>, <code>as_i32</code>, <code>as_usize</code></td></tr>
-            <tr><td>Bits</td><td><code>bit_test</code>, <code>bit_set</code>, <code>flag_write</code></td></tr>
-            <tr><td>6502</td><td><code>lo_u8</code>, <code>hi_u8</code>, <code>make_u16</code></td></tr>
-            <tr><td>Overflow</td><td><code>carry_add_u8</code>, <code>borrow_sub_u8</code>, <code>overflow_add_i8</code></td></tr>
-          </tbody>
-        </table>
+          <h3>Visão geral das funções de memória</h3>
+          <table>
+            <thead>
+              <tr><th>Função</th><th>Descrição</th><th>Segurança</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>mem_alloc(size: usize) -> ptr</code></td><td>Aloca <code>size</code> bytes sem inicializar</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_alloc_zero(size: usize) -> ptr</code></td><td>Aloca <code>size</code> bytes e zera</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_free(ptr)</code></td><td>Libera memória previamente alocada</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_copy(dst: ptr, src: ptr, size: usize)</code></td><td>Copia <code>size</code> bytes de src para dst</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_fill_u8(ptr, value: u8, size: usize)</code></td><td>Preenche <code>size</code> bytes com <code>value</code></td><td>@unsafe</td></tr>
+              <tr><td><code>mem_read_u8(ptr, offset: usize) -> u8</code></td><td>Lê um byte no offset</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_write_u8(ptr, offset: usize, value: u8)</code></td><td>Escreve um byte no offset</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_read_u16(ptr, offset: usize) -> u16</code></td><td>Lê dois bytes (little-endian) no offset</td><td>@unsafe</td></tr>
+              <tr><td><code>mem_write_u16(ptr, offset: usize, value: u16)</code></td><td>Escreve dois bytes (little-endian) no offset</td><td>@unsafe</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout danger">
+            <strong>Perigo:</strong> chamar <code>mem_free</code> duas vezes no mesmo ponteiro
+            (double-free) ou acessar memória após liberá-la (use-after-free) causa comportamento
+            indefinido. O runtime não protege contra esses erros no perfil Systems.
+          </div>
+        </section>
+
+        <section id="primitivas">
+          <h2>Primitivas Úteis</h2>
+          <p>
+            O perfil Systems disponibiliza um conjunto de funções built-in para manipulação
+            de tipos, bits e operações aritméticas com detecção de overflow. Essas funções
+            são essenciais para implementar emuladores, processadores e protocolos binários.
+          </p>
+
+          <h3>Conversão</h3>
+          <p>Conversões explícitas entre tipos numéricos sem perda de sinal implícita:</p>
+          <pre><code>let valor: u16 = 0xABCD
+let baixo: u8 = as_u8(valor)      // 0xCD
+let alto: u8 = hi_u8(valor)       // 0xAB
+let inteiro: i32 = as_i32(valor)  // 0x0000ABCD
+let offset: usize = as_usize(inteiro)</code></pre>
+
+          <h3>Bits e Flags</h3>
+          <p>Manipulação direta de bits para flags de CPU e registro de estado:</p>
+          <pre><code>let flags: u8 = 0b00000000
+
+// Testa se o bit 1 (carry) está setado
+let carry: bool = bit_test(flags, 1)
+
+// Seta o bit 3 (decimal mode no 6502)
+let flags: u8 = bit_set(flags, 3)
+
+// Escreve um valor booleano em um bit específico
+let flags: u8 = flag_write(flags, 1, true)  // seta carry
+
+// Limpa um bit
+let flags: u8 = bit_clear(flags, 3)</code></pre>
+
+          <h3>6502 — Operações de 16 bits</h3>
+          <p>Funções específicas para trabalhar com registradores de 16 bits comuns em CPUs clássicas:</p>
+          <pre><code>let endereco: u16 = 0xABCD
+let lo: u8 = lo_u8(endereco)   // 0xCD — byte baixo
+let hi: u8 = hi_u8(endereco)   // 0xAB — byte alto
+let reconstruido: u16 = make_u16(hi, lo)  // 0xABCD</code></pre>
+
+          <h3>Overflow Aritmético</h3>
+          <p>Operações que preservam carry/borrow/overflow — fundamentais para emulação de CPU:</p>
+          <pre><code>// Adição com carry (útil para ADC no 6502)
+let (result: u8, carry: bool) = carry_add_u8(0x80, 0x80)
+
+// Subtração com borrow (útil para SBC no 6502)
+let (result: u8, borrow: bool) = borrow_sub_u8(0x00, 0x01)
+
+// Adição com detecção de overflow signed (útil para V flag)
+let (result: i8, overflow: bool) = overflow_add_i8(0x40, 0x40)
+
+// Subtração com detecção de overflow signed
+let (result: i8, overflow: bool) = overflow_sub_i8(0x7F, 0xFF)</code></pre>
+
+          <h3>Tabela completa de primitivas</h3>
+          <table>
+            <thead>
+              <tr><th>Grupo</th><th>Funções</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Conversão</td><td><code>as_u8</code>, <code>as_u16</code>, <code>as_i32</code>, <code>as_usize</code></td></tr>
+              <tr><td>Bits</td><td><code>bit_test</code>, <code>bit_set</code>, <code>bit_clear</code>, <code>flag_write</code></td></tr>
+              <tr><td>6502</td><td><code>lo_u8</code>, <code>hi_u8</code>, <code>make_u16</code></td></tr>
+              <tr><td>Overflow</td><td><code>carry_add_u8</code>, <code>borrow_sub_u8</code>, <code>overflow_add_i8</code>, <code>overflow_sub_i8</code></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="modelo-de-memoria">
+          <h2>Modelo de Memória</h2>
+          <p>
+            O perfil Systems oferece três regimes de memória. Entender quando usar cada um é
+            essencial para escrever código eficiente e correto.
+          </p>
+
+          <h3>Stack</h3>
+          <p>
+            A pilha é o regime padrão para variáveis locais. Toda variável declarada dentro
+            de uma função vive na stack e é destruída quando a função retorna. Não há custo
+            de alocação — é apenas um ajuste de ponteiro.
+          </p>
+          <pre><code>fun compute() {
+    let a: u8 = 10       // stack
+    let b: u8 = 20       // stack
+    let c: u8 = a + b    // stack
+} // tudo destruído ao sair</code></pre>
+
+          <h3>Heap (alocação manual)</h3>
+          <p>
+            Dados que precisam sobreviver à função que os criou devem ser alocados no heap.
+            No perfil Systems, isso é feito manualmente com <code>mem_alloc</code> /
+            <code>mem_free</code>:
+          </p>
+          <pre><code>@unsafe {
+    let buffer: ptr = mem_alloc(4096)
+    // ... usa o buffer ...
+    mem_free(buffer)
+}</code></pre>
+
+          <h3>Memória raw (mapeada)</h3>
+          <p>
+            Para emuladores e kernels, é comum mapear memória em endereços fixos ou simular
+            um espaço de endereçamento. O perfil Systems permite alocar blocos grandes e
+            acessá-los por offset, exatamente como uma CPU real faria:
+          </p>
+          <pre><code>@unsafe {
+    // 64KB — espaço de endereçamento do 6502
+    let mem: ptr = mem_alloc_zero(65536)
+
+    // Mapeia cartucho no início
+    mem_copy(mem, cartucho, 0x8000)
+
+    // Stack pointer começa em 0x01FF (cresce para baixo)
+    mem_write_u8(mem, 0x01FD, 0x00)
+
+    // CPU começa a execução no reset vector
+    let pc: u16 = mem_read_u16(mem, 0xFFFC)
+}</code></pre>
+
+          <table>
+            <thead>
+              <tr><th>Regime</th><th>Custo</th><th>Vida</th><th>Uso típico</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Stack</td><td>Gratuito (ajuste de ponteiro)</td><td>Escopo da função</td><td>Variáveis locais, temporários</td></tr>
+              <tr><td>Heap manual</td><td><code>mem_alloc</code>/<code>mem_free</code></td><td>Determinado pelo programador</td><td>Buffers de longa duração</td></tr>
+              <tr><td>Memória raw</td><td>Acesso por offset</td><td>Até <code>mem_free</code></td><td>Espaço de endereçamento de emulador</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="seguranca">
+          <h2>Segurança no Perfil Systems</h2>
+          <p>
+            O perfil Systems não elimina segurança — ele a redefine. Em vez de proteger
+            o programador do erro humano, ele exige que o programador prove que o código
+            está correto. As regras são:
+          </p>
+
+          <h3>Isolamento de @unsafe</h3>
+          <p>
+            Todo código que acessa memória crua, manipula ponteiros ou chama operações
+            não verificáveis deve estar dentro de um bloco <code>@unsafe</code>. Esse
+            isolamento permite que revisores identifiquem rapidamente as regiões críticas.
+          </p>
+
+          <h3>Módulos pequenos e verificáveis</h3>
+          <p>
+            O código Systems deve ser concentrado em módulos pequenos com responsabilidade
+            única. Um emulador de NES, por exemplo, pode ter um módulo <code>cpu.snask</code>
+            com ~300 linhas de código Systems, enquanto o resto do projeto (UI, áudio,
+            entrada) fica em Humane.
+          </p>
+
+          <h3>APIs seguras como barreira</h3>
+          <p>
+            Módulos Systems devem exportar APIs seguras (sem <code>@unsafe</code>) para
+            o resto do projeto. O código Humane nunca precisa ver ponteiros ou chamar
+            <code>mem_free</code>:
+          </p>
+          <pre><code>// cpu.snask — módulo Systems
+class NesCpu {
+    // API pública — segura, sem ponteiros expostos
+    fun step() -> u8 { @unsafe { ... } }
+    fun read_byte(address: u16) -> u8 { @unsafe { ... } }
+    fun write_byte(address: u16, value: u8) { @unsafe { ... } }
+}</code></pre>
+
+          <table>
+            <thead>
+              <tr><th>Regra</th><th>Descrição</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr><td>@unsafe isolado</td><td>Blocos @unsafe devem ser o mais curtos possível</td></tr>
+              <tr><td>Módulos pequenos</td><td>Cada módulo Systems < 500 linhas</td></tr>
+              <tr><td>Barreira segura</td><td>Exportar APIs sem ponteiros para código Humane</td></tr>
+              <tr><td>Testes obrigatórios</td><td>Todo bloco @unsafe deve ter teste correspondente</td></tr>
+              <tr><td>Revisão humana</td><td>Código Systems requer code review obrigatório</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="comparacao">
+          <h2>Humane vs Systems</h2>
+          <table>
+            <thead>
+              <tr><th>Característica</th><th>Humane</th><th>Systems</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Perfil padrão</td><td>Sim</td><td>Não (opt-in via flag)</td></tr>
+              <tr><td>Gerenciamento de memória</td><td>Automático (zonas OM)</td><td>Manual (mem_alloc / mem_free)</td></tr>
+              <tr><td>Blocos @unsafe</td><td>Restritos ou proibidos</td><td>Permitidos e esperados</td></tr>
+              <tr><td>Ponteiros crus</td><td>Não expostos</td><td>Disponíveis (ptr)</td></tr>
+              <tr><td>Primitivas de bit/registrador</td><td>Limitadas</td><td>Completas</td></tr>
+              <tr><td>Runtime OM</td><td>Presente (zonas, recursos)</td><td>Ausente (controle total)</td></tr>
+              <tr><td>Coleta de lixo</td><td>Automática</td><td>Não há (explícita)</td></tr>
+              <tr><td>Determinismo</td><td>Alto (com zonas)</td><td>Total (sem surpresas)</td></tr>
+              <tr><td>Segurança de memória</td><td>Garantida pelo runtime</td><td>Responsabilidade do programador</td></tr>
+              <tr><td>Performance</td><td>Ótima para 95% dos casos</td><td>Máxima (sem overhead)</td></tr>
+              <tr><td>Ideal para</td><td>Aplicações, scripts, jogos</td><td>Emuladores, parsers, kernels</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>Dica:</strong> você pode usar os dois perfis no mesmo projeto. Módulos
+            críticos compilam com Systems; o resto fica em Humane. Apenas isole bem as
+            fronteiras com APIs seguras.
+          </div>
+        </section>
+
+        <section id="boas-praticas">
+          <h2>Boas Práticas para Misturar Humane e Systems</h2>
+
+          <div class="grid">
+            <article class="card">
+              <h3>Isole em módulos</h3>
+              <p>Cada módulo Systems deve ter um propósito único e claro. Ex: <code>cpu.snask</code>,
+                <code>apu.snask</code>, <code>ppu.snask</code>. Não misture lógica de negócio
+                com código de baixo nível no mesmo arquivo.</p>
+            </article>
+            <article class="card">
+              <h3>Exporte APIs seguras</h3>
+              <p>Módulos Systems devem expor apenas funções seguras (sem <code>@unsafe</code> na
+                assinatura). O chamador Humane nunca deve precisar entrar em <code>@unsafe</code>.</p>
+            </article>
+            <article class="card">
+              <h3>Evite @unsafe vazado</h3>
+              <p>Nunca retorne ponteiros ou recursos não gerenciados para código Humane. Use
+                tipos opacos ou IDs numéricos para referenciar recursos internos.</p>
+            </article>
+            <article class="card">
+              <h3>Teste os dois lados</h3>
+              <p>Testes de unidade para o módulo Systems (com <code>@unsafe</code>) e testes
+                de integração para o código Humane que consome as APIs seguras.</p>
+            </article>
+            <article class="card">
+              <h3>Documente contratos</h3>
+              <p>Cada função Systems deve documentar: pré-condições (ex: ponteiro não nulo,
+                tamanho mínimo), pós-condições e responsabilidade de liberação.</p>
+            </article>
+            <article class="card">
+              <h3>Mantenha o @unsafe curto</h3>
+              <p>Um bloco <code>@unsafe</code> ideal tem 3-10 linhas. Se precisar de mais,
+                extraia funções auxiliares. Blocos longos são difíceis de revisar.</p>
+            </article>
+          </div>
+        </section>
+
       </main>
     </div>
     <script src="../assets/site.js"></script>

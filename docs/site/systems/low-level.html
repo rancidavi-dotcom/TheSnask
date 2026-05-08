@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Low-level Snask</title>
+    <title>Low-Level Snask — Potência Bruta Controlada</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
+        <a href="../index.html">Início</a>
         <a href="../learn/getting-started.html">Aprender</a>
-        <a href="../reference/language.html">Referencia</a>
+        <a href="../reference/functions/index.html">Funções</a>
         <a aria-current="page" href="om.html">OM</a>
         <a href="../tooling/installation.html">Tooling</a>
       </nav>
@@ -20,45 +23,416 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Systems</h2>
-        <a href="om.html">OM-Snask-System</a>
-        <a href="systems-profile.html">Perfil systems</a>
-        <a href="low-level.html">Low-level</a>
-        <a href="c-interop.html">Interop C</a>
+        <a href="om.html">OM — Orquestração</a>
+        <a href="systems-profile.html">Perfil Systems</a>
+        <a class="active" href="low-level.html">Low-Level</a>
+        <a href="c-interop.html">Interoperabilidade C</a>
+        <h2>Nesta página</h2>
+        <a href="#o-que-e-low-level">O que é Low-Level</a>
+        <a href="#motivacao">Motivação: Emulador NES</a>
+        <a href="#tabela-6502">Tabela 6502 / NES</a>
+        <a href="#operacoes-de-memoria">Operações de Memória</a>
+        <a href="#endianness">Endianness</a>
+        <a href="#regras-unsafe">Regras do @unsafe</a>
+        <a href="#exemplo-cpu-6502">Exemplo: CPU 6502</a>
+        <a href="#boas-praticas">Boas Práticas</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
+
         <p class="eyebrow">Systems</p>
-        <h1>Low-level em Snask</h1>
+        <h1>Low-Level em Snask</h1>
         <p class="lead">
-          Snask pode ser confortavel para iniciantes e ainda oferecer controle baixo nivel quando o
-          projeto pede emuladores, runtimes, parsers binarios ou kernels futuros.
+          Snask foi projetada para ser confortável para iniciantes e ainda oferecer controle
+          de baixo nível quando o projeto pede emuladores, runtimes, parsers binários ou
+          kernels futuros. Esta página detalha o que significa "low-level" em Snask e como
+          usar essas ferramentas com segurança.
         </p>
 
-        <h2>Modelo</h2>
-        <ul>
-          <li>`humane` e o perfil padrao para produtividade e runtime completo.</li>
-          <li>`systems` libera primitivas deterministicas e memoria crua controlada.</li>
-          <li>`@unsafe` delimita trechos onde o programador assume responsabilidade manual.</li>
-          <li>OM continua existindo para recursos, zonas e limpeza deterministica.</li>
-        </ul>
+        <section id="o-que-e-low-level">
+          <h2>O que é Low-Level em Snask</h2>
+          <p>
+            "Low-level" em Snask não é um modo binário (ligado/desligado). É um espectro
+            controlado por três mecanismos que se complementam:
+          </p>
 
-        <h2>Base para emulador NES</h2>
-        <table>
-          <thead><tr><th>Necessidade 6502/NES</th><th>Suporte em Snask</th></tr></thead>
-          <tbody>
-            <tr><td>Registradores de 8/16 bits</td><td>Tipos `u8`, `u16` e conversoes explicitas.</td></tr>
-            <tr><td>Flags de CPU</td><td>`bit_test`, `bit_set`, `bit_clear`, `flag_write`.</td></tr>
-            <tr><td>Carry, borrow e overflow</td><td>Builtins dedicados para preservar semantica real.</td></tr>
-            <tr><td>Memoria 64KB</td><td>`mem_alloc_zero`, reads/writes por offset, little-endian.</td></tr>
-            <tr><td>Determinismo</td><td>Operacoes explicitas, sem comportamento escondido de GC manual.</td></tr>
-          </tbody>
-        </table>
+          <table>
+            <thead>
+              <tr><th>Mecanismo</th><th>O que oferece</th><th>Quando usar</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Perfil Systems</td><td>Primitivas de memória, ponteiros, builtins de bit</td><td>O módulo inteiro precisa de controle fino</td></tr>
+              <tr><td>Blocos @unsafe</td><td>Acesso a operações não verificáveis</td><td>Apenas algumas funções precisam de poder extra</td></tr>
+              <tr><td>OM (Orquestrador de Memória)</td><td>Zonas, recursos, contratos C</td><td>Gerenciamento automático com interop C</td></tr>
+            </tbody>
+          </table>
 
-        <h2>Regra de seguranca</h2>
-        <p>
-          Codigo baixo nivel deve ser pequeno, testado e cercado por API Snask segura. O objetivo
-          nao e transformar todo programa em memoria manual; e permitir que a parte que precisa da
-          maquina tenha acesso real a ela.
-        </p>
+          <p>
+            Você pode usar os três no mesmo projeto. Um emulador de NES, por exemplo, usa
+            o perfil Systems para o núcleo da CPU, <code>@unsafe</code> para acessar a
+            memória mapeada do cartucho e OM para gerenciar recursos SDL2 (janela, áudio, input).
+          </p>
+
+          <div class="callout">
+            <strong>Frase guia:</strong> baixo nível em Snask é sobre <em>controle</em>, não
+            sobre <em>sofrimento</em>. Você escolhe exatamente quanto controle precisa e
+            o resto fica gerenciado.
+          </div>
+        </section>
+
+        <section id="motivacao">
+          <h2>Motivação: Emulador NES</h2>
+          <p>
+            O principal caso de uso que motivou o suporte low-level em Snask foi a emulação
+            do NES (Nintendo Entertainment System). Um emulador de NES precisa de:
+          </p>
+          <ul>
+            <li>Registradores de 8 e 16 bits com operações aritméticas exatas;</li>
+            <li>Flags de CPU (carry, zero, interrupt, decimal, overflow, negative);</li>
+            <li>Memória de 64KB acessada por offset com endianness little-endian;</li>
+            <li>Determinismo total — cada instrução deve produzir o mesmo resultado sempre;</li>
+            <li>Sem pausas de GC ou alocação imprevisível durante a execução da CPU.</li>
+          </ul>
+          <p>
+            Snask foi construída para atender a esses requisitos sem sacrificar a segurança
+            nas partes do código que não precisam de baixo nível.
+          </p>
+        </section>
+
+        <section id="tabela-6502">
+          <h2>Necessidades 6502 / NES e Suporte Snask</h2>
+          <table>
+            <thead>
+              <tr><th>Necessidade 6502/NES</th><th>Suporte em Snask</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Registradores de 8 bits (<code>A</code>, <code>X</code>, <code>Y</code>)</td>
+                <td>Tipo nativo <code>u8</code> com conversões explícitas via <code>as_u8</code>, <code>as_u16</code></td>
+              </tr>
+              <tr>
+                <td>Registradores de 16 bits (<code>PC</code>, <code>SP</code>)</td>
+                <td>Tipo nativo <code>u16</code> com <code>lo_u8</code>, <code>hi_u8</code>, <code>make_u16</code></td>
+              </tr>
+              <tr>
+                <td>Flags de CPU (<code>P</code>: C, Z, I, D, V, N)</td>
+                <td><code>bit_test</code>, <code>bit_set</code>, <code>bit_clear</code>, <code>flag_write</code></td>
+              </tr>
+              <tr>
+                <td>Carry, borrow e overflow aritmético</td>
+                <td>Builtins dedicados: <code>carry_add_u8</code>, <code>borrow_sub_u8</code>, <code>overflow_add_i8</code>, <code>overflow_sub_i8</code></td>
+              </tr>
+              <tr>
+                <td>Memória de 64KB com acesso por offset</td>
+                <td><code>mem_alloc_zero(65536)</code> + <code>mem_read_u8</code>, <code>mem_write_u8</code>, <code>mem_read_u16</code>, <code>mem_write_u16</code></td>
+              </tr>
+              <tr>
+                <td>Determinismo (sem GC, sem alocações imprevisíveis)</td>
+                <td>Operações explícitas, sem comportamento escondido de GC ou runtime. Perfil Systems não tem runtime OM.</td>
+              </tr>
+              <tr>
+                <td>Little-endian para operandos de 16 bits</td>
+                <td>Padrão little-endian em todas as operações de memória multi-byte</td>
+              </tr>
+              <tr>
+                <td>Sem alocações durante execução</td>
+                <td>Memória pré-alocada no início. <code>mem_alloc</code> só é chamado na inicialização.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="operacoes-de-memoria">
+          <h2>Operações de Memória em Detalhe</h2>
+          <p>
+            O perfil Systems expõe um conjunto completo de operações de memória. Todas
+            exigem <code>@unsafe</code>.
+          </p>
+
+          <h3>Alocação e Liberação</h3>
+          <pre><code>@unsafe {
+    let a: ptr = mem_alloc(256)       // 256 bytes não inicializados
+    let b: ptr = mem_alloc_zero(512)  // 512 bytes zerados
+    mem_free(a)
+    mem_free(b)
+}</code></pre>
+
+          <h3>Cópia e Preenchimento</h3>
+          <pre><code>@unsafe {
+    let src: ptr = mem_alloc(1024)
+    let dst: ptr = mem_alloc(1024)
+
+    mem_copy(dst, src, 1024)    // copia 1024 bytes de src para dst
+    mem_fill_u8(dst, 0xFF, 64)  // preenche 64 bytes com 0xFF
+
+    mem_free(src)
+    mem_free(dst)
+}</code></pre>
+
+          <h3>Acesso por Offset</h3>
+          <p>Todas as funções de leitura/escrita usam offset a partir da base do ponteiro:</p>
+          <pre><code>@unsafe {
+    let mem: ptr = mem_alloc_zero(65536)
+
+    // Escrita
+    mem_write_u8(mem,  0x0000, 0xA9)       // LDA #imm
+    mem_write_u8(mem,  0x0001, 0x42)       // imm = 0x42
+    mem_write_u16(mem, 0xFFFC, 0x0000)     // reset vector = $0000
+
+    // Leitura
+    let opcode: u8   = mem_read_u8(mem, 0x0000)
+    let operand: u8  = mem_read_u8(mem, 0x0001)
+    let reset_pc: u16 = mem_read_u16(mem, 0xFFFC)
+
+    mem_free(mem)
+}</code></pre>
+
+          <h3>Aritmética de Ponteiros</h3>
+          <p>Para acesso não linear, use <code>ptr_add</code> para deslocar o ponteiro:</p>
+          <pre><code>@unsafe {
+    let base: ptr = mem_alloc(4096)
+    let deslocado: ptr = ptr_add(base, 2048)  // aponta para o meio do bloco
+    mem_write_u8(deslocado, 0, 0xAA)
+    mem_free(base)
+}</code></pre>
+
+          <table>
+            <thead>
+              <tr><th>Função</th><th>Assinatura</th><th>Descrição</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>mem_alloc</code></td><td><code>(size: usize) -> ptr</code></td><td>Aloca sem inicializar</td></tr>
+              <tr><td><code>mem_alloc_zero</code></td><td><code>(size: usize) -> ptr</code></td><td>Aloca e zera</td></tr>
+              <tr><td><code>mem_free</code></td><td><code>(ptr)</code></td><td>Libera memória</td></tr>
+              <tr><td><code>mem_copy</code></td><td><code>(dst: ptr, src: ptr, size: usize)</code></td><td>Copia bytes</td></tr>
+              <tr><td><code>mem_fill_u8</code></td><td><code>(ptr, value: u8, size: usize)</code></td><td>Preenche com byte</td></tr>
+              <tr><td><code>mem_read_u8</code></td><td><code>(ptr, offset: usize) -> u8</code></td><td>Lê byte no offset</td></tr>
+              <tr><td><code>mem_write_u8</code></td><td><code>(ptr, offset: usize, value: u8)</code></td><td>Escreve byte no offset</td></tr>
+              <tr><td><code>mem_read_u16</code></td><td><code>(ptr, offset: usize) -> u16</code></td><td>Lê u16 little-endian</td></tr>
+              <tr><td><code>mem_write_u16</code></td><td><code>(ptr, offset: usize, value: u16)</code></td><td>Escreve u16 little-endian</td></tr>
+              <tr><td><code>ptr_add</code></td><td><code>(ptr, offset: usize) -> ptr</code></td><td>Avança ponteiro</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="endianness">
+          <h2>Endianness</h2>
+          <p>
+            Snask adota <strong>little-endian</strong> como padrão para todas as operações
+            multi-byte de memória. Isso significa que:
+          </p>
+          <ul>
+            <li><code>mem_read_u16(ptr, 0)</code> lê <code>ptr[0]</code> como byte baixo e <code>ptr[1]</code> como byte alto;</li>
+            <li><code>mem_write_u16(ptr, 0, 0xABCD)</code> escreve <code>0xCD</code> em <code>ptr[0]</code> e <code>0xAB</code> em <code>ptr[1]</code>;</li>
+            <li>O processador 6502 e a maioria dos sistemas modernos (x86, ARM) usam little-endian, então não há reversão de bytes.</li>
+          </ul>
+          <pre><code>@unsafe {
+    let mem: ptr = mem_alloc(4)
+    mem_write_u16(mem, 0, 0xABCD)
+    let lo: u8 = mem_read_u8(mem, 0)   // 0xCD
+    let hi: u8 = mem_read_u8(mem, 1)   // 0xAB
+    mem_free(mem)
+}</code></pre>
+          <div class="callout warn">
+            <strong>Nota:</strong> se você precisar de big-endian (rede, alguns formatos de
+            arquivo), terá que fazer a reversão manualmente com <code>lo_u8</code> /
+            <code>hi_u8</code> / <code>make_u16</code>. Suporte nativo a byte swapping
+            está nos planos.
+          </div>
+        </section>
+
+        <section id="regras-unsafe">
+          <h2>Regras do @unsafe</h2>
+          <p>
+            O bloco <code>@unsafe</code> é o mecanismo que delimita onde o programador
+            assume responsabilidade manual. As regras são claras:
+          </p>
+
+          <table>
+            <thead>
+              <tr><th>Regra</th><th>Explicação</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Isolamento total</strong></td><td>Nenhuma operação @unsafe pode estar fora de um bloco @unsafe declarado.</td></tr>
+              <tr><td><strong>Curto e direto</strong></td><td>Um bloco @unsafe deve conter apenas as operações críticas. Ideal: 3-10 linhas.</td></tr>
+              <tr><td><strong>Sem vazamento</strong></td><td>Ponteiros crus não podem ser retornados para código seguro. Use tipos opacos ou índices.</td></tr>
+              <tr><td><strong>Pré-condições documentadas</strong></td><td>Todo @unsafe deve ter um comentário explicando por que é seguro naquele contexto.</td></tr>
+              <tr><td><strong>Testado obrigatoriamente</strong></td><td>Cada bloco @unsafe deve ter teste de unidade cobrindo a operação.</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout danger">
+            <strong>Riscos:</strong> dentro de @unsafe, o compilador não protege contra
+            buffer overflow, use-after-free, double-free, ponteiro nulo ou violação
+            de aliasing. Tudo é responsabilidade do programador.
+          </div>
+        </section>
+
+        <section id="exemplo-cpu-6502">
+          <h2>Exemplo: CPU 6502 Simplificada</h2>
+          <p>
+            Abaixo, um exemplo de como implementar o ciclo de步 (step) de uma CPU 6502
+            usando as primitivas low-level de Snask. A CPU tem registradores A, X, Y,
+            PC (16 bits), SP (8 bits) e P (flags).
+          </p>
+
+          <pre><code>class Cpu6502 {
+    // Registradores
+    var a: u8     // Acumulador
+    var x: u8     // Índice X
+    var y: u8     // Índice Y
+    var pc: u16   // Program Counter
+    var sp: u8    // Stack Pointer (0x0100 + sp)
+    var p: u8     // Status Flags (NV-BDIZC)
+    var mem: ptr  // Ponteiro para 64KB de memória
+
+    fun init() {
+        @unsafe {
+            self.mem = mem_alloc_zero(65536)
+        }
+        self.pc = 0x0000
+        self.sp = 0xFD
+        self.p  = 0b00100000  // Bit 5 sempre setado
+    }
+
+    fun destroy() {
+        @unsafe {
+            mem_free(self.mem)
+        }
+    }
+
+    // Busca um byte da memória e incrementa PC
+    fun fetch_byte() -> u8 {
+        @unsafe {
+            let opcode: u8 = mem_read_u8(self.mem, as_usize(self.pc))
+        }
+        self.pc = self.pc + 1
+        opcode
+    }
+
+    // Lê um operando de 16 bits (little-endian)
+    fun fetch_word() -> u16 {
+        @unsafe {
+            let word: u16 = mem_read_u16(self.mem, as_usize(self.pc))
+        }
+        self.pc = self.pc + 2
+        word
+    }
+
+    // Executa uma instrução
+    fun step() {
+        let opcode: u8 = self.fetch_byte()
+
+        if opcode == 0xA9 {  // LDA #imm
+            let value: u8 = self.fetch_byte()
+            self.a = value
+            self.update_nz(value)
+        }
+        else if opcode == 0x8D {  // STA abs
+            let addr: u16 = self.fetch_word()
+            @unsafe {
+                mem_write_u8(self.mem, as_usize(addr), self.a)
+            }
+        }
+        else if opcode == 0xAD {  // LDA abs
+            let addr: u16 = self.fetch_word()
+            @unsafe {
+                self.a = mem_read_u8(self.mem, as_usize(addr))
+            }
+            self.update_nz(self.a)
+        }
+        else if opcode == 0x69 {  // ADC #imm
+            let value: u8 = self.fetch_byte()
+            let carry: bool = bit_test(self.p, 0)
+            let (result, new_carry) = carry_add_u8(self.a, value)
+            if carry {
+                let (result2, _) = carry_add_u8(result, 1)
+                result = result2
+            }
+            self.a = result
+            self.p = flag_write(self.p, 0, new_carry)
+            self.update_nz(self.a)
+            // Overflow (V) seria calculado aqui
+        }
+        else if opcode == 0x00 {  // BRK
+            // Interrupção — implementação omitida
+        }
+    }
+
+    fun update_nz(value: u8) {
+        self.p = flag_write(self.p, 1, value == 0)      // Z
+        self.p = flag_write(self.p, 7, bit_test(value, 7))  // N
+    }
+}</code></pre>
+
+          <p>
+            Observe que os blocos <code>@unsafe</code> são pequenos e focados: apenas as
+            operações de leitura/escrita de memória. A lógica de controle (opcodes, flags)
+            fica em código Snask seguro.
+          </p>
+
+          <div class="callout">
+            <strong>Padrão:</strong> isole o <code>@unsafe</code> em funções auxiliares
+            (<code>fetch_byte</code>, <code>fetch_word</code>) para que o resto do código
+            não precise lidar com ponteiros. Isso também facilita testes — você pode
+            mockar a memória.
+          </div>
+        </section>
+
+        <section id="boas-praticas">
+          <h2>Boas Práticas para Código Low-Level</h2>
+
+          <div class="grid">
+            <article class="card">
+              <h3>Pré-aloque tudo</h3>
+              <p>Para código determinístico (emuladores, áudio), aloque toda a memória
+                necessária na inicialização. Evite <code>mem_alloc</code> durante a
+                execução principal.</p>
+            </article>
+            <article class="card">
+              <h3>Use índices, não ponteiros</h3>
+              <p>Em vez de passar ponteiros entre funções, passe offsets ou índices.
+                Isso reduz o risco de ponteiros soltos e facilita a depuração.</p>
+            </article>
+            <article class="card">
+              <h3>Uma responsabilidade por @unsafe</h3>
+              <p>Cada bloco <code>@unsafe</code> deve fazer exatamente uma operação:
+                ler, escrever ou alocar. Nunca misture lógica de negócio com operações
+                não seguras.</p>
+            </article>
+            <article class="card">
+              <h3>Teste com endereços limítrofes</h3>
+              <p>Sempre teste acesso a memória nos limites: offset 0, offset final,
+                offset logo após o final. Um erro de off-by-one é o bug mais comum
+                em código low-level.</p>
+            </article>
+            <article class="card">
+              <h3>Mantenha o estado explícito</h3>
+              <p>Registradores de CPU, flags, contadores — tudo deve ser variável
+                explícita. Nunca confie em estado global implícito ou efeitos colaterais
+                escondidos.</p>
+            </article>
+            <article class="card">
+              <h3>Documente o modelo de memória</h3>
+              <p>Para cada bloco de memória alocado, documente: tamanho, layout,
+                ownership (quem libera), e se é acessado concorrentemente.</p>
+            </article>
+          </div>
+
+          <h3>Resumo do Modelo</h3>
+          <ul>
+            <li><code>humane</code> é o perfil padrão para produtividade e runtime completo.</li>
+            <li><code>systems</code> libera primitivas determinísticas e memória crua controlada.</li>
+            <li><code>@unsafe</code> delimita trechos onde o programador assume responsabilidade manual.</li>
+            <li>OM continua existindo para recursos, zonas e limpeza determinística.</li>
+          </ul>
+
+          <p>
+            Código de baixo nível deve ser pequeno, testado e cercado por API Snask segura.
+            O objetivo não é transformar todo programa em memória manual; é permitir que a
+            parte que precisa da máquina tenha acesso real a ela.
+          </p>
+        </section>
+
       </main>
     </div>
     <script src="../assets/site.js"></script>

@@ -33,7 +33,8 @@
         <a href="#modulo-2-arenas">Módulo 2: Arenas</a>
         <a href="#modulo-3-recursos">Módulo 3: Recursos</a>
         <a href="#modulo-4-contratos">Módulo 4: Contratos C</a>
-        <a href="#modulo-5-borrow">Módulo 5: Borrow Checking</a>
+        <a href="#modulo-5-tutorial-om-snif">Módulo 5: Tutorial .om.snif</a>
+        <a href="#modulo-6-borrow">Módulo 6: Borrow Checking</a>
         <a href="#praticas-recomendadas">Práticas Recomendadas</a>
         <a href="#roadmap">Roadmap</a>
       </aside>
@@ -56,22 +57,38 @@
         <section id="visao-geral">
           <h2>Visão Geral</h2>
           <p>
-            Linguagens tradicionais forçam você a escolher entre dois extremos: produtividade com
-            Garbage Collector (lento, imprevisível) ou controle manual de memória (rápido, perigoso,
-            verboso). O OM oferece um <strong>terceiro caminho</strong>:
+            O OM resolve três problemas que linguagens tradicionais tratam separadamente:
           </p>
           <ul>
-            <li><strong>Zonas</strong> — escopos delimitados onde toda alocação morre ao sair.</li>
-            <li><strong>Arenas</strong> — alocações temporárias em lote com liberação em massa.</li>
-            <li><strong>Recursos externos</strong> — handles do runtime ou C com destrutores registrados.</li>
-            <li><strong>Contratos C</strong> — bindings gerados automaticamente com anotações de ciclo de vida.</li>
+            <li><strong>Memória</strong> — quem aloca, quem libera, quando.</li>
+            <li><strong>Recursos externos</strong> — arquivos, handles, conexões, texturas GPU.</li>
+            <li><strong>Interoperabilidade C</strong> — chamar bibliotecas nativas sem vazar ponteiros crus para o usuário.</li>
           </ul>
+          <p>
+            A ideia central é unificar esses três mundos sob o mesmo sistema de <strong>zonas</strong>:
+            escopos delimitados onde toda alocação e todo recurso morrem ao sair.
+          </p>
           <p>
             O OM opera em dois perfis: no perfil <strong>Humane</strong>, tudo é gerenciado
             automaticamente por zonas. No perfil <strong>Systems</strong>, você acessa as primitivas
             de baixo nível (<code>mem_alloc</code>, <code>mem_free</code>, ponteiros) através de
             blocos <code>@unsafe</code>.
           </p>
+          <p>
+            A hierarquia de memória do OM organiza os dados em camadas:
+          </p>
+          <table>
+            <thead>
+              <tr><th>Camada</th><th>Uso</th><th>Vida</th><th>Observação</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>static</code></td><td>dados do binário</td><td>programa inteiro</td><td>custo zero</td></tr>
+              <tr><td><code>stack</code></td><td>objetos curtos</td><td>frame atual</td><td>ideal para helpers temporários</td></tr>
+              <tr><td><code>arena</code></td><td>muitos objetos temporários</td><td>zona atual</td><td>alocação por incremento de ponteiro</td></tr>
+              <tr><td><code>heap</code></td><td>dados persistentes</td><td>até não serem mais usados</td><td>usado quando precisa sobreviver à zona</td></tr>
+              <tr><td><code>resource</code></td><td>recurso externo</td><td>zona/handle OM</td><td>ponteiro C ou recurso nativo registrado</td></tr>
+            </tbody>
+          </table>
           <div class="callout warn">
             <strong>Atenção:</strong> o sistema completo de análise formal (escape analysis,
             borrow checking, zone depth) ainda está em desenvolvimento. O que existe hoje é
@@ -97,6 +114,14 @@
             O padrão é conhecido como <strong>RAII regional</strong> (Regional Resource
             Acquisition Is Initialization): a região (zona) é dona de tudo que contém.
           </p>
+          <p>
+            Cada zona tem três responsabilidades:
+          </p>
+          <ul>
+            <li>agrupar alocações temporárias;</li>
+            <li>delimitar a vida dos dados;</li>
+            <li>limpar recursos registrados ao sair.</li>
+          </ul>
 
           <h3>Sintaxe</h3>
           <pre><code>zone "frame" {
@@ -104,6 +129,16 @@
     let dados = read_file("config.json")
     processar(dados, buffer)
 } // buffer e dados são liberados aqui</code></pre>
+
+          <p>
+            O mesmo conceito vale para recursos C — ao sair da zona, o runtime chama os
+            destrutores associados aos recursos automaticamente:
+          </p>
+          <pre><code>zone "window" {
+    let window = sdl2.create_window(...)
+    let renderer = sdl2.create_renderer(window, -1, 0)
+    // Ao sair, SDL_DestroyWindow e SDL_DestroyRenderer são chamados
+}</code></pre>
 
           <h3>Aninhamento</h3>
           <p>Zonas podem ser aninhadas. A zona interna tem acesso aos recursos da externa,
@@ -118,11 +153,28 @@
     // req ainda vivo aqui
 } // req liberado</code></pre>
 
+          <div class="callout">
+            <strong>Dica:</strong> uma zona deve viver o menor tempo possível — quanto mais
+            cedo fechar, menos memória retida. Se você precisa que um valor sobreviva à zona
+            atual, use <code>promote</code> para promovê-lo ao heap.
+          </div>
+
+          <h3>Promoção (heap)</h3>
+          <p>
+            Quando um valor precisa viver além da zona, use <code>promote</code> para movê-lo
+            ao heap persistente:
+          </p>
+          <pre><code>zone "load" {
+    let temp = carregar_dados()
+    let persistente = promote(temp)
+} // temp é liberado, persistente continua vivo</code></pre>
+
           <h3>Boas práticas</h3>
           <ul>
             <li>Nomeie zonas com propósito semântico: <code>"frame"</code>, <code>"request"</code>, <code>"batch"</code>.</li>
             <li>Uma zona deve viver o menor tempo possível — quanto mais cedo fechar, menos memória retida.</li>
             <li>Evite zonas muito profundas (mais de 3 níveis) — prefira extrair funções.</li>
+            <li>Cada função pode ter sua própria zona. Não force tudo em uma zona gigante.</li>
           </ul>
         </section>
 
@@ -139,6 +191,16 @@
             Quando a arena é destruída, toda a memória é liberada de uma vez — sem passar
             item por item.
           </p>
+          <p>
+            Os benefícios da arena:
+          </p>
+          <ul>
+            <li>alocação O(1) — apenas incrementa um ponteiro;</li>
+            <li>boa localidade de cache — dados ficam contíguos;</li>
+            <li>limpeza em massa — um único <code>free</code> libera tudo;</li>
+            <li>menos fragmentação — sem buracos entre alocações;</li>
+            <li>menos chamadas a <code>malloc/free</code> do sistema.</li>
+          </ul>
           <p>
             Isso é particularmente útil em:
           </p>
@@ -198,8 +260,11 @@ zone "frame" {
           </p>
 
           <h3>Registro de recurso</h3>
-          <pre><code>// Registrar um destrutor para um handle C
-zone "render" {
+          <p>
+            Quando você chama uma função C que retorna um recurso, o runtime do OM registra
+            automaticamente o ponteiro e seu destrutor associado:
+          </p>
+          <pre><code>zone "render" {
     let texture = load_texture("hero.png")
     // O runtime sabe como destruir texture
     // porque o contrato C declarou o destructor
@@ -214,6 +279,20 @@ zone "render" {
             <li><strong>Conexões HTTP</strong> — <code>http_get</code>, <code>http_post</code></li>
             <li><strong>Memória systems</strong> — <code>mem_alloc</code>, <code>mem_alloc_zero</code></li>
           </ul>
+
+          <h3>Funções internas do runtime</h3>
+          <p>
+            O runtime OM expõe funções internas que são usadas pelo codegen, não pelo
+            usuário diretamente:
+          </p>
+          <pre><code>s_zone_register(ptr, destructor, type_name)
+s_om_resource_ptr(resource_handle, expected_type)</code></pre>
+          <p>
+            A primeira registra um recurso na zona atual. A segunda extrai o ponteiro
+            bruto de um handle para fazer a chamada C. O usuário nunca chama essas funções
+            — elas são o contrato interno entre o codegen LLVM e o runtime.
+          </p>
+
           <p>
             No perfil Humane, o uso dessas funções dentro de uma zona é seguro e o recurso
             é liberado automaticamente. No perfil Systems, você precisa estar dentro de
@@ -222,58 +301,404 @@ zone "render" {
         </section>
 
         <section id="modulo-4-contratos">
-          <h2>Módulo 4: Contratos C</h2>
-          <p class="lead">Bindings para bibliotecas C com ciclo de vida deduzido automaticamente
-            por scanner, corrigido manualmente via <code>.om.snif</code>.</p>
+          <h2>Módulo 4: Contratos C e o Scanner</h2>
+          <p class="lead">O scanner analisa headers C e deduz contratos de ciclo de vida
+            automaticamente. Quando a heurística falha, você corrige com <code>.om.snif</code>.</p>
 
-          <h3>Teoria</h3>
+          <h3>O problema</h3>
           <p>
-            O OM inclui um scanner que analisa headers C e gera bindings Snask automaticamente.
-            Para cada função que retorna um ponteiro ou recebe um recurso, o scanner tenta
-            deduzir o contrato de ciclo de vida:
+            Bibliotecas C tradicionais exigem que o programador gerencie manualmente:
           </p>
           <ul>
-            <li><strong>Ownership transfer</strong> — quem é dono do recurso após a chamada?</li>
-            <li><strong>Borrow</strong> — o recurso é emprestado temporariamente?</li>
-            <li><strong>Destructor</strong> — qual função deve ser chamada para liberar?</li>
+            <li>quem aloca (malloc, SDL_CreateWindow, fopen);</li>
+            <li>quem libera (free, SDL_DestroyWindow, fclose);</li>
+            <li>ponteiros nulos;</li>
+            <li>ownership: emprestado ou transferido?;</li>
+            <li>ordem de destruição.</li>
           </ul>
           <p>
-            Quando o scanner não consegue deduzir (ou a dedução está errada), você pode
-            corrigir com um arquivo <code>.om.snif</code> ao lado do header.
+            O OM-Snask-System automatiza isso. Em vez de bindings escritos à mão, o
+            scanner lê o header C diretamente com Clang e produz um <strong>contrato</strong>
+            em memória que o compilador usa para gerar chamadas LLVM nativas.
           </p>
 
-          <h3>Exemplo de contrato</h3>
-          <pre><code>// Header C: sdl.h
-// SDL_Surface* SDL_LoadBMP(const char* file)
-// void SDL_FreeSurface(SDL_Surface* surface)
+          <h3>Fluxo do scanner</h3>
+          <pre><code>Header C
+    → Clang parse
+    → extração de funções, tipos, enums, macros
+    → heurísticas de ownership
+    → contrato OM em memória
+    → patch .om.snif opcional
+    → contrato final usado no LLVM</code></pre>
 
-// Gerado automaticamente:
-fun sdl_load_bmp(file: str) -> ptr @om(owns, destructor="sdl_free_surface")
+          <h3>O que o scanner extrai</h3>
+          <ul>
+            <li>funções e assinaturas C</li>
+            <li>parâmetros e tipos de retorno</li>
+            <li>enums e macros numéricas → constantes Snask</li>
+            <li>tipos opacos (structs forward-declared)</li>
+            <li>candidatos a construtor (funções que retornam <code>Type*</code>)</li>
+            <li>candidatos a destrutor (funções <code>void destroy(Type*)</code>)</li>
+          </ul>
 
-// Uso em Snask:
-zone "game" {
-    let surf = sdl_load_bmp("hero.bmp")
-    // surf será liberado com sdl_free_surface ao sair da zona
-}</code></pre>
+          <h3>O contrato gerado</h3>
+          <p>
+            O scanner produz um contrato como este (em memória ou exportável):
+          </p>
+          <pre><code>library sdl2
 
-          <h3>Arquivo .om.snif</h3>
-          <pre><code>// sdl.om.snif — correção manual do contrato
-@contract "SDL_LoadBMP" {
-    owns: return
-    destructor: "SDL_FreeSurface"
-    nullable: true
-}
-@contract "SDL_CreateRenderer" {
-    owns: return
-    destructor: "SDL_DestroyRenderer"
-}
-@contract "SDL_RenderPresent" {
-    owns: none // não retorna recurso
-}</code></pre>
+constant INIT_VIDEO: 32
+constant WINDOW_HIDDEN: 8
+constant QUIT: 256
+
+resource SDLWindow:
+    c_type: SDL_Window*
+    constructor: SDL_CreateWindow
+    destructor: SDL_DestroyWindow
+    surface_type: sdl2.SDLWindow
+    safety: SAFE
+    reason: constructor `SDL_CreateWindow` returns `SDL_Window*` and paired destructor `SDL_DestroyWindow` accepts `SDL_Window*`
+
+function create_window:
+    c_function: SDL_CreateWindow
+    surface: sdl2.create_window
+    input: value
+    output: resource
+    c_return_type: SDL_Window*
+    c_param_types: char*, int, int, int, int, Uint32
+    safety: SAFE
+    reason: constructor `SDL_CreateWindow` is registered as OM resource `sdl2.SDLWindow`</code></pre>
+
+          <h3>Níveis de exposição</h3>
+          <p>O contrato classifica cada função em um nível de segurança:</p>
+          <table>
+            <thead>
+              <tr><th>Nível</th><th>Significado</th><th>Exemplo</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>SAFE</code></td><td>Pode ser chamada diretamente pela superfície Snask</td><td><code>sdl2.delay(50)</code></td></tr>
+              <tr><td><code>COPY_ONLY</code></td><td>Pode ser usada, mas o OM copia o resultado para memória Snask</td><td><code>sdl2.get_platform()</code> (copia string)</td></tr>
+              <tr><td><code>BLOCKED</code></td><td>Não é exposta — função perigosa ou não mapeada</td><td>destrutores, callbacks, <code>void*</code></td></tr>
+            </tbody>
+          </table>
+
+          <h3>Regras de segurança do scanner</h3>
+          <p>O scanner é conservador por design. Ele prefere bloquear uma função útil a expor uma função insegura:</p>
+
+          <h4>Constantes</h4>
+          <p>Macros numéricas e enums viram constantes no namespace:</p>
+          <pre><code>sdl2.INIT_VIDEO
+sdl2.WINDOW_HIDDEN
+sdl2.QUIT</code></pre>
+          <p>Para SDL2, o prefixo <code>SDL_</code> é removido automaticamente.</p>
+
+          <h4>Funções simples</h4>
+          <p>Funções com parâmetros numéricos, strings e retornos simples são expostas diretamente:</p>
+          <pre><code>stdio.puts("texto")
+sdl2.delay(50)
+sdl2.init(sdl2.INIT_VIDEO)</code></pre>
+
+          <h4>Recursos opacos</h4>
+          <p>O scanner procura pares construtor/destrutor:</p>
+          <pre><code>SDL_Window* SDL_CreateWindow(...) → sdl2.create_window(...)
+void SDL_DestroyWindow(SDL_Window*) → escondido atrás do OM</code></pre>
+
+          <h4>Métodos de recurso</h4>
+          <p>Se uma função recebe o recurso como primeiro argumento, ela vira chamada segura:</p>
+          <pre><code>sdl2.render_clear(renderer)
+sdl2.render_present(renderer)</code></pre>
+
+          <h4>Mapeamento de nomes</h4>
+          <table>
+            <thead>
+              <tr><th>C</th><th>Snask</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>SDL_Init</code></td><td><code>sdl2.init</code></td></tr>
+              <tr><td><code>SDL_CreateWindow</code></td><td><code>sdl2.create_window</code></td></tr>
+              <tr><td><code>SDL_RenderClear</code></td><td><code>sdl2.render_clear</code></td></tr>
+              <tr><td><code>SDL_WINDOW_HIDDEN</code></td><td><code>sdl2.WINDOW_HIDDEN</code></td></tr>
+            </tbody>
+          </table>
+
+          <h3>O que o scanner NÃO consegue fazer hoje</h3>
+          <p>Essas limitações são conhecidas e definem onde o scanner deve ser conservador:</p>
+          <ul>
+            <li>callbacks C e function pointers</li>
+            <li>variadic functions complexas</li>
+            <li>structs C por valor</li>
+            <li>arrays e buffers mutáveis</li>
+            <li>ownership ambíguo (ex: ponteiro de saída que pode ser free pelo caller)</li>
+            <li>recursos com destrutores dependentes de contexto</li>
+            <li>APIs que exigem ordem global complexa</li>
+            <li>ponteiros globais</li>
+            <li>unions e bitfields</li>
+            <li>macros que expandem para expressões complexas</li>
+          </ul>
+          <p>
+            Para todas essas situações, a saída é o <strong>patch .om.snif</strong>.
+          </p>
+
+          <div class="callout warn">
+            <strong>Nota:</strong> o OM-Snask-System não gera uma cópia literal da API C.
+            Uma API Snask deve expor <strong>intenção</strong>, não ponteiros. O sistema
+            esconde <code>SDL_Window*</code>, <code>SDL_DestroyWindow</code> etc. quando
+            isso pode ser provado com segurança.
+          </div>
         </section>
 
-        <section id="modulo-5-borrow">
-          <h2>Módulo 5: Borrow Checking e Escape Analysis</h2>
+        <section id="modulo-5-tutorial-om-snif">
+          <h2>Módulo 5: Tutorial .om.snif — Quando o Scanner Falha</h2>
+          <p class="lead">
+            O scanner automático cobre 80% dos casos. Para os 20% restantes — nomes ruins,
+            ownership não convencional, funções perigosas — você escreve um patch
+            <code>.om.snif</code>. Este tutorial ensina tudo do zero.
+          </p>
+
+          <div class="callout">
+            <strong>Filosofia:</strong> o <code>.om.snif</code> não é um binding gigante.
+            Ele é um <strong>patch opcional</strong> sobre o contrato deduzido. O que não
+            estiver no patch continua vindo do scanner. Uma biblioteca enorme pode ter
+            apenas um arquivo pequeno de exceções.
+          </div>
+
+          <h3>5.1 Quando o scanner falha</h3>
+          <p>
+            O scanner é bom para bibliotecas que seguem convenções C comuns
+            (<code>create/free</code>, <code>open/close</code>, <code>new/destroy</code>).
+            Ele falha quando:
+          </p>
+          <ul>
+            <li>a biblioteca usa nomes de função não convencionais;</li>
+            <li>o destrutor não segue o padrão <code>void destroy(Type*)</code>;</li>
+            <li>uma função perigosa foi classificada como segura;</li>
+            <li>uma função segura foi classificada como <code>BLOCKED</code>;</li>
+            <li>o ownership é ambíguo e precisa de declaração explícita;</li>
+            <li>a função usa tipos que o scanner não mapeia automaticamente.</li>
+          </ul>
+
+          <h3>5.2 Diagnóstico: entendendo o erro</h3>
+          <p>Quando o scanner não consegue mapear uma função, ele produz erros como:</p>
+          <pre><code>OM cannot map C parameter type `SDL_Rect*` yet.</code></pre>
+          <pre><code>OM import blocked `sdl2.destroy_window`: cleanup/destructor functions
+are hidden behind OM zone cleanup.</code></pre>
+          <pre><code>OM function `sdl2.render_clear` expects 1 C arguments, got 0.</code></pre>
+          <p>
+            Para diagnosticar o contrato gerado, use o comando <code>om scan</code>:
+          </p>
+          <pre><code>snask om scan SDL2/SDL.h --lib sdl2 --output /tmp/sdl2.generated.om.snif</code></pre>
+          <p>
+            Isso gera o contrato completo que o scanner deduziu. Revise o arquivo para
+            entender o que foi mapeado corretamente e o que foi bloqueado.
+          </p>
+          <p>
+            Use <code>SNASK_OM_TRACE=1</code> para ver trace detalhado do runtime:
+          </p>
+          <pre><code>SNASK_OM_TRACE=1 SDL_VIDEODRIVER=dummy ./meu_app</code></pre>
+
+          <h3>5.3 Anatomia de um arquivo .om.snif</h3>
+          <p>
+            O <code>.om.snif</code> usa a sintaxe SNIF (formato nativo do Snask) e
+            organiza-se em seções:
+          </p>
+          <pre><code>// contracts/minhalib.om.snif
+library minhalib
+
+// ── Corrigir nome de função ──
+function open_context:
+    c_function: ml_open_context
+    surface: minhalib.open
+    input: str
+    output: resource
+    safety: SAFE
+    reason: library uses non-standard constructor name
+
+// ── Bloquear função perigosa ──
+function dangerous_op:
+    c_function: ml_dangerous_op
+    safety: BLOCKED
+    reason: performs raw memory write without bounds checking
+
+// ── Declarar recurso manualmente ──
+resource MLContext:
+    c_type: ML_Context*
+    constructor: ml_open_context
+    destructor: ml_close_context
+    surface_type: minhalib.MLContext
+    safety: SAFE
+    reason: manual resource declaration for non-standard naming
+
+// ── Declarar política COPY_ONLY ──
+function get_version:
+    c_function: ml_get_version
+    surface: minhalib.version
+    input: none
+    output: copy
+    safety: COPY_ONLY
+    reason: returns const char* that must be copied to Snask string</code></pre>
+
+          <h3>5.4 Caso 1: Nome de função mal mapeado</h3>
+          <p><strong>Problema:</strong> a biblioteca chama a função <code>ml_open_context</code>,
+            mas o scanner gerou <code>minhalib.open_context</code> (correto). Porém, o
+            scanner não reconheceu que ela é um construtor porque o nome não segue o padrão
+            <code>create</code>/<code>new</code>/<code>open</code>.</p>
+          <p><strong>Sintoma:</strong> a função aparece como <code>SAFE</code> mas retorna
+            um ponteiro sem destrutor associado.</p>
+          <p><strong>Solução:</strong></p>
+          <pre><code>// contracts/minhalib.om.snif
+resource MLContext:
+    c_type: ML_Context*
+    constructor: ml_open_context
+    destructor: ml_close_context
+    surface_type: minhalib.MLContext
+    safety: SAFE
+    reason: non-standard constructor name, manual pairing required</code></pre>
+
+          <h3>5.5 Caso 2: Função perigosa classificada como SAFE</h3>
+          <p><strong>Problema:</strong> a função <code>ml_write_raw</code> recebe
+            <code>void*</code> e um tamanho, mas o scanner não consegue verificar
+            se o buffer tem o tamanho correto.</p>
+          <p><strong>Solução:</strong> bloquear explicitamente:</p>
+          <pre><code>// contracts/minhalib.om.snif
+function write_raw:
+    c_function: ml_write_raw
+    surface: minhalib.write_raw
+    safety: BLOCKED
+    reason: void* parameter cannot be verified for bounds safety</code></pre>
+          <p>A função não aparecerá na superfície Snask. Se o usuário precisar dela,
+            terá que usar <code>@unsafe</code> com um wrapper manual.</p>
+
+          <h3>5.6 Caso 3: Função segura bloqueada pelo scanner conservador</h3>
+          <p><strong>Problema:</strong> o scanner bloqueou <code>ml_get_status</code>
+            porque ela retorna <code>const char*</code> e o scanner não tem regra
+            <code>COPY_ONLY</code> para esta biblioteca.</p>
+          <p><strong>Solução:</strong> declarar como <code>COPY_ONLY</code>:</p>
+          <pre><code>// contracts/minhalib.om.snif
+function get_status:
+    c_function: ml_get_status
+    surface: minhalib.status
+    input: none
+    output: copy
+    safety: COPY_ONLY
+    reason: returns const char*, OM must copy to Snask string</code></pre>
+
+          <h3>5.7 Caso 4: Destrutor não convencional</h3>
+          <p><strong>Problema:</strong> a biblioteca usa <code>ml_cleanup_context</code>
+            em vez de <code>ml_destroy_context</code> ou <code>ml_close_context</code>.
+            O scanner não consegue parear com o construtor.</p>
+          <p><strong>Solução:</strong></p>
+          <pre><code>// contracts/minhalib.om.snif
+resource MLContext:
+    c_type: ML_Context*
+    constructor: ml_create_context
+    destructor: ml_cleanup_context
+    surface_type: minhalib.MLContext
+    safety: SAFE
+    reason: non-standard destructor name, explicitly paired</code></pre>
+
+          <h3>5.8 Caso 5: Ownership ambíguo</h3>
+          <p><strong>Problema:</strong> a função <code>ml_borrow_buffer</code> retorna
+            um ponteiro para um buffer interno. O caller <strong>não</strong> é dono
+            do buffer — não deve chamar <code>free</code> nem ter o recurso registrado
+            em zona.</p>
+          <p><strong>Solução:</strong></p>
+          <pre><code>// contracts/minhalib.om.snif
+function borrow_buffer:
+    c_function: ml_borrow_buffer
+    surface: minhalib.borrow_buffer
+    output: copy
+    safety: COPY_ONLY
+    reason: returns borrowed pointer, caller must NOT free; OM copies data</code></pre>
+
+          <h3>5.9 Estratégia: por onde começar</h3>
+          <ol>
+            <li><strong>Importe o header</strong> com <code>import_c_om "minhalib.h" as minhalib</code></li>
+            <li><strong>Tente usar funções simples</strong> — as que compilarem estão mapeadas corretamente.</li>
+            <li><strong>Gere o contrato</strong> com <code>snask om scan</code> e revise as funções bloqueadas.</li>
+            <li><strong>Crie o patch</strong> <code>contracts/minhalib.om.snif</code> apenas para as exceções.</li>
+            <li><strong>Teste</strong> compilando e executando com <code>SNASK_OM_TRACE=1</code>.</li>
+            <li><strong>Repita</strong> até que todas as funções necessárias estejam expostas corretamente.</li>
+          </ol>
+
+          <h3>5.10 Exemplo completo: SDL2 com patch</h3>
+          <p>
+            Cenário: você quer usar SDL2 no Snask, mas o scanner bloqueou algumas funções
+            que você precisa.
+          </p>
+          <p>Passo 1: gere o contrato para diagnóstico:</p>
+          <pre><code>snask om scan SDL2/SDL.h --lib sdl2 --output /tmp/sdl2.contrato.snif</code></pre>
+          <p>Passo 2: revise o arquivo gerado. Identifique funções bloqueadas.</p>
+          <p>Passo 3: crie <code>contracts/sdl2.om.snif</code>:</p>
+          <pre><code>// contracts/sdl2.om.snif
+library sdl2
+
+// SDL_GetPerformanceCounter retorna Uint64 — seguro, mas pode estar
+// bloqueado se o scanner não reconheceu o tipo de retorno
+function get_performance_counter:
+    c_function: SDL_GetPerformanceCounter
+    surface: sdl2.performance_counter
+    input: none
+    output: value
+    safety: SAFE
+    reason: returns Uint64, safe numeric type
+
+// SDL_ShowSimpleMessageBox é seguro mas usa const char* que o scanner
+// pode não ter mapeado para esta biblioteca
+function show_simple_message_box:
+    c_function: SDL_ShowSimpleMessageBox
+    surface: sdl2.show_message_box
+    input: value, str, str, resource
+    output: value
+    safety: SAFE
+    reason: UI function with simple string parameters
+
+// Garantir que SDL_GetError seja COPY_ONLY
+function get_error:
+    c_function: SDL_GetError
+    surface: sdl2.error
+    input: none
+    output: copy
+    safety: COPY_ONLY
+    reason: returns const char*, must be copied to Snask string</code></pre>
+          <p>Passo 4: compile e teste:</p>
+          <pre><code>snask build meu_sdl2_app.snask --output app
+SNASK_OM_TRACE=1 ./app</code></pre>
+
+          <h3>5.11 Boas práticas</h3>
+          <p><strong>Use <code>.om.snif</code> para:</strong></p>
+          <ul>
+            <li>renomear uma função mal mapeada;</li>
+            <li>adicionar <code>safety: BLOCKED</code> a uma função perigosa;</li>
+            <li>declarar uma regra especial de recurso (construtor/destrutor não convencional);</li>
+            <li>corrigir um construtor/destrutor não pareado pelo scanner;</li>
+            <li>documentar uma decisão de ownership.</li>
+          </ul>
+          <p><strong>Evite <code>.om.snif</code> para:</strong></p>
+          <ul>
+            <li>copiar centenas de assinaturas do header — deixe o scanner fazer isso;</li>
+            <li>expor ponteiros crus por conveniência — use <code>COPY_ONLY</code> em vez de <code>SAFE</code> com ponteiro;</li>
+            <li>recriar a API C inteira — o scanner já fez 80% do trabalho;</li>
+            <li>fazer bypass da segurança — se o scanner bloqueou, há motivo.</li>
+          </ul>
+          <p>
+            <strong>Mantenha os patches pequenos.</strong> Um <code>.om.snif</code> com
+            5-10 regras é saudável. Um <code>.om.snif</code> com 500 linhas é sinal de
+            que o scanner precisa de melhoria.
+          </p>
+
+          <h3>5.12 Verificação do contrato final</h3>
+          <p>
+            Para ver o contrato final (scanner + patch aplicado), use:
+          </p>
+          <pre><code>snask om scan SDL2/SDL.h --lib sdl2 --patches contracts/</code></pre>
+          <p>
+            Isso mostra o contrato consolidado. Compare com o contrato sem patch para
+            confirmar que suas correções foram aplicadas.
+          </p>
+        </section>
+
+        <section id="modulo-6-borrow">
+          <h2>Módulo 6: Borrow Checking e Escape Analysis</h2>
           <p class="lead">Análise estática em desenvolvimento para garantir segurança
             de memória em tempo de compilação.</p>
 
@@ -297,6 +722,18 @@ zone "game" {
         // return &local
     }
 }</code></pre>
+
+          <h3>Garantias pretendidas</h3>
+          <p>O sistema deve caminhar para estas garantias:</p>
+          <ul>
+            <li>Código Snask seguro não recebe ponteiro C cru com ownership manual.</li>
+            <li>Destrutores reconhecidos não aparecem como funções públicas comuns.</li>
+            <li>Recursos opacos são limpos pela zona.</li>
+            <li>Funções não provadas como seguras são bloqueadas.</li>
+            <li><code>.om.snif</code> é patch auditável, não binding manual gigante.</li>
+            <li>Chamadas C são emitidas como chamadas nativas no LLVM.</li>
+            <li>O usuário escreve Snask, não C.</li>
+          </ul>
 
           <div class="callout warn">
             <strong>Nota:</strong> por enquanto, o OM depende do runtime para liberar memória.
@@ -323,7 +760,7 @@ zone "game" {
                 <code>"request"</code>.</p>
             </article>
             <article class="card">
-              <h3>🔹 Evite zones deep</h3>
+              <h3>🔹 Evite zonas deep</h3>
               <p>Mais de 3 níveis de aninhamento de zonas é um sinal de que você deveria
                 extrair uma função. Cada função pode ter sua própria zona.</p>
             </article>
@@ -340,9 +777,20 @@ zone "game" {
                 Um contrato errado pode causar double-free ou leak.</p>
             </article>
             <article class="card">
+              <h3>🔹 Diagnostique com om scan</h3>
+              <p>Use <code>snask om scan</code> para inspecionar o contrato gerado antes
+                de compilar. Isso evita surpresas e ajuda a identificar rapidamente
+                o que precisa de patch.</p>
+            </article>
+            <article class="card">
               <h3>🔹 Teste com leak detector</h3>
               <p>Use <code>snask test --leak-check</code> para detectar vazamentos.
                 O runtime do OM pode instrumentar todas as alocações em modo debug.</p>
+            </article>
+            <article class="card">
+              <h3>🔹 Trace com SNASK_OM_TRACE</h3>
+              <p>Ative <code>SNASK_OM_TRACE=1</code> para ver todo o ciclo de vida dos
+                recursos: registro, uso e destruição. Essential para debug de contratos.</p>
             </article>
           </div>
         </section>
@@ -357,14 +805,54 @@ zone "game" {
               <tr><td>Zonas com lifetime tracking</td><td><span class="status stable">estável</span></td><td>✔</td></tr>
               <tr><td>Recursos com destrutores registrados</td><td><span class="status stable">estável</span></td><td>✔</td></tr>
               <tr><td>Scanner de contratos C</td><td><span class="status stable">estável</span></td><td>✔</td></tr>
+              <tr><td>Patch .om.snif</td><td><span class="status stable">estável</span></td><td>✔</td></tr>
+              <tr><td>Chamada LLVM nativa para funções simples</td><td><span class="status stable">estável</span></td><td>✔</td></tr>
               <tr><td>Escape analysis básico</td><td><span class="status partial">parcial</span></td><td>v0.5</td></tr>
               <tr><td>Borrow checker regional</td><td><span class="status experimental">experimental</span></td><td>v0.6</td></tr>
               <tr><td>Zone depth formal (3 níveis)</td><td><span class="status experimental">experimental</span></td><td>v0.6</td></tr>
+              <tr><td>Structs C seguras por valor</td><td><span class="status experimental">experimental</span></td><td>v0.6</td></tr>
               <tr><td>Arena bump allocator nativo</td><td><span class="status experimental">experimental</span></td><td>v0.7</td></tr>
               <tr><td>Leak detector automático</td><td>planejado</td><td>v0.7</td></tr>
               <tr><td>Thread-safe zones</td><td>planejado</td><td>v0.8</td></tr>
+              <tr><td>Callbacks C encapsulados</td><td>planejado</td><td>v0.8</td></tr>
+              <tr><td>APIs Snask idiomáticas (wrapper automático)</td><td>planejado</td><td>v0.9</td></tr>
             </tbody>
           </table>
+
+          <h3>Fases do roadmap</h3>
+          <table>
+            <thead>
+              <tr><th>Fase</th><th>O que inclui</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Fase 1: Chamada nativa simples</td><td>scan de header, constantes, funções numéricas/string, chamada LLVM direta, linkagem</td><td><span class="status stable">parcial</span></td></tr>
+              <tr><td>Fase 2: Recursos opacos</td><td>construtor/destrutor, registro em zona, cleanup automático, método com recurso como primeiro param</td><td><span class="status stable">parcial</span></td></tr>
+              <tr><td>Fase 3: Patches pequenos</td><td><code>.om.snif</code> como patch, contrato deduzido como base, override pontual</td><td><span class="status stable">parcial</span></td></tr>
+              <tr><td>Fase 4: Structs seguras</td><td>structs C por valor com layout Snask, sem ponteiro manual</td><td>planejado</td></tr>
+              <tr><td>Fase 5: Eventos e callbacks</td><td>stack structs, polling, callbacks encapsulados</td><td>planejado</td></tr>
+              <tr><td>Fase 6: APIs Snask idiomáticas</td><td>wrappers automáticos de alto nível sobre libs C</td><td>planejado</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>Critérios para promover o status do OM</h2>
+          <p>
+            Para sair de <strong>experimental</strong> para <strong>parcial</strong> ou
+            <strong>estável</strong>, o OM-Snask-System precisa:
+          </p>
+          <ul>
+            <li>testes automatizados cobrindo stdio, zlib, sqlite e SDL2;</li>
+            <li>documentação de contrato <code>.om.snif</code>;</li>
+            <li>regras formais para safety (SAFE, COPY_ONLY, BLOCKED);</li>
+            <li>mensagens de erro consistentes;</li>
+            <li>suporte melhor a structs;</li>
+            <li>story clara para callbacks;</li>
+            <li>validação de linkagem multiplataforma;</li>
+            <li>fuzzing de headers ou corpus de libs C;</li>
+            <li>testes de cleanup em caminhos de erro;</li>
+            <li>auditoria do runtime OM.</li>
+          </ul>
         </section>
 
         <section>
@@ -377,7 +865,26 @@ zone "game" {
             perfil Systems.
           </p>
           <p>
+            O princípio final do OM:
+          </p>
+          <pre><code>import_c_om "alguma_lib_c.h" as lib
+
+class main
+    fun start()
+        zone "work":
+            let resource = lib.create_resource()
+            lib.use_resource(resource)
+    // resource liberado automaticamente</code></pre>
+          <p>
+            Em vez de C manual:
+          </p>
+          <pre><code>Resource *resource = create_resource();
+if (!resource) return 1;
+use_resource(resource);
+destroy_resource(resource);</code></pre>
+          <p>
             Para contribuir ou relatar problemas, abra uma issue no repositório oficial.
+            Use <code>SNASK_OM_TRACE=1</code> para incluir trace do runtime nos relatos.
           </p>
         </section>
 

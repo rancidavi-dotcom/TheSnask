@@ -3,14 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Diagnosticos Snask</title>
+    <title>Diagnósticos — Erros e Explain</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
+        <a href="../index.html">Início</a>
         <a href="../learn/getting-started.html">Aprender</a>
         <a aria-current="page" href="language.html">Referencia</a>
         <a href="../systems/om.html">OM</a>
@@ -28,41 +31,448 @@
         <a href="diagnostics.html">Diagnosticos</a>
         <a href="status.html">Status real</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
         <p class="eyebrow">Humane Diagnostics</p>
-        <h1>Diagnosticos</h1>
+        <h1>Diagnósticos — Erros e Explain</h1>
         <p class="lead">
-          A Snask quer que erro seja parte da experiencia de aprendizado, nao uma parede de texto.
+          A Snask quer que o erro seja parte da experiência de aprendizado, não uma
+          parede de texto. Cada diagnóstico é projetado para ser legível, localizado,
+          e acionável — com código, localização exata, nota contextual e sugestão
+          de correção.
         </p>
 
-        <h2>Formato</h2>
-        <pre><code>error[S1002]: missing closing `)`
- --&gt; hello.snask:3:22
+        <nav class="toc">
+          <h2>Conteúdo</h2>
+          <ul>
+            <li><a href="#philosophy">Filosofia de Erros</a></li>
+            <li><a href="#format">Formato de um Diagnóstico</a></li>
+            <li><a href="#reading">Como Ler um Diagnóstico</a></li>
+            <li><a href="#error-ranges">Faixas de Códigos de Erro</a></li>
+            <li><a href="#parser">Diagnósticos do Parser</a></li>
+            <li><a href="#semantic">Diagnósticos Semânticos</a></li>
+            <li><a href="#build-profiles">Perfis e Restrições de Build</a></li>
+            <li><a href="#toolchain">Toolchain, Build e Políticas</a></li>
+            <li><a href="#explain">Comando explain</a></li>
+            <li><a href="#current-status">Status Atual</a></li>
+          </ul>
+        </nav>
+
+        <section id="philosophy">
+          <h2>Filosofia de Erros</h2>
+          <p>
+            Na Snask, mensagens de erro são tratadas como parte integrante da
+            experiência de desenvolvimento. Cada diagnóstico segue três princípios:
+          </p>
+          <ul>
+            <li>
+              <strong>Localizado:</strong> o erro aponta para o arquivo, linha e
+              coluna exatos, com uma seta (<code>^</code>) marcando o local preciso
+              no código fonte.
+            </li>
+            <li>
+              <strong>Contextual:</strong> uma nota explica <em>por que</em> o erro
+              ocorreu, frequentemente referenciando a abertura de um bloco, o tipo
+              esperado ou a declaração anterior relevante.
+            </li>
+            <li>
+              <strong>Acionável:</strong> uma sugestão (<code>help</code>) oferece
+              o caminho mais provável para corrigir o problema.
+            </li>
+          </ul>
+          <p>
+            O código de erro (<code>Snnnn</code>) é estável dentro do mesmo release
+            menor — você pode procura-lo na documentação ou usar
+            <code>snask explain</code> para obter uma explicação detalhada.
+          </p>
+          <p><span class="status stable">estavel</span> Filosofia e formato de diagnósticos.</p>
+        </section>
+
+        <section id="format">
+          <h2>Formato de um Diagnóstico</h2>
+          <p>
+            O formato completo de um diagnóstico Snask segue esta estrutura:
+          </p>
+          <pre><code>error[S1002]: missing closing `)`
+ --> hello.snask:3:22
   |
 3 |         print("Hello"
   |                      ^ expected `)` here
 note: unclosed '(' opened at 3:14
 help: You probably missed a closing ')'.</code></pre>
+          <p>Cada parte do diagnóstico tem um propósito específico:</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Parte</th>
+                <th>Descrição</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>error[S1002]</code></td>
+                <td>Código do erro. O prefixo <code>S</code> identifica Snask;
+                o número de 4 dígitos categoriza o tipo de erro.</td>
+              </tr>
+              <tr>
+                <td><code>missing closing `)`</code></td>
+                <td>Mensagem principal, em inglês (localização pt-BR em planejamento).</td>
+              </tr>
+              <tr>
+                <td><code>--> hello.snask:3:22</code></td>
+                <td>Localização: arquivo, linha e coluna.</td>
+              </tr>
+              <tr>
+                <td><code>|</code> + código + <code>^</code></td>
+               <td>Trecho do código fonte com a seta apontando o local exato do erro.</td>
+              </tr>
+              <tr>
+                <td><code>note:</code></td>
+                <td>Informação contextual adicional sobre a causa raiz.</td>
+              </tr>
+              <tr>
+                <td><code>help:</code></td>
+                <td>Sugestão de correção.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
 
-        <h2>Faixas</h2>
-        <table>
-          <thead><tr><th>Faixa</th><th>Area</th></tr></thead>
-          <tbody>
-            <tr><td><code>S1000-S1999</code></td><td>Parser e sintaxe.</td></tr>
-            <tr><td><code>S2000-S2999</code></td><td>Semantica e tipos.</td></tr>
-            <tr><td><code>S8000-S8999</code></td><td>Perfis e restricoes de runtime.</td></tr>
-            <tr><td><code>S9000-S9999</code></td><td>Toolchain, build e politicas.</td></tr>
-          </tbody>
-        </table>
+        <section id="reading">
+          <h2>Como Ler um Diagnóstico</h2>
+          <p>
+            Considere o arquivo <code>calc.snask</code> com o seguinte conteúdo:
+          </p>
+          <pre><code>class main {
+    fun start() {
+        let x = 10
+        let y = 20
+        let z = x + 
+    }
+}</code></pre>
+          <p>
+            O compilador produzirá um diagnóstico apontando a expressão incompleta:
+          </p>
+          <pre><code>error[S1005]: unexpected end of expression
+ --> calc.snask:5:21
+  |
+5 |         let z = x +
+  |                     ^ expected expression after operator
+note: binary operator '+' requires a right-hand operand
+help: Add a value after the '+', for example: let z = x + y</code></pre>
+          <ol>
+            <li>Identifique o código do erro (<code>S1005</code>) e a mensagem principal.</li>
+            <li>Olhe a localização: linha 5, coluna 21 do arquivo <code>calc.snask</code>.</li>
+            <li>Examine o código fonte exibido com a seta <code>^</code>.</li>
+            <li>Leia a nota para entender o contexto do erro.</li>
+            <li>Siga a sugestão <code>help</code> para corrigir.</li>
+          </ol>
+        </section>
 
-        <h2>Explain</h2>
-        <pre><code>snask explain S1002
-snask explain S2002</code></pre>
+        <section id="error-ranges">
+          <h2>Faixas de Códigos de Erro</h2>
+          <p>
+            Os códigos de erro Snask são organizados em faixas numéricas que
+            indicam a fase do compilador onde o erro foi detectado:
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Faixa</th>
+                <th>Área</th>
+                <th>Status</th>
+                <th>Quantidade aproximada</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>S0000</code></td>
+                <td>Erro desconhecido / fallback</td>
+                <td><span class="status stable">estavel</span></td>
+                <td>1</td>
+              </tr>
+              <tr>
+                <td><code>S1000–S1999</code></td>
+                <td>Parser e sintaxe</td>
+                <td><span class="status stable">estavel</span></td>
+                <td>~21 códigos</td>
+              </tr>
+              <tr>
+                <td><code>S2000–S2999</code></td>
+                <td>Semântica e tipos</td>
+                <td><span class="status partial">parcial</span></td>
+                <td>~19 códigos</td>
+              </tr>
+              <tr>
+                <td><code>S8000–S8999</code></td>
+                <td>Perfis de build e restrições de runtime</td>
+                <td><span class="status partial">parcial</span></td>
+                <td>Em desenvolvimento</td>
+              </tr>
+              <tr>
+                <td><code>S9000–S9999</code></td>
+                <td>Toolchain, build e políticas</td>
+                <td><span class="status partial">parcial</span></td>
+                <td>Em desenvolvimento</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            Cada faixa reserva espaço para expansão futura. Códigos dentro de
+            <code>S1000–S1999</code> são considerados estáveis; as demais faixas
+            ainda podem receber novos códigos e ajustes nas mensagens.
+          </p>
+        </section>
 
-        <div class="callout">
-          Parser diagnostics ja tem base estavel. Diagnosticos semanticos existem, mas ainda estao
-          amadurecendo sugestoes contextuais e cobertura de OM/linker.
-        </div>
+        <section id="parser">
+          <h2>Diagnósticos do Parser</h2>
+          <p>
+            Os diagnósticos de parser cobrem erros sintáticos: tokens inesperados,
+            delimitadores não fechados, indentação inválida e estrutura de bloco
+            incorreta. Esta é a camada mais madura do sistema de diagnósticos,
+            com aproximadamente 21 códigos de erro ativos.
+          </p>
+
+          <h3>Exemplos comuns</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Mensagem</th>
+                <th>Causa comum</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>S1001</code></td>
+                <td>unexpected token</td>
+                <td>Um token não esperado foi encontrado (ex.: <code>}</code> sem <code>{</code>)</td>
+              </tr>
+              <tr>
+                <td><code>S1002</code></td>
+                <td>missing closing <code>)</code></td>
+                <td>Parêntese aberto mas não fechado</td>
+              </tr>
+              <tr>
+                <td><code>S1003</code></td>
+                <td>missing closing <code>}</code></td>
+                <td>Chave aberta mas não fechada</td>
+              </tr>
+              <tr>
+                <td><code>S1004</code></td>
+                <td>unclosed string literal</td>
+                <td>String sem aspas de fechamento</td>
+              </tr>
+              <tr>
+                <td><code>S1005</code></td>
+                <td>unexpected end of expression</td>
+                <td>Expressão incompleta (ex.: operador sem operando)</td>
+              </tr>
+              <tr>
+                <td><code>S1006</code></td>
+                <td>invalid indentation</td>
+                <td>Mistura de espaços e tabs ou indentação inconsistente</td>
+              </tr>
+              <tr>
+                <td><code>S1007</code></td>
+                <td>expected block after header</td>
+                <td>Header de controle (if/while) sem corpo</td>
+              </tr>
+            </tbody>
+          </table>
+          <pre><code>// Exemplo que gera S1002:
+class main {
+    fun start() {
+        print("Hello"
+    }
+}
+// error[S1002]: missing closing `)`</code></pre>
+          <p><span class="status stable">estavel</span> Diagnósticos de parser com ~21 códigos.</p>
+        </section>
+
+        <section id="semantic">
+          <h2>Diagnósticos Semânticos</h2>
+          <p>
+            Erros semânticos e de tipo são detectados após o parser, durante a
+            análise de tipos e resolução de nomes. Esta camada está em
+            amadurecimento — os diagnósticos existem mas ainda estão recebendo
+            sugestões contextuais mais refinadas.
+          </p>
+
+          <h3>Exemplos comuns</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Mensagem</th>
+                <th>Causa comum</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>S2001</code></td>
+                <td>undefined variable</td>
+                <td>Uso de variável que não foi declarada no escopo atual</td>
+              </tr>
+              <tr>
+                <td><code>S2002</code></td>
+                <td>type mismatch</td>
+                <td>Tipo esperado não corresponde ao tipo fornecido</td>
+              </tr>
+              <tr>
+                <td><code>S2003</code></td>
+                <td>cannot assign to immutable variable</td>
+                <td>Tentativa de reatribuir uma variável <code>let</code></td>
+              </tr>
+              <tr>
+                <td><code>S2004</code></td>
+                <td>undefined function</td>
+                <td>Chamada de função que não existe no escopo</td>
+              </tr>
+              <tr>
+                <td><code>S2005</code></td>
+                <td>wrong number of arguments</td>
+                <td>Número de argumentos não corresponde à declaração da função</td>
+              </tr>
+              <tr>
+                <td><code>S2006</code></td>
+                <td>undefined field</td>
+                <td>Acesso a campo que não existe na classe</td>
+              </tr>
+              <tr>
+                <td><code>S2007</code></td>
+                <td>cannot use unsafe operation outside @unsafe block</td>
+                <td>Operação de memória crua fora de região @unsafe</td>
+              </tr>
+              <tr>
+                <td><code>S2008</code></td>
+                <td>return type mismatch</td>
+                <td>Valor retornado não corresponde ao tipo de retorno declarado</td>
+              </tr>
+            </tbody>
+          </table>
+          <pre><code>// Exemplo que gera S2002:
+let x: int = "texto"
+// error[S2002]: type mismatch: expected `int`, found `str`</code></pre>
+          <p><span class="status partial">parcial</span> Diagnósticos semânticos existem (~19 códigos), mas sugestões contextuais ainda estão amadurecendo.</p>
+        </section>
+
+        <section id="build-profiles">
+          <h2>Perfis e Restrições de Build</h2>
+          <p>
+            A faixa <code>S8000–S8999</code> cobre erros relacionados a perfis de
+            compilação (<code>humane</code> vs <code>systems</code>) e restrições
+            de runtime. Por exemplo, usar uma função do perfil <code>systems</code>
+            sem a flag <code>--profile systems</code> produz um erro nesta faixa.
+          </p>
+          <pre><code>// Tentativa de usar bit_test sem perfil systems
+let result = bit_test(0xFF, 3)
+// error[S8001]: `bit_test` requires profile `systems`</code></pre>
+          <p><span class="status partial">parcial</span> Diagnósticos de perfil de build — cobertura ainda está sendo expandida.</p>
+        </section>
+
+        <section id="toolchain">
+          <h2>Toolchain, Build e Políticas</h2>
+          <p>
+            A faixa <code>S9000–S9999</code> é reservada para erros da toolchain:
+            arquivo não encontrado, falha de linkagem, configuração inválida de
+            projeto, e violações de política (ex.: uso de feature experimental
+            sem opt-in explícito).
+          </p>
+          <pre><code>snask build programa.snask
+// error[S9001]: file not found: `programa.snask`</code></pre>
+          <p><span class="status partial">parcial</span> Diagnósticos de toolchain — área mais recente, ainda em desenvolvimento ativo.</p>
+        </section>
+
+        <section id="explain">
+          <h2>Comando explain</h2>
+          <p>
+            O comando <code>snask explain</code> fornece uma explicação detalhada
+            para qualquer código de erro, incluindo descrição, causas comuns e
+            exemplos de código incorreto vs. corrigido.
+          </p>
+          <pre><code>snask explain S1002
+snask explain S2002
+snask explain S8001</code></pre>
+          <p>
+            A saída do <code>explain</code> inclui:
+          </p>
+          <ul>
+            <li>O código e nome do erro</li>
+            <li>Uma descrição detalhada do problema</li>
+            <li>O que costuma causar esse erro</li>
+            <li>Exemplo de código que produz o erro</li>
+            <li>Exemplo do código corrigido</li>
+            <li>Referência cruzada para documentação relacionada</li>
+          </ul>
+          <pre><code>$ snask explain S1002
+
+S1002 – missing closing `)`
+
+  This error occurs when the parser finds an opening parenthesis
+  without a matching closing parenthesis before the end of the
+  expression or statement.
+
+Common causes:
+  • Forgot to close a function call: `print("hello`
+  • Nested parentheses not properly closed: `(a + (b * c)`
+  • Multi-line expression where the closing paren was omitted
+
+Example:
+  ❌ print("Hello"
+  ✅ print("Hello")</code></pre>
+          <p><span class="status stable">estavel</span> Comando <code>snask explain</code> para todos os códigos documentados.</p>
+        </section>
+
+        <section id="current-status">
+          <h2>Status Atual</h2>
+          <p>
+            O sistema de diagnósticos da Snask está em desenvolvimento ativo.
+            Abaixo, o resumo do status de cada camada:
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Camada</th>
+                <th>Status</th>
+                <th>Observação</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Parser diagnostics (S1000–S1999)</td>
+                <td><span class="status stable">estavel</span></td>
+                <td>Base estável com ~21 códigos; mensagens claras e localização precisa</td>
+              </tr>
+              <tr>
+                <td>Semantic diagnostics (S2000–S2999)</td>
+                <td><span class="status partial">parcial</span></td>
+                <td>~19 códigos existem; sugestões contextuais e cobertura de casos complexos ainda amadurecendo</td>
+              </tr>
+              <tr>
+                <td>OM / linker diagnostics</td>
+                <td><span class="status experimental">experimental</span></td>
+                <td>Ainda maturing; erros de borrow/ownership podem ser menos específicos</td>
+              </tr>
+              <tr>
+                <td>Profiles & runtime (S8000–S8999)</td>
+                <td><span class="status partial">parcial</span></td>
+                <td>Cobertura básica; expansão em progresso</td>
+              </tr>
+              <tr>
+                <td>Toolchain & policies (S9000–S9999)</td>
+                <td><span class="status partial">parcial</span></td>
+                <td>Área mais recente; novos códigos sendo adicionados</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>Nota:</strong> Se você encontrar um diagnóstico que poderia ser
+            mais claro, abra uma issue no repositório da Snask. Mensagens de erro
+            são consideradas parte da experiência do usuário e melhorias são bem-vindas.
+          </div>
+        </section>
+
       </main>
     </div>
     <script src="../assets/site.js"></script>

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Snask - Snask Docs</title>
+    <title>Snask — Performance de Sistemas, Ergonomia Humana</title>
     <link rel="stylesheet" href="assets/site.css" />
   </head>
   <body>
@@ -13,9 +13,9 @@
         <span></span><span></span><span></span>
       </button>
       <nav class="nav">
-        <a href="index.html">Início</a>
+        <a aria-current="page" href="index.html">Início</a>
         <a href="learn/getting-started.html">Aprender</a>
-        <a aria-current="page" href="reference/functions/index.html">Funções</a>
+        <a href="reference/functions/index.html">Funções</a>
         <a href="systems/om.html">OM</a>
         <a href="tooling/installation.html">Tooling</a>
       </nav>
@@ -32,18 +32,133 @@
         <a href="reference/diagnostics.html">Diagnósticos</a>
       </aside>
       <main class="content doc-page">
-        
-        
-            <div class="hero">
-              <p class="eyebrow">Snask Language</p>
-              <h1>Performance de Sistemas.<br/>Ergonomia Humana.</h1>
-              <p class="lead">Uma linguagem compilada moderna com perfis adaptativos: use o nível de controle que você precisa, nada mais.</p>
-              <div class="actions">
-                <a href="learn/getting-started.html" class="button primary">Começar Agora</a>
-                <a href="reference/functions/index.html" class="button">Ver Funções</a>
+        <div class="hero">
+          <p class="eyebrow">Snask Language</p>
+          <h1>Performance de Sistemas.<br/>Ergonomia Humana.</h1>
+          <p class="lead">Uma linguagem compilada moderna com perfis adaptativos: use o nível de controle que você precisa, nada mais.</p>
+          <div class="actions">
+            <a href="learn/getting-started.html" class="button primary">Começar Agora</a>
+            <a href="reference/functions/index.html" class="button">Ver Funções</a>
+          </div>
+        </div>
+
+        <section id="features">
+          <h2><a href="#features">#</a> Features</h2>
+          <div class="grid">
+            <article class="card">
+              <p class="icon">🛡️</p>
+              <h3>Perfis Adaptativos</h3>
+              <p><strong>Humane + Systems</strong> na mesma linguagem. Comece com gerenciamento automático de memória e ative controle de hardware apenas onde precisar. Sem GC, sem runtime pesado.</p>
+            </article>
+            <article class="card">
+              <p class="icon">🧠</p>
+              <h3>OM Memory System</h3>
+              <p>Gerenciamento automático de memória baseado em <strong>zonas</strong>. Recursos são registrados em regiões e liberados ao final da zona. Sem collector, sem pauses, sem leaks.</p>
+            </article>
+            <article class="card">
+              <p class="icon">🔌</p>
+              <h3>C Interop nativa</h3>
+              <p>Compilação via <strong>LLVM</strong> permite chamar bibliotecas C diretamente. Sem transpiração, sem binding generation. Para casos seguros, a interop é direta e eficiente.</p>
+            </article>
+            <article class="card">
+              <p class="icon">📄</p>
+              <h3>SNIF Format</h3>
+              <p>Formato de dados nativo da Snask. Serialização binária tipada para comunicação entre processos e persistência de estruturas complexas.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="quick-start">
+          <h2><a href="#quick-start">#</a> Quick Start</h2>
+
+          <h3>1. Instale</h3>
+          <pre><code>curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
+export PATH="$HOME/.snask/bin:$PATH"
+snask doctor</code></pre>
+
+          <h3>2. Crie um projeto</h3>
+          <pre><code>mkdir meu-app && cd meu-app
+snask new app
+# Cria: main.snask, snask.toml, .gitignore</code></pre>
+
+          <h3>3. Compile e execute</h3>
+          <pre><code>snask build main.snask
+./main</code></pre>
+
+          <div class="callout">
+            Precisa de ajuda? Leia o <a href="learn/getting-started.html">guia de introdução</a> ou
+            acesse os <a href="examples/index.html">exemplos prontos</a>.
+          </div>
+        </section>
+
+        <section id="learn-path">
+          <h2><a href="#learn-path">#</a> Caminho de aprendizado</h2>
+          <div class="learning-path">
+            <a class="path-card" href="learn/getting-started.html">
+              <span class="step">1</span>
+              <div>
+                <h4>Introdução</h4>
+                <p>Filosofia, instalação e primeiro programa.</p>
               </div>
-            </div>
-            
+            </a>
+            <a class="path-card" href="learn/basics.html">
+              <span class="step">2</span>
+              <div>
+                <h4>Variáveis e Tipos</h4>
+                <p>let, mut, const e o sistema de tipos.</p>
+              </div>
+            </a>
+            <a class="path-card" href="learn/control-flow.html">
+              <span class="step">3</span>
+              <div>
+                <h4>Controle de Fluxo</h4>
+                <p>if, while, for in e blocos.</p>
+              </div>
+            </a>
+            <a class="path-card" href="learn/functions.html">
+              <span class="step">4</span>
+              <div>
+                <h4>Funções e Módulos</h4>
+                <p>Funções tipadas, import e módulos.</p>
+              </div>
+            </a>
+            <a class="path-card" href="learn/collections.html">
+              <span class="step">5</span>
+              <div>
+                <h4>Coleções e Strings</h4>
+                <p>Listas, dicionários e manipulação de strings.</p>
+              </div>
+            </a>
+            <a class="path-card" href="learn/memory-om.html">
+              <span class="step">6</span>
+              <div>
+                <h4>Memória (OM)</h4>
+                <p>Gerenciamento automático por zonas.</p>
+              </div>
+            </a>
+            <a class="path-card" href="learn/io-networking.html">
+              <span class="step">7</span>
+              <div>
+                <h4>IO e Rede</h4>
+                <p>Arquivos, HTTP e JSON.</p>
+              </div>
+            </a>
+            <a class="path-card" href="learn/gui.html">
+              <span class="step">8</span>
+              <div>
+                <h4>GUI (Gráficos)</h4>
+                <p>Janelas, botões e componentes visuais.</p>
+              </div>
+            </a>
+            <a class="path-card" href="learn/systems-profile.html">
+              <span class="step">9</span>
+              <div>
+                <h4>Perfil Systems</h4>
+                <p>Bits, ponteiros, @unsafe e hardware.</p>
+              </div>
+            </a>
+          </div>
+        </section>
       </main>
     </div>
     <script src="assets/site.js"></script>
