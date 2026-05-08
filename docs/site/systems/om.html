@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OM-Snask-System</title>
+    <title>OM-Snask-System — Gerenciamento de Memória Orquestrada</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
+        <a href="../index.html">Início</a>
         <a href="../learn/getting-started.html">Aprender</a>
-        <a href="../reference/language.html">Referencia</a>
+        <a href="../reference/functions/index.html">Funções</a>
         <a aria-current="page" href="om.html">OM</a>
         <a href="../tooling/installation.html">Tooling</a>
       </nav>
@@ -20,50 +23,364 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Systems</h2>
-        <a href="om.html">OM-Snask-System</a>
-        <a href="systems-profile.html">Perfil systems</a>
-        <a href="low-level.html">Low-level</a>
-        <a href="c-interop.html">Interop C</a>
+        <a class="active" href="om.html">OM — Orquestração</a>
+        <a href="systems-profile.html">Perfil Systems</a>
+        <a href="low-level.html">Low-Level</a>
+        <a href="c-interop.html">Interoperabilidade C</a>
+        <h2>Nesta página</h2>
+        <a href="#visao-geral">Visão Geral</a>
+        <a href="#modulo-1-zonas">Módulo 1: Zonas</a>
+        <a href="#modulo-2-arenas">Módulo 2: Arenas</a>
+        <a href="#modulo-3-recursos">Módulo 3: Recursos</a>
+        <a href="#modulo-4-contratos">Módulo 4: Contratos C</a>
+        <a href="#modulo-5-borrow">Módulo 5: Borrow Checking</a>
+        <a href="#praticas-recomendadas">Práticas Recomendadas</a>
+        <a href="#roadmap">Roadmap</a>
       </aside>
-      <main class="content">
-        <p class="eyebrow">Memoria orquestrada</p>
+      <main class="content doc-page">
+
+        <p class="eyebrow">Memória Orquestrada</p>
         <h1>OM-Snask-System</h1>
         <p class="lead">
-          O OM-Snask-System e o sistema unico de memoria, recursos e interop nativa da Snask.
+          O OM (Orquestrador de Memória) é o sistema único de gerenciamento de ciclo de vida,
+          recursos nativos e interop com C da linguagem Snask. Em vez de você escrever o contrato
+          manualmente, o Snask deduz o contrato a partir da sua intenção.
         </p>
 
-        <h2>Ideia central</h2>
-        <p>
-          Em vez de espalhar `malloc`, `free`, `destroy`, ownership manual e bindings gigantes pelo
-          codigo, a Snask tenta deduzir o ciclo de vida a partir da intencao.
-        </p>
         <div class="callout">
-          Frase guia: <strong>em vez de voce escrever o contrato, o Snask deve deduzir o contrato.</strong>
+          <strong>Frase guia:</strong> em vez de você escrever <code>malloc</code>, <code>free</code>,
+          <code>destroy</code> e ownership manual, o Snask deduz o ciclo de vida a partir da
+          estrutura do código.
         </div>
 
-        <h2>O que pertence ao OM</h2>
-        <div class="grid">
-          <article class="card"><h3>Zonas</h3><p>Delimitam vida, agrupam alocacoes e recursos.</p></article>
-          <article class="card"><h3>Arenas</h3><p>Direcao para alocacao temporaria rapida e limpeza em massa.</p></article>
-          <article class="card"><h3>Recursos externos</h3><p>Handles C ou runtime com destrutores conhecidos.</p></article>
-          <article class="card"><h3>Contratos C</h3><p>Gerados automaticamente por scanner e corrigidos por `.om.snif` quando necessario.</p></article>
-        </div>
+        <section id="visao-geral">
+          <h2>Visão Geral</h2>
+          <p>
+            Linguagens tradicionais forçam você a escolher entre dois extremos: produtividade com
+            Garbage Collector (lento, imprevisível) ou controle manual de memória (rápido, perigoso,
+            verboso). O OM oferece um <strong>terceiro caminho</strong>:
+          </p>
+          <ul>
+            <li><strong>Zonas</strong> — escopos delimitados onde toda alocação morre ao sair.</li>
+            <li><strong>Arenas</strong> — alocações temporárias em lote com liberação em massa.</li>
+            <li><strong>Recursos externos</strong> — handles do runtime ou C com destrutores registrados.</li>
+            <li><strong>Contratos C</strong> — bindings gerados automaticamente com anotações de ciclo de vida.</li>
+          </ul>
+          <p>
+            O OM opera em dois perfis: no perfil <strong>Humane</strong>, tudo é gerenciado
+            automaticamente por zonas. No perfil <strong>Systems</strong>, você acessa as primitivas
+            de baixo nível (<code>mem_alloc</code>, <code>mem_free</code>, ponteiros) através de
+            blocos <code>@unsafe</code>.
+          </p>
+          <div class="callout warn">
+            <strong>Atenção:</strong> o sistema completo de análise formal (escape analysis,
+            borrow checking, zone depth) ainda está em desenvolvimento. O que existe hoje é
+            funcional para a maioria dos casos, mas o ferramental de verificação estática está
+            sendo implementado.
+          </div>
+        </section>
 
-        <h2>Zona simples</h2>
-        <pre><code>class main {
-    fun start() {
-        zone "frame" {
-            let message = "dentro da zona"
-            print("{message}\n")
-        }
+        <section id="modulo-1-zonas">
+          <h2>Módulo 1: Zonas</h2>
+          <p class="lead">Uma zona é um escopo nominado que agrupa alocações e recursos. Tudo que
+            nasce dentro de uma zona morre quando a zona fecha.</p>
+
+          <h3>Teoria</h3>
+          <p>
+            Zonas são a unidade fundamental do OM. Elas funcionam como "escopos com nome":
+            você declara uma zona com <code>zone "nome" { ... }</code> e todo valor alocado
+            dentro dela — seja no heap do runtime, seja um recurso externo — tem seu ciclo de
+            vida atrelado ao fechamento da zona.
+          </p>
+          <p>
+            Isso elimina a necessidade de rastrear manualmente quando liberar cada alocação.
+            O padrão é conhecido como <strong>RAII regional</strong> (Regional Resource
+            Acquisition Is Initialization): a região (zona) é dona de tudo que contém.
+          </p>
+
+          <h3>Sintaxe</h3>
+          <pre><code>zone "frame" {
+    let buffer = String::new(1024)
+    let dados = read_file("config.json")
+    processar(dados, buffer)
+} // buffer e dados são liberados aqui</code></pre>
+
+          <h3>Aninhamento</h3>
+          <p>Zonas podem ser aninhadas. A zona interna tem acesso aos recursos da externa,
+            mas o inverso não é verdadeiro — ao fechar a zona interna, apenas os recursos
+            dela são liberados.</p>
+          <pre><code>zone "request" {
+    let req = parse_http(request)
+    zone "response" {
+        let resp = build_response(req)
+        send(resp)
+    } // resp liberado
+    // req ainda vivo aqui
+} // req liberado</code></pre>
+
+          <h3>Boas práticas</h3>
+          <ul>
+            <li>Nomeie zonas com propósito semântico: <code>"frame"</code>, <code>"request"</code>, <code>"batch"</code>.</li>
+            <li>Uma zona deve viver o menor tempo possível — quanto mais cedo fechar, menos memória retida.</li>
+            <li>Evite zonas muito profundas (mais de 3 níveis) — prefira extrair funções.</li>
+          </ul>
+        </section>
+
+        <section id="modulo-2-arenas">
+          <h2>Módulo 2: Arenas</h2>
+          <p class="lead">Uma arena é um alocador linear de curta duração. Ideal para
+            processamento em lote e operações temporárias.</p>
+
+          <h3>Teoria</h3>
+          <p>
+            Enquanto zonas são sobre <strong>escopo</strong>, arenas são sobre
+            <strong>eficiência</strong>. Uma arena pré-aloca um bloco contíguo de memória
+            e serve alocações incrementais sem passar pelo alocador global do sistema.
+            Quando a arena é destruída, toda a memória é liberada de uma vez — sem passar
+            item por item.
+          </p>
+          <p>
+            Isso é particularmente útil em:
+          </p>
+          <ul>
+            <li>Processamento de quadros em jogos (frame arena).</li>
+            <li>Parsers e compiladores (alocações temporárias durante análise).</li>
+            <li>Requisições HTTP (alocar headers, bodies, depois liberar tudo).</li>
+          </ul>
+
+          <h3>Sintaxe</h3>
+          <pre><code>// Perfil Humane — arena via zona
+zone "frame" {
+    // O runtime decide se usa arena internamente
+    let particles = Array::new(1000)
+    atualizar(particles)
+} // liberação em massa
+
+// Perfil Systems — arena explícita
+@unsafe {
+    let arena = mem_arena_create(1024 * 64) // 64KB
+    let a: ptr = mem_arena_alloc(arena, 256)
+    let b: ptr = mem_arena_alloc(arena, 512)
+    mem_arena_destroy(arena) // ambos liberados
+}</code></pre>
+
+          <h3>Comparação</h3>
+          <table>
+            <thead>
+              <tr><th>Característica</th><th>Zona</th><th>Arena</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Propósito</td><td>Ciclo de vida</td><td>Performance</td></tr>
+              <tr><td>Liberação</td><td>Por recurso (destrutores)</td><td>Em massa (reset)</td></tr>
+              <tr><td>Aninhamento</td><td>Sim</td><td>Não (sequencial)</td></tr>
+              <tr><td>Overhead</td><td>Médio (tracking individual)</td><td>Baixo (bump allocator)</td></tr>
+              <tr><td>Perfil</td><td>Humane e Systems</td><td>Principalmente Systems</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>Dica:</strong> no perfil Humane, use zonas. O runtime pode otimizar
+            zonas curtas para usar uma arena internamente de forma transparente.
+          </div>
+        </section>
+
+        <section id="modulo-3-recursos">
+          <h2>Módulo 3: Recursos Externos</h2>
+          <p class="lead">Handles de runtime, ponteiros C e qualquer recurso com
+            destrutor conhecido pode ser registrado no OM.</p>
+
+          <h3>Teoria</h3>
+          <p>
+            Nem tudo é memória. Arquivos abertos, conexões de rede, texturas GPU, handles
+            de janela — tudo isso são <strong>recursos</strong> que precisam ser liberados.
+            O OM permite registrar destrutores personalizados para qualquer tipo de recurso,
+            e o sistema de zonas garante que o destrutor seja chamado no fechamento da zona.
+          </p>
+
+          <h3>Registro de recurso</h3>
+          <pre><code>// Registrar um destrutor para um handle C
+zone "render" {
+    let texture = load_texture("hero.png")
+    // O runtime sabe como destruir texture
+    // porque o contrato C declarou o destructor
+    draw(texture)
+} // texture destruída automaticamente</code></pre>
+
+          <h3>Recursos nativos do runtime</h3>
+          <p>O runtime do Snask já registra destrutores para:</p>
+          <ul>
+            <li><strong>Arquivos</strong> — <code>read_file</code>, <code>write_file</code></li>
+            <li><strong>Janelas GUI</strong> — <code>gui_window</code>, <code>snaskgui_window</code></li>
+            <li><strong>Conexões HTTP</strong> — <code>http_get</code>, <code>http_post</code></li>
+            <li><strong>Memória systems</strong> — <code>mem_alloc</code>, <code>mem_alloc_zero</code></li>
+          </ul>
+          <p>
+            No perfil Humane, o uso dessas funções dentro de uma zona é seguro e o recurso
+            é liberado automaticamente. No perfil Systems, você precisa estar dentro de
+            <code>@unsafe</code> para chamar <code>mem_free</code> manualmente.
+          </p>
+        </section>
+
+        <section id="modulo-4-contratos">
+          <h2>Módulo 4: Contratos C</h2>
+          <p class="lead">Bindings para bibliotecas C com ciclo de vida deduzido automaticamente
+            por scanner, corrigido manualmente via <code>.om.snif</code>.</p>
+
+          <h3>Teoria</h3>
+          <p>
+            O OM inclui um scanner que analisa headers C e gera bindings Snask automaticamente.
+            Para cada função que retorna um ponteiro ou recebe um recurso, o scanner tenta
+            deduzir o contrato de ciclo de vida:
+          </p>
+          <ul>
+            <li><strong>Ownership transfer</strong> — quem é dono do recurso após a chamada?</li>
+            <li><strong>Borrow</strong> — o recurso é emprestado temporariamente?</li>
+            <li><strong>Destructor</strong> — qual função deve ser chamada para liberar?</li>
+          </ul>
+          <p>
+            Quando o scanner não consegue deduzir (ou a dedução está errada), você pode
+            corrigir com um arquivo <code>.om.snif</code> ao lado do header.
+          </p>
+
+          <h3>Exemplo de contrato</h3>
+          <pre><code>// Header C: sdl.h
+// SDL_Surface* SDL_LoadBMP(const char* file)
+// void SDL_FreeSurface(SDL_Surface* surface)
+
+// Gerado automaticamente:
+fun sdl_load_bmp(file: str) -> ptr @om(owns, destructor="sdl_free_surface")
+
+// Uso em Snask:
+zone "game" {
+    let surf = sdl_load_bmp("hero.bmp")
+    // surf será liberado com sdl_free_surface ao sair da zona
+}</code></pre>
+
+          <h3>Arquivo .om.snif</h3>
+          <pre><code>// sdl.om.snif — correção manual do contrato
+@contract "SDL_LoadBMP" {
+    owns: return
+    destructor: "SDL_FreeSurface"
+    nullable: true
+}
+@contract "SDL_CreateRenderer" {
+    owns: return
+    destructor: "SDL_DestroyRenderer"
+}
+@contract "SDL_RenderPresent" {
+    owns: none // não retorna recurso
+}</code></pre>
+        </section>
+
+        <section id="modulo-5-borrow">
+          <h2>Módulo 5: Borrow Checking e Escape Analysis</h2>
+          <p class="lead">Análise estática em desenvolvimento para garantir segurança
+            de memória em tempo de compilação.</p>
+
+          <h3>Estado atual</h3>
+          <p>
+            O OM atual oferece gerenciamento automático de memória via zonas no runtime,
+            mas a <strong>verificação estática</strong> completa ainda está em desenvolvimento:
+          </p>
+          <ul>
+            <li><span class="status stable">estável</span> — Zonas com liberação automática no runtime.</li>
+            <li><span class="status partial">parcial</span> — Escape analysis para detectar referências que saem da zona.</li>
+            <li><span class="status experimental">experimental</span> — Borrow checker com regiões.</li>
+          </ul>
+
+          <h3>Exemplo de escape</h3>
+          <p>O escape analysis (parcial) já consegue detectar casos simples:</p>
+          <pre><code>fun f() {
+    zone "tmp" {
+        let local = String::new("dados")
+        // ERROR (futuro): retornar referência que escapa da zona
+        // return &local
     }
 }</code></pre>
 
-        <h2>Status</h2>
-        <p>
-          `@unsafe` para chamadas restritas ja e estavel. O formalismo completo do OM ainda e
-          experimental: escape analysis, borrow checking e zone depth formal continuam no roadmap.
-        </p>
+          <div class="callout warn">
+            <strong>Nota:</strong> por enquanto, o OM depende do runtime para liberar memória.
+            O borrow checker estático será adicionado incrementalmente. No perfil Systems,
+            use <code>@unsafe</code> para operações que o analisador ainda não consegue
+            verificar.
+          </div>
+        </section>
+
+        <section id="praticas-recomendadas">
+          <h2>Práticas Recomendadas</h2>
+
+          <div class="grid">
+            <article class="card">
+              <h3>🔹 Prefira zonas a liberação manual</h3>
+              <p>Mesmo no perfil Systems, use zonas sempre que possível. A liberação manual
+                (<code>mem_free</code>) só deve ser usada quando você precisa de controle
+                fino sobre o momento exato da desalocação.</p>
+            </article>
+            <article class="card">
+              <h3>🔹 Zonas curtas e nomeadas</h3>
+              <p>Uma zona deve viver o mínimo necessário. Nomeie com propósito semântico
+                para documentar a intenção. Ex: <code>"frame"</code>, <code>"batch"</code>,
+                <code>"request"</code>.</p>
+            </article>
+            <article class="card">
+              <h3>🔹 Evite zones deep</h3>
+              <p>Mais de 3 níveis de aninhamento de zonas é um sinal de que você deveria
+                extrair uma função. Cada função pode ter sua própria zona.</p>
+            </article>
+            <article class="card">
+              <h3>🔹 Use @unsafe com disciplina</h3>
+              <p>Isole operações <code>@unsafe</code> em funções pequenas e verificáveis.
+                Nunca espalhe <code>@unsafe</code> pelo código — concentre em módulos
+                systems bem definidos.</p>
+            </article>
+            <article class="card">
+              <h3>🔹 Contratos C explícitos</h3>
+              <p>Sempre verifique os contratos gerados automaticamente pelo scanner C.
+                Use arquivos <code>.om.snif</code> para corrigir quando necessário.
+                Um contrato errado pode causar double-free ou leak.</p>
+            </article>
+            <article class="card">
+              <h3>🔹 Teste com leak detector</h3>
+              <p>Use <code>snask test --leak-check</code> para detectar vazamentos.
+                O runtime do OM pode instrumentar todas as alocações em modo debug.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="roadmap">
+          <h2>Roadmap</h2>
+          <table>
+            <thead>
+              <tr><th>Funcionalidade</th><th>Status</th><th>Previsão</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Zonas com lifetime tracking</td><td><span class="status stable">estável</span></td><td>✔</td></tr>
+              <tr><td>Recursos com destrutores registrados</td><td><span class="status stable">estável</span></td><td>✔</td></tr>
+              <tr><td>Scanner de contratos C</td><td><span class="status stable">estável</span></td><td>✔</td></tr>
+              <tr><td>Escape analysis básico</td><td><span class="status partial">parcial</span></td><td>v0.5</td></tr>
+              <tr><td>Borrow checker regional</td><td><span class="status experimental">experimental</span></td><td>v0.6</td></tr>
+              <tr><td>Zone depth formal (3 níveis)</td><td><span class="status experimental">experimental</span></td><td>v0.6</td></tr>
+              <tr><td>Arena bump allocator nativo</td><td><span class="status experimental">experimental</span></td><td>v0.7</td></tr>
+              <tr><td>Leak detector automático</td><td>planejado</td><td>v0.7</td></tr>
+              <tr><td>Thread-safe zones</td><td>planejado</td><td>v0.8</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>Notas</h2>
+          <p>
+            O OM-Snask-System é um dos pilares da linguagem. Diferente de abordagens
+            como Rust (ownership + borrow checker global) ou Zig (alocador explícito),
+            o OM busca um meio-termo pragmático: você começa com zonas automáticas
+            no perfil Humane e gradualmente ganha controle conforme necessário no
+            perfil Systems.
+          </p>
+          <p>
+            Para contribuir ou relatar problemas, abra uma issue no repositório oficial.
+          </p>
+        </section>
+
       </main>
     </div>
     <script src="../assets/site.js"></script>
