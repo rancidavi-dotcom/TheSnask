@@ -14,7 +14,7 @@ source_x86_64=(
   "${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz"
 )
 sha256sums_x86_64=('20a7dac42c7e8f47d53ac889a41c80398b4ae9b979015c2a9389526a9c3262de'
-                   'a4ed13084f939148300592ed3572314f6737e58b8611a68e2acad18f5f7c3e41')
+                   '6bafb82fed05c99a15c116c86d0d1028748c2d8b6facd3b93c547719cae175d2')
 
 package() {
   # Instala o binário

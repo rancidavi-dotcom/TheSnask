@@ -181,7 +181,6 @@ update_aur() {
         echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
         chown -R builder:builder /work
         
-        # O updpkgsums vai baixar o arquivo da URL do PKGBUILD pois não achará o local
         sudo -u builder updpkgsums
         sudo -u builder makepkg --printsrcinfo > .SRCINFO
     " || { warn "Falha ao processar AUR via Docker."; return; }
