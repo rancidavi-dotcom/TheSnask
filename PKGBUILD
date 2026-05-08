@@ -7,13 +7,16 @@ arch=('x86_64')
 url="https://github.com/rancidavi-dotcom/TheSnask"
 license=('MIT')
 depends=('llvm18-libs' 'gtk3' 'zlib' 'sqlite')
-makedepends=('rust' 'cargo' 'llvm18' 'clang18' 'lld18')
+makedepends=('rust' 'cargo' 'llvm18' 'clang18' 'lld18' 'pkgconf')
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/rancidavi-dotcom/TheSnask/archive/refs/tags/v${pkgver}.tar.gz")
-sha256sums=('3c139d42aaaed04c80c6823ccdd35b657529584a4038ac43b4577293b644fac3')
+sha256sums=('773ad98a23ea04858d7487c0f47110ca3ab9515ed58a78b0fde196fc8a7d4e98')
 
 build() {
   cd "${srcdir}/TheSnask-${pkgver}"
   export LLVM_CONFIG_PATH=/usr/bin/llvm-config-18
+  # Force dynamic linking to LLVM if static libs are missing in the environment
+  export LLVM_LINK_STATIC=0
+  
   cargo build --release --locked
   
   # Use a temporary home for snask setup
