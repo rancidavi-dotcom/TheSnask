@@ -23,7 +23,7 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções</a><a href="../learn/memory-om.html">5. Memória (OM)</a><a href="../learn/systems-profile.html">6. Perfil Systems</a>
+        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções e Módulos</a><a href="../learn/collections.html">5. Coleções e Strings</a><a href="../learn/memory-om.html">6. Memória (OM)</a><a href="../learn/io-networking.html">7. IO e Rede</a><a href="../learn/gui.html">8. GUI (Gráficos)</a><a href="../learn/systems-profile.html">9. Perfil Systems</a>
         <h2>Referência</h2>
         <a href="../reference/functions/index.html">Índice de Funções</a>
         <a href="../reference/language.html">Linguagem</a>
@@ -36,15 +36,93 @@
         
         <p class="eyebrow">Capítulo 3</p>
         <h1>Controle de Fluxo</h1>
-        <p class="lead">Estruturas de decisão e iteração seguras.</p>
-        <pre><code>if score >= 70 {
-    print("Aprovado\n")
-}
+        <p class="lead">Estruturas condicionais e de repetição para controlar o fluxo do programa.</p>
 
-mut i = 0
-while i < 10 {
+        <section>
+          <h2>Condicional <code>if</code></h2>
+          <p>O <code>if</code> executa um bloco se a condição for verdadeira. Suporta <code>else</code> e <code>else if</code>:</p>
+          <pre><code>let nota = 85
+
+if nota >= 90 {
+    print("Excelente!\n")
+} else if nota >= 70 {
+    print("Aprovado\n")
+} else {
+    print("Recuperação\n")
+}</code></pre>
+        </section>
+
+        <section>
+          <h2>Laço <code>while</code></h2>
+          <p>O <code>while</code> repete um bloco enquanto a condição for verdadeira:</p>
+          <pre><code>mut i = 0
+while i < 5 {
+    print("Contagem: {i}\n")
     i = i + 1
 }</code></pre>
+        </section>
+
+        <section>
+          <h2>Laço <code>for</code> / <code>range</code></h2>
+          <p>Use <code>range</code> para iterar sobre sequências numéricas:</p>
+          <pre><code>for i in range(5) {
+    print("{i}\n")  // 0, 1, 2, 3, 4
+}
+
+// Iterar sobre lista
+let itens = [10, 20, 30]
+for item in itens {
+    print("{item}\n")
+}</code></pre>
+        </section>
+
+        <section>
+          <h2><code>match</code> (casamento de padrão)</h2>
+          <p>O <code>match</code> compara um valor contra múltiplos padrões:</p>
+          <pre><code>let cmd = "start"
+match cmd {
+    "start"  => print("Iniciando...\n")
+    "stop"   => print("Parando...\n")
+    "status" => print("Ativo\n")
+    else     => print("Comando desconhecido: {cmd}\n")
+}</code></pre>
+          <p>O <code>else</code> é obrigatório e cobre todos os outros casos.</p>
+        </section>
+
+        <section>
+          <h2><code>break</code> e <code>continue</code></h2>
+          <pre><code>mut i = 0
+while i < 10 {
+    i = i + 1
+    if i == 3 { continue }  // pula o 3
+    if i == 7 { break }     // para no 7
+    print("{i}\n")
+}
+// Saída: 1, 2, 4, 5, 6</code></pre>
+        </section>
+
+        <section>
+          <h2>Operadores de comparação</h2>
+          <table>
+            <thead><tr><th>Operador</th><th>Significado</th></tr></thead>
+            <tbody>
+              <tr><td><code>==</code></td><td>Igual</td></tr>
+              <tr><td><code>!=</code></td><td>Diferente</td></tr>
+              <tr><td><code>&lt;</code> <code>&gt;</code></td><td>Menor / Maior</td></tr>
+              <tr><td><code>&lt;=</code> <code>&gt;=</code></td><td>Menor igual / Maior igual</td></tr>
+              <tr><td><code>&amp;&amp;</code></td><td>E lógico</td></tr>
+              <tr><td><code>||</code></td><td>Ou lógico</td></tr>
+              <tr><td><code>!</code></td><td>Não lógico</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="functions.html" class="path-card"><span class="step">4</span><div><h4>Funções</h4><p>Funções, módulos e organização de código.</p></div></a>
+          </div>
+        </section>
         
       </main>
     </div>

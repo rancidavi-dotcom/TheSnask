@@ -23,7 +23,7 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="../../learn/getting-started.html">1. Introdução</a><a href="../../learn/basics.html">2. Variáveis e Tipos</a><a href="../../learn/control-flow.html">3. Controle de Fluxo</a><a href="../../learn/functions.html">4. Funções</a><a href="../../learn/memory-om.html">5. Memória (OM)</a><a href="../../learn/systems-profile.html">6. Perfil Systems</a>
+        <a href="../../learn/getting-started.html">1. Introdução</a><a href="../../learn/basics.html">2. Variáveis e Tipos</a><a href="../../learn/control-flow.html">3. Controle de Fluxo</a><a href="../../learn/functions.html">4. Funções e Módulos</a><a href="../../learn/collections.html">5. Coleções e Strings</a><a href="../../learn/memory-om.html">6. Memória (OM)</a><a href="../../learn/io-networking.html">7. IO e Rede</a><a href="../../learn/gui.html">8. GUI (Gráficos)</a><a href="../../learn/systems-profile.html">9. Perfil Systems</a>
         <h2>Referência</h2>
         <a href="../../reference/functions/index.html">Índice de Funções</a>
         <a href="../../reference/language.html">Linguagem</a>
@@ -46,7 +46,7 @@
 
     <section>
       <h2>Assinatura</h2>
-      <pre><code>snaskgui_window(title: str, width: float, height: float, scale: float) -&amp;amp;amp;amp;gt; any</code></pre>
+      <pre><code>snaskgui_window(title: str, width: float, height: float, scale: float) -&amp;amp;amp;amp;amp;gt; any</code></pre>
     </section>
 
     <section>
@@ -55,6 +55,7 @@
 <p>Diferente de interfaces baseadas em widgets (botões, inputs), esta janela é uma &#x27;tela em branco&#x27; onde você tem controle total sobre cada pixel enviado via `snaskgui_present_rgba`.</p>
 <p>O parâmetro `scale` é crucial: ele permite que você renderize em uma resolução baixa (ex: 256x240 do NES) e a janela seja exibida em um tamanho confortável (ex: 768x720 com scale 3) sem perder a nitidez dos pixels.</p>
         
+    
     
     
     
@@ -84,13 +85,13 @@
     
         <section>
           <h2>Exemplo</h2>
-          <pre><code>import &amp;amp;amp;amp;quot;snaskgui&amp;amp;amp;amp;quot;
+          <pre><code>import &amp;amp;amp;amp;amp;quot;snaskgui&amp;amp;amp;amp;amp;quot;
 
 class main {
     fun start() {
         snaskgui::init()
-        // Janela com título &amp;amp;amp;amp;quot;Snask&amp;amp;amp;amp;quot;, 320x200 pixels, escala 2x (640x400 físico)
-        let win = snaskgui::window(&amp;amp;amp;amp;quot;Snask Game&amp;amp;amp;amp;quot;, 320, 200, 2)
+        // Janela com título &amp;amp;amp;amp;amp;quot;Snask&amp;amp;amp;amp;amp;quot;, 320x200 pixels, escala 2x (640x400 físico)
+        let win = snaskgui::window(&amp;amp;amp;amp;amp;quot;Snask Game&amp;amp;amp;amp;amp;quot;, 320, 200, 2)
 
         while snaskgui::should_close(win) == false {
             snaskgui::poll(win)

@@ -23,7 +23,7 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="../../learn/getting-started.html">1. Introdução</a><a href="../../learn/basics.html">2. Variáveis e Tipos</a><a href="../../learn/control-flow.html">3. Controle de Fluxo</a><a href="../../learn/functions.html">4. Funções</a><a href="../../learn/memory-om.html">5. Memória (OM)</a><a href="../../learn/systems-profile.html">6. Perfil Systems</a>
+        <a href="../../learn/getting-started.html">1. Introdução</a><a href="../../learn/basics.html">2. Variáveis e Tipos</a><a href="../../learn/control-flow.html">3. Controle de Fluxo</a><a href="../../learn/functions.html">4. Funções e Módulos</a><a href="../../learn/collections.html">5. Coleções e Strings</a><a href="../../learn/memory-om.html">6. Memória (OM)</a><a href="../../learn/io-networking.html">7. IO e Rede</a><a href="../../learn/gui.html">8. GUI (Gráficos)</a><a href="../../learn/systems-profile.html">9. Perfil Systems</a>
         <h2>Referência</h2>
         <a href="../../reference/functions/index.html">Índice de Funções</a>
         <a href="../../reference/language.html">Linguagem</a>
@@ -46,7 +46,7 @@
 
     <section>
       <h2>Assinatura</h2>
-      <pre><code>gui_run() -&amp;amp;amp;amp;gt; void</code></pre>
+      <pre><code>gui_run() -&amp;amp;amp;amp;amp;gt; void</code></pre>
     </section>
 
     <section>
@@ -54,6 +54,7 @@
       <p>Inicia o loop principal de processamento de eventos da GUI. Esta função é **bloqueante**: ela só retorna quando a aplicação é encerrada via `gui_quit` ou quando a última janela é fechada.</p>
 <p>Durante a execução desta função, o runtime processa cliques, redesenha widgets e executa handlers de eventos.</p>
         
+    
     
     
     
@@ -84,11 +85,11 @@
         <section>
           <h2>Exemplo</h2>
           <pre><code>gui::init()
-let win = gui::window(&amp;amp;amp;amp;quot;App&amp;amp;amp;amp;quot;, 200, 100)
+let win = gui::window(&amp;amp;amp;amp;amp;quot;App&amp;amp;amp;amp;amp;quot;, 200, 100)
 gui::show_all(win)
-// O programa &amp;amp;amp;amp;#x27;para&amp;amp;amp;amp;#x27; aqui e fica ouvindo o usuário
+// O programa &amp;amp;amp;amp;amp;#x27;para&amp;amp;amp;amp;amp;#x27; aqui e fica ouvindo o usuário
 gui::run()
-print(&amp;amp;amp;amp;quot;Aplicação encerrada!\n&amp;amp;amp;amp;quot;)</code></pre>
+print(&amp;amp;amp;amp;amp;quot;Aplicação encerrada!\n&amp;amp;amp;amp;amp;quot;)</code></pre>
         </section>
 
     <section>

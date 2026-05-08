@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>5. Memória (OM) - Snask Docs</title>
+    <title>6. Memória (OM) - Snask Docs</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
@@ -23,7 +23,7 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções</a><a href="../learn/memory-om.html">5. Memória (OM)</a><a href="../learn/systems-profile.html">6. Perfil Systems</a>
+        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções e Módulos</a><a href="../learn/collections.html">5. Coleções e Strings</a><a href="../learn/memory-om.html">6. Memória (OM)</a><a href="../learn/io-networking.html">7. IO e Rede</a><a href="../learn/gui.html">8. GUI (Gráficos)</a><a href="../learn/systems-profile.html">9. Perfil Systems</a>
         <h2>Referência</h2>
         <a href="../reference/functions/index.html">Índice de Funções</a>
         <a href="../reference/language.html">Linguagem</a>
@@ -34,11 +34,65 @@
       <main class="content doc-page">
         
         
-        <h1>Gerenciamento de Memória (OM)</h1>
-        <p>O Snask utiliza o <strong>OM-Snask-System</strong> baseado em <strong>Zonas</strong> para gerenciamento automático de memória.</p>
-        <pre><code>zone "request" {
-    let dados = carregar()
-} // Limpeza instantânea!</code></pre>
+        <p class="eyebrow">Capítulo 6</p>
+        <h1>Gerenciamento de Memória com OM</h1>
+        <p class="lead">O OM (Orquestrador de Memória) gerencia o ciclo de vida de alocações e recursos automaticamente através de zonas.</p>
+
+        <section>
+          <h2>O problema</h2>
+          <p>Em C, você precisa lembrar de chamar <code>free</code> para cada <code>malloc</code>. Um esquecimento vaza memória; um <code>free</code> a mais quebra o programa. Em linguagens com GC, você não se preocupa, mas paga o preço em pausas e uso de memória.</p>
+          <p>O OM oferece um terceiro caminho: <strong>alocação regional</strong>. Você declara uma zona e tudo que aloca dentro dela é liberado automaticamente quando a zona fecha.</p>
+        </section>
+
+        <section>
+          <h2>Zonas</h2>
+          <p>Uma zona é um escopo nomeado que agrupa alocações:</p>
+          <pre><code>zone "frame" {
+    let buffer = read_file("dados.txt")
+    processar(buffer)
+} // buffer liberado automaticamente</code></pre>
+          <p>No perfil Humane, todas as funções que alocam recursos (arquivos, memória, handles) têm seus ciclos de vida atrelados à zona ativa.</p>
+        </section>
+
+        <section>
+          <h2>Zonas aninhadas</h2>
+          <p>A zona interna libera recursos ao fechar, mas a externa mantém os dela:</p>
+          <pre><code>zone "request" {
+    let req = parse_http(input)
+    zone "response" {
+        let resp = build_response(req)
+        send(resp)
+    } // resp liberado, req ainda vivo
+} // req liberado</code></pre>
+        </section>
+
+        <section>
+          <h2>Boas práticas com zonas</h2>
+          <ul>
+            <li><strong>Zonas curtas:</strong> uma zona deve viver o mínimo necessário. Quanto antes fechar, menos memória retida.</li>
+            <li><strong>Zonas nomeadas:</strong> use nomes semânticos como <code>"frame"</code>, <code>"request"</code>, <code>"batch"</code>.</li>
+            <li><strong>Aninhamento máximo:</strong> evite mais de 3 níveis. Extraia funções.</li>
+            <li><strong>Combinar com funções:</strong> cada função pode ter suas próprias zonas internas.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>No perfil Systems</h2>
+          <p>No perfil Systems, você tem controle manual da memória com <code>mem_alloc</code>, <code>mem_free</code>, ponteiros e <code>@unsafe</code>. O OM ainda pode ajudar com zonas para agrupar alocações manuais, mas a liberação é responsabilidade sua:</p>
+          <pre><code>@unsafe {
+    let p: ptr = mem_alloc(1024)
+    mem_write_u8(p, 0, 42)
+    let val = mem_read_u8(p, 0) // 42
+    mem_free(p)
+}</code></pre>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="io-networking.html" class="path-card"><span class="step">7</span><div><h4>IO e Rede</h4><p>Entrada/saída, arquivos, HTTP.</p></div></a>
+          </div>
+        </section>
         
       </main>
     </div>

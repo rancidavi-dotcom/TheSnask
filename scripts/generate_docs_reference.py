@@ -301,6 +301,10 @@ def render_layout(title: str, content: str, depth: int = 0, is_index: bool = Fal
         f'<a href="{prefix}learn/{p["slug"]}.html">{p["title"]}</a>'
         for p in LEARN_PAGES
     )
+    sidebar_chapters = "".join(
+        f'<a href="{prefix}learn/{p["slug"]}.html">{p["title"]}</a>'
+        for p in LEARN_PAGES
+    )
 
     search_header = ""
     if is_index:
@@ -335,7 +339,7 @@ def render_layout(title: str, content: str, depth: int = 0, is_index: bool = Fal
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        {nav_links}
+        {sidebar_chapters}
         <h2>Referência</h2>
         <a href="{prefix}reference/functions/index.html">Índice de Funções</a>
         <a href="{prefix}reference/language.html">Linguagem</a>
@@ -371,19 +375,51 @@ LEARN_PAGES = [
         <p class="eyebrow">Capítulo 1</p>
         <h1>Introdução ao Snask</h1>
         <p class="lead">Snask é uma linguagem moderna, compilada via LLVM, projetada para ser <strong>"Humana por padrão, Systems quando necessário"</strong>.</p>
+
         <section>
-          <h2>A Filosofia Snask</h2>
-          <p>Diferente de linguagens que forçam uma escolha entre produtividade com GC ou controle manual perigoso, o Snask introduz o conceito de <strong>Perfis Adaptativos</strong>.</p>
+          <h2>Filosofia</h2>
+          <p>O Snask nasce de uma constatação: linguagens de alto nível com GC são produtivas mas desperdiçam hardware; linguagens de sistema são eficientes mas perigosas e verbosas. O Snask oferece <strong>Perfis Adaptativos</strong>:</p>
           <ul>
-            <li><strong>Perfil Humane:</strong> Focado na experiência do desenvolvedor. Memória gerenciada automaticamente via zonas.</li>
-            <li><strong>Perfil Systems:</strong> Ativa primitivas de baixo nível, ponteiros, bits e alocação manual.</li>
+            <li><strong>🛡️ Humane</strong> — padrão. Memória gerenciada automaticamente via zonas. Foco em produtividade e segurança. Ideal para aplicações, scripts, ferramentas.</li>
+            <li><strong>⚙️ Systems</strong> — opcional. Acesso a ponteiros, alocação manual, operações de bits e hardware. Exige blocos <code>@unsafe</code>. Ideal para kernels, drivers, emuladores.</li>
           </ul>
+          <p>Você começa no perfil Humane e ativa Systems apenas onde precisa. Os dois convivem no mesmo programa.</p>
         </section>
+
         <section>
           <h2>Instalação</h2>
           <pre><code>curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
 export PATH="$HOME/.snask/bin:$PATH"
 snask doctor</code></pre>
+        </section>
+
+        <section>
+          <h2>Primeiro programa</h2>
+          <p>Crie um arquivo <code>main.snask</code>:</p>
+          <pre><code>class main {
+    fun start() {
+        print("Olá, Snask!\\n")
+    }
+}</code></pre>
+          <pre><code>snask build main.snask -o Hello && ./Hello</code></pre>
+        </section>
+
+        <section>
+          <h2>Estrutura de um programa</h2>
+          <p>Todo programa Snask precisa de uma classe <code>main</code> com um método <code>start</code> — esse é o ponto de entrada. O runtime chama <code>start</code> após inicializar o gerenciamento de memória e recursos.</p>
+          <pre><code>class main {
+    // Executado automaticamente pelo runtime
+    fun start() {
+        // seu código aqui
+    }
+}</code></pre>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="basics.html" class="path-card"><span class="step">2</span><div><h4>Variáveis e Tipos</h4><p>Entenda o sistema de tipos, imutabilidade e inferência.</p></div></a>
+          </div>
         </section>
         """,
     },
@@ -393,17 +429,80 @@ snask doctor</code></pre>
         "content": """
         <p class="eyebrow">Capítulo 2</p>
         <h1>Variáveis e Sistema de Tipos</h1>
-        <p class="lead">Snask possui tipagem estática com inferência poderosa e imutabilidade por padrão.</p>
+        <p class="lead">Snask possui tipagem estática, forte e com inferência. Tudo é imutável por padrão.</p>
+
         <section>
-          <h2>Imutabilidade (let)</h2>
-          <p>Tudo é imutável por padrão, evitando efeitos colaterais indesejados.</p>
-          <pre><code>let pi = 3.1415</code></pre>
+          <h2>Imutabilidade (<code>let</code>)</h2>
+          <p>Por padrão, toda variável é imutável. Uma vez atribuída, o valor não pode ser alterado. Isso elimina classes inteiras de bugs.</p>
+          <pre><code>let nome = "Snask"
+let versao = 0.4
+let is_compilada = true
+
+// nome = "Outro"  ← ERRO de compilação!</code></pre>
         </section>
+
         <section>
-          <h2>Mutabilidade (mut)</h2>
-          <p>Use <code>mut</code> apenas quando o estado precisar variar.</p>
+          <h2>Mutabilidade (<code>mut</code>)</h2>
+          <p>Use <code>mut</code> quando o valor precisar mudar:</p>
           <pre><code>mut contador = 0
-contador = contador + 1</code></pre>
+contador = contador + 1  // OK
+contador = 100           // OK</code></pre>
+          <div class="callout">
+            <strong>Dica:</strong> quanto menos <code>mut</code>, mais fácil de raciocinar sobre o código. Prefira criar novos valores a modificar existentes.
+          </div>
+        </section>
+
+        <section>
+          <h2>Tipos primitivos</h2>
+          <table>
+            <thead><tr><th>Tipo</th><th>Descrição</th><th>Exemplo</th></tr></thead>
+            <tbody>
+              <tr><td><code>float</code></td><td>Número (inteiro ou ponto flutuante, 64 bits)</td><td><code>42</code>, <code>3.14</code></td></tr>
+              <tr><td><code>str</code></td><td>String UTF-8</td><td><code>"olá"</code></td></tr>
+              <tr><td><code>bool</code></td><td>Booleano</td><td><code>true</code>, <code>false</code></td></tr>
+              <tr><td><code>list</code></td><td>Lista dinâmica</td><td><code>[1, 2, 3]</code></td></tr>
+              <tr><td><code>any</code></td><td>Valor dinâmico (JSON)</td><td><code>json_parse(...)</code></td></tr>
+              <tr><td><code>ptr</code></td><td>Ponteiro bruto (perfil Systems)</td><td><code>mem_alloc(64)</code></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>Inferência de tipos</h2>
+          <p>O Snask infere o tipo automaticamente na maioria dos casos. Você só precisa anotar quando o tipo não é óbvio:</p>
+          <pre><code>let a = 10          // float (padrão)
+let b: float = 10   // explícito
+let c: ptr = mem_alloc(64)  // necessário para ptr
+
+// Strings usam aspas duplas
+let texto = "Snask"</code></pre>
+        </section>
+
+        <section>
+          <h2>Conversão entre tipos</h2>
+          <p>O Snask não faz conversão implícita. Use funções de cast:</p>
+          <pre><code>let num = str_to_num("42")      // str → float
+let texto = num_to_str(3.14)    // float → str
+let val = json_parse("{\\"a\\":1}") // str → any (JSON)</code></pre>
+          <p>No perfil Systems, casts numéricos explícitos:</p>
+          <pre><code>let x: float = 255
+let byte = as_u8(x)   // float → u8
+let word = as_u16(x)  // float → u16</code></pre>
+        </section>
+
+        <section>
+          <h2>Comentários</h2>
+          <pre><code>// Comentário de linha única
+
+/* Comentário
+   multi-linha */</code></pre>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="control-flow.html" class="path-card"><span class="step">3</span><div><h4>Controle de Fluxo</h4><p>if, while, match e loops.</p></div></a>
+          </div>
         </section>
         """,
     },
@@ -413,49 +512,666 @@ contador = contador + 1</code></pre>
         "content": """
         <p class="eyebrow">Capítulo 3</p>
         <h1>Controle de Fluxo</h1>
-        <p class="lead">Estruturas de decisão e iteração seguras.</p>
-        <pre><code>if score >= 70 {
-    print("Aprovado\\n")
-}
+        <p class="lead">Estruturas condicionais e de repetição para controlar o fluxo do programa.</p>
 
-mut i = 0
-while i < 10 {
+        <section>
+          <h2>Condicional <code>if</code></h2>
+          <p>O <code>if</code> executa um bloco se a condição for verdadeira. Suporta <code>else</code> e <code>else if</code>:</p>
+          <pre><code>let nota = 85
+
+if nota >= 90 {
+    print("Excelente!\\n")
+} else if nota >= 70 {
+    print("Aprovado\\n")
+} else {
+    print("Recuperação\\n")
+}</code></pre>
+        </section>
+
+        <section>
+          <h2>Laço <code>while</code></h2>
+          <p>O <code>while</code> repete um bloco enquanto a condição for verdadeira:</p>
+          <pre><code>mut i = 0
+while i < 5 {
+    print("Contagem: {i}\\n")
     i = i + 1
 }</code></pre>
+        </section>
+
+        <section>
+          <h2>Laço <code>for</code> / <code>range</code></h2>
+          <p>Use <code>range</code> para iterar sobre sequências numéricas:</p>
+          <pre><code>for i in range(5) {
+    print("{i}\\n")  // 0, 1, 2, 3, 4
+}
+
+// Iterar sobre lista
+let itens = [10, 20, 30]
+for item in itens {
+    print("{item}\\n")
+}</code></pre>
+        </section>
+
+        <section>
+          <h2><code>match</code> (casamento de padrão)</h2>
+          <p>O <code>match</code> compara um valor contra múltiplos padrões:</p>
+          <pre><code>let cmd = "start"
+match cmd {
+    "start"  => print("Iniciando...\\n")
+    "stop"   => print("Parando...\\n")
+    "status" => print("Ativo\\n")
+    else     => print("Comando desconhecido: {cmd}\\n")
+}</code></pre>
+          <p>O <code>else</code> é obrigatório e cobre todos os outros casos.</p>
+        </section>
+
+        <section>
+          <h2><code>break</code> e <code>continue</code></h2>
+          <pre><code>mut i = 0
+while i < 10 {
+    i = i + 1
+    if i == 3 { continue }  // pula o 3
+    if i == 7 { break }     // para no 7
+    print("{i}\\n")
+}
+// Saída: 1, 2, 4, 5, 6</code></pre>
+        </section>
+
+        <section>
+          <h2>Operadores de comparação</h2>
+          <table>
+            <thead><tr><th>Operador</th><th>Significado</th></tr></thead>
+            <tbody>
+              <tr><td><code>==</code></td><td>Igual</td></tr>
+              <tr><td><code>!=</code></td><td>Diferente</td></tr>
+              <tr><td><code>&lt;</code> <code>&gt;</code></td><td>Menor / Maior</td></tr>
+              <tr><td><code>&lt;=</code> <code>&gt;=</code></td><td>Menor igual / Maior igual</td></tr>
+              <tr><td><code>&amp;&amp;</code></td><td>E lógico</td></tr>
+              <tr><td><code>||</code></td><td>Ou lógico</td></tr>
+              <tr><td><code>!</code></td><td>Não lógico</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="functions.html" class="path-card"><span class="step">4</span><div><h4>Funções</h4><p>Funções, módulos e organização de código.</p></div></a>
+          </div>
+        </section>
         """,
     },
     {
         "slug": "functions",
-        "title": "4. Funções",
+        "title": "4. Funções e Módulos",
         "content": """
-        <h1>Funções e Modularidade</h1>
-        <p>Funções no Snask são tipadas e podem ser organizadas em módulos reutilizáveis.</p>
-        <pre><code>fun somar(a: float, b: float) -> float {
+        <p class="eyebrow">Capítulo 4</p>
+        <h1>Funções e Módulos</h1>
+        <p class="lead">Organize seu código em funções reutilizáveis e módulos.</p>
+
+        <section>
+          <h2>Declarando funções</h2>
+          <p>Use <code>fun</code> para declarar uma função. Parâmetros e retorno são tipados:</p>
+          <pre><code>fun somar(a: float, b: float) -> float {
     return a + b
+}
+
+fun saudacao(nome: str) {
+    print("Olá, {nome}!\\n")
 }</code></pre>
+        </section>
+
+        <section>
+          <h2>Funções sem retorno</h2>
+          <p>Se a função não retorna nada, omite a seta:</p>
+          <pre><code>fun log(mensagem: str) {
+    print("[LOG] {mensagem}\\n")
+}</code></pre>
+        </section>
+
+        <section>
+          <h2>Escopo e variáveis locais</h2>
+          <p>Variáveis declaradas dentro de uma função são locais a ela:</p>
+          <pre><code>fun calcular() -> float {
+    let tmp = 42      // local
+    let resultado = tmp * 2
+    return resultado
+}
+// tmp não existe aqui</code></pre>
+        </section>
+
+        <section>
+          <h2>Módulos e <code>import</code></h2>
+          <p>Organize código em módulos com <code>import</code>:</p>
+          <pre><code>// arquivo: math.snask
+fun quadrado(x: float) -> float {
+    return x * x
+}
+
+// arquivo: main.snask
+import "math"
+
+class main {
+    fun start() {
+        let q = math::quadrado(5) // 25
+        print("{q}\\n")
+    }
+}</code></pre>
+          <p>A sintaxe <code>modulo::funcao</code> acessa itens do módulo importado.</p>
+        </section>
+
+        <section>
+          <h2>Funções como valores</h2>
+          <p>Funções podem ser passadas como argumento (callbacks):</p>
+          <pre><code>fun executar(f: any) {
+    // f é uma referência de função
+    f()
+}
+
+fun minha_fun() {
+    print("Chamado!\\n")
+}
+
+executar(minha_fun)</code></pre>
+        </section>
+
+        <section>
+          <h2>Boas práticas</h2>
+          <ul>
+            <li>Funções pequenas e com propósito único (SRP).</li>
+            <li>Nomes descritivos no padrão <code>snake_case</code>.</li>
+            <li>Evite funções com mais de 30 linhas — extraia.</li>
+            <li>Use <code>import</code> para separar domínios.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="collections.html" class="path-card"><span class="step">5</span><div><h4>Coleções e Strings</h4><p>Listas, strings, JSON e operações.</p></div></a>
+          </div>
+        </section>
+        """,
+    },
+    {
+        "slug": "collections",
+        "title": "5. Coleções e Strings",
+        "content": """
+        <p class="eyebrow">Capítulo 5</p>
+        <h1>Coleções e Strings</h1>
+        <p class="lead">Trabalhe com listas, strings, JSON e estruturas de dados.</p>
+
+        <section>
+          <h2>Listas</h2>
+          <p>Listas são coleções dinâmicas. Suportam tipos mistos no perfil Humane:</p>
+          <pre><code>let vazia = []
+let numeros = [1, 2, 3, 4, 5]
+let mista = [42, "texto", true]
+
+print(len(numeros))  // 5
+print(numeros[0])    // 1</code></pre>
+
+          <h3>Operações com listas</h3>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>len(x)</code></td><td>Retorna o tamanho</td></tr>
+              <tr><td><code>sort(x)</code></td><td>Ordena a lista</td></tr>
+              <tr><td><code>reverse(x)</code></td><td>Inverte a ordem</td></tr>
+              <tr><td><code>flatten(x)</code></td><td>Achata listas aninhadas</td></tr>
+              <tr><td><code>contains(x, v)</code></td><td>Verifica se contém valor</td></tr>
+              <tr><td><code>join(x, sep)</code></td><td>Junta em string</td></tr>
+              <tr><td><code>unique(x)</code></td><td>Remove duplicatas</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>Strings</h2>
+          <p>Strings são UTF-8 e suportam interpolação com <code>{}</code>:</p>
+          <pre><code>let nome = "Snask"
+let versao = 0.4
+let msg = "Bem-vindo ao {nome} v{versao}!"
+print("{msg}\\n")
+
+// Operações
+let tamanho = len("texto")           // 5
+let sub = substring("Snask", 0, 2)   // "Sn"
+let maiusculo = upper("snask")       // "SNASK"
+let minusculo = lower("SNASK")       // "snask"
+let tem_prefixo = starts_with("Snask", "Sn")  // true
+let tem_sufixo = ends_with("Snask", "sk")     // true
+let trim = trim("  espaco  ")        // "espaco"
+let partes = split("a,b,c", ",")     // ["a", "b", "c"]
+let trocado = replace("a-a-a", "-", "+") // "a+a+a"</code></pre>
+        </section>
+
+        <section>
+          <h2>JSON</h2>
+          <p>O Snask tem suporte nativo a JSON no perfil Humane:</p>
+          <pre><code>let texto = '{"nome": "Snask", "ano": 2024}'
+
+// Parse
+let obj = json_parse(texto)
+
+// Acessar campos
+let nome = json_get(obj, "nome")   // "Snask"
+let ano = json_get(obj, "ano")     // 2024.0
+
+// Verificar tipo
+let is_str = is_str(nome)   // true
+let is_obj = is_obj(obj)    // true
+
+// Serializar
+let saida = json_stringify(obj)</code></pre>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="memory-om.html" class="path-card"><span class="step">6</span><div><h4>Memória (OM)</h4><p>Gerenciamento automático com zonas.</p></div></a>
+          </div>
+        </section>
         """,
     },
     {
         "slug": "memory-om",
-        "title": "5. Memória (OM)",
+        "title": "6. Memória (OM)",
         "content": """
-        <h1>Gerenciamento de Memória (OM)</h1>
-        <p>O Snask utiliza o <strong>OM-Snask-System</strong> baseado em <strong>Zonas</strong> para gerenciamento automático de memória.</p>
-        <pre><code>zone "request" {
-    let dados = carregar()
-} // Limpeza instantânea!</code></pre>
+        <p class="eyebrow">Capítulo 6</p>
+        <h1>Gerenciamento de Memória com OM</h1>
+        <p class="lead">O OM (Orquestrador de Memória) gerencia o ciclo de vida de alocações e recursos automaticamente através de zonas.</p>
+
+        <section>
+          <h2>O problema</h2>
+          <p>Em C, você precisa lembrar de chamar <code>free</code> para cada <code>malloc</code>. Um esquecimento vaza memória; um <code>free</code> a mais quebra o programa. Em linguagens com GC, você não se preocupa, mas paga o preço em pausas e uso de memória.</p>
+          <p>O OM oferece um terceiro caminho: <strong>alocação regional</strong>. Você declara uma zona e tudo que aloca dentro dela é liberado automaticamente quando a zona fecha.</p>
+        </section>
+
+        <section>
+          <h2>Zonas</h2>
+          <p>Uma zona é um escopo nomeado que agrupa alocações:</p>
+          <pre><code>zone "frame" {
+    let buffer = read_file("dados.txt")
+    processar(buffer)
+} // buffer liberado automaticamente</code></pre>
+          <p>No perfil Humane, todas as funções que alocam recursos (arquivos, memória, handles) têm seus ciclos de vida atrelados à zona ativa.</p>
+        </section>
+
+        <section>
+          <h2>Zonas aninhadas</h2>
+          <p>A zona interna libera recursos ao fechar, mas a externa mantém os dela:</p>
+          <pre><code>zone "request" {
+    let req = parse_http(input)
+    zone "response" {
+        let resp = build_response(req)
+        send(resp)
+    } // resp liberado, req ainda vivo
+} // req liberado</code></pre>
+        </section>
+
+        <section>
+          <h2>Boas práticas com zonas</h2>
+          <ul>
+            <li><strong>Zonas curtas:</strong> uma zona deve viver o mínimo necessário. Quanto antes fechar, menos memória retida.</li>
+            <li><strong>Zonas nomeadas:</strong> use nomes semânticos como <code>"frame"</code>, <code>"request"</code>, <code>"batch"</code>.</li>
+            <li><strong>Aninhamento máximo:</strong> evite mais de 3 níveis. Extraia funções.</li>
+            <li><strong>Combinar com funções:</strong> cada função pode ter suas próprias zonas internas.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>No perfil Systems</h2>
+          <p>No perfil Systems, você tem controle manual da memória com <code>mem_alloc</code>, <code>mem_free</code>, ponteiros e <code>@unsafe</code>. O OM ainda pode ajudar com zonas para agrupar alocações manuais, mas a liberação é responsabilidade sua:</p>
+          <pre><code>@unsafe {
+    let p: ptr = mem_alloc(1024)
+    mem_write_u8(p, 0, 42)
+    let val = mem_read_u8(p, 0) // 42
+    mem_free(p)
+}</code></pre>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="io-networking.html" class="path-card"><span class="step">7</span><div><h4>IO e Rede</h4><p>Entrada/saída, arquivos, HTTP.</p></div></a>
+          </div>
+        </section>
+        """,
+    },
+    {
+        "slug": "io-networking",
+        "title": "7. IO e Rede",
+        "content": """
+        <p class="eyebrow">Capítulo 7</p>
+        <h1>Entrada/Saída e Rede</h1>
+        <p class="lead">Comunique-se com o mundo externo: console, arquivos e requisições HTTP.</p>
+
+        <section>
+          <h2>Saída no console</h2>
+          <pre><code>print("texto")        // sem quebra de linha
+println()              // apenas quebra de linha
+
+// Interpolação
+let nome = "Snask"
+print("Olá, {nome}!\\n")
+
+// Múltiplos valores
+print("Contagem: "); print(42); print("\\n")</code></pre>
+        </section>
+
+        <section>
+          <h2>Arquivos</h2>
+          <p>O Snask oferece funções para leitura e escrita de arquivos:</p>
+          <pre><code>// Leitura completa
+let config = read_file("settings.json")
+print("Tamanho: {len(config)} bytes\\n")
+
+// Escrita (sobrescreve)
+write_file("saida.txt", "conteúdo")
+
+// Acrescentar ao final
+append_file("log.txt", "nova entrada\\n")
+
+// Trabalhar com diretórios
+let entradas = read_dir(".")
+for item in entradas {
+    if is_file(item) { print("Arquivo: {item}\\n") }
+    if is_dir(item)  { print("Diretório: {item}\\n") }
+}
+
+// Testar existência
+if exists("config.json") {
+    print("Arquivo existe\\n")
+}</code></pre>
+        </section>
+
+        <section>
+          <h2>SFS (Simple File System)</h2>
+          <p>O SFS oferece operações adicionais de arquivo:</p>
+          <pre><code>sfs_copy("origem.txt", "destino.txt")
+sfs_move("antigo.txt", "novo.txt")
+sfs_delete("temporario.txt")
+sfs_mkdir("pasta/nova")
+sfs_rmdir("pasta/antiga")
+sfs_size("arquivo.bin")    // tamanho em bytes
+sfs_mtime("arquivo.txt")   // timestamp de modificação</code></pre>
+        </section>
+
+        <section>
+          <h2>Requisições HTTP</h2>
+          <pre><code>let res = http_get("https://api.github.com/zen")
+print("Status: {json_get(res, \\"status\\")}\\n")
+print("Body: {json_get(res, \\"body\\")}\\n")
+
+// http_post para enviar dados
+// let res = http_post("https://api.exemplo.com/dados", corpo)</code></pre>
+          <div class="callout warn">
+            <strong>Nota:</strong> requisições HTTP são bloqueantes. O runtime precisa ter suporte a rede e certificados SSL.
+          </div>
+        </section>
+
+        <section>
+          <h2>Sistema</h2>
+          <pre><code>let agora = time()           // timestamp atual
+let so = platform()           // nome do SO
+let args = args()             // argumentos da linha de comando
+let vars = env()              // variáveis de ambiente
+let dir = cwd()               // diretório atual
+set_env("PATH", "/usr/bin")   // definir variável de ambiente
+exit(0)                       // sair do programa
+sleep(1000)                   // pausar por 1 segundo</code></pre>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="gui.html" class="path-card"><span class="step">8</span><div><h4>GUI</h4><p>Interfaces gráficas com GTK e framebuffer.</p></div></a>
+          </div>
+        </section>
+        """,
+    },
+    {
+        "slug": "gui",
+        "title": "8. GUI (Gráficos)",
+        "content": """
+        <p class="eyebrow">Capítulo 8</p>
+        <h1>Interface Gráfica</h1>
+        <p class="lead">Crie interfaces gráficas com widgets GTK (<code>gui_*</code>) ou renderização pixel a pixel (<code>snaskgui_*</code>).</p>
+
+        <section>
+          <h2>GUI com Widgets (GTK)</h2>
+          <p>Use o sistema <code>gui_*</code> para criar interfaces com botões, campos de texto, labels e containers:</p>
+          <pre><code>class main {
+    fun start() {
+        gui_init()   // inicializa o runtime GTK
+
+        let win = gui_window("Minha Janela", 400, 300)
+        let vbox = gui_vbox()
+        let label = gui_label("Clique no botão:")
+        let btn = gui_button("OK")
+
+        gui_on_click(btn, fun() {
+            print("Clicou!\\n")
+        })
+
+        gui_add(vbox, label)
+        gui_add(vbox, btn)
+        gui_set_child(win, vbox)
+        gui_show_all(win)
+        gui_run()    // entra no loop principal
+    }
+}</code></pre>
+
+          <h3>Widgets disponíveis</h3>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>gui_window</code></td><td>Cria janela</td></tr>
+              <tr><td><code>gui_button</code></td><td>Botão</td></tr>
+              <tr><td><code>gui_label</code></td><td>Texto informativo</td></tr>
+              <tr><td><code>gui_entry</code></td><td>Campo de texto</td></tr>
+              <tr><td><code>gui_textview</code></td><td>Área de texto multi-linha</td></tr>
+              <tr><td><code>gui_hbox</code></td><td>Container horizontal</td></tr>
+              <tr><td><code>gui_vbox</code></td><td>Container vertical</td></tr>
+              <tr><td><code>gui_get_text</code></td><td>Lê texto de widget</td></tr>
+              <tr><td><code>gui_set_text</code></td><td>Define texto de widget</td></tr>
+              <tr><td><code>gui_on_click</code></td><td>Conecta evento de clique</td></tr>
+              <tr><td><code>gui_add</code></td><td>Adiciona filho a container</td></tr>
+              <tr><td><code>gui_set_child</code></td><td>Define filho único</td></tr>
+              <tr><td><code>gui_show_all</code></td><td>Mostra widget e filhos</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>SnaskGUI (Framebuffer)</h2>
+          <p>O sistema <code>snaskgui_*</code> cria janelas de pixels para jogos, emuladores e visualizações. Você controla cada pixel individualmente:</p>
+          <pre><code>class main {
+    fun start() {
+        snaskgui::init()
+        let win = snaskgui::window("Jogo", 320, 200, 2) // 640x400 físico
+
+        while snaskgui::should_close(win) == false {
+            snaskgui::poll(win)
+            // Desenhar pixel a pixel
+            // snaskgui::present_rgba(win, buffer)
+            snaskgui::delay(16)  // ~60 FPS
+        }
+        snaskgui::close(win)
+    }
+}</code></pre>
+
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>snaskgui::init</code></td><td>Inicializa o sistema</td></tr>
+              <tr><td><code>snaskgui::window</code></td><td>Cria janela (largura, altura, escala)</td></tr>
+              <tr><td><code>snaskgui::poll</code></td><td>Processa eventos</td></tr>
+              <tr><td><code>snaskgui::present_rgba</code></td><td>Envia buffer de pixels</td></tr>
+              <tr><td><code>snaskgui::should_close</code></td><td>Verifica se deve fechar</td></tr>
+              <tr><td><code>snaskgui::delay</code></td><td>Espera milissegundos</td></tr>
+              <tr><td><code>snaskgui::key_down</code></td><td>Verifica se tecla está pressionada</td></tr>
+              <tr><td><code>snaskgui::close</code></td><td>Fecha a janela</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout warn">
+            <strong>Perfil:</strong> SnaskGUI é do perfil Systems (<code>@unsafe</code> quando usar ponteiros). Widgets GTK são perfil Humane.
+          </div>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="systems-profile.html" class="path-card"><span class="step">9</span><div><h4>Perfil Systems</h4><p>Baixo nível: ponteiros, bits, unsafe.</p></div></a>
+          </div>
+        </section>
         """,
     },
     {
         "slug": "systems-profile",
-        "title": "6. Perfil Systems",
+        "title": "9. Perfil Systems",
         "content": """
+        <p class="eyebrow">Capítulo 9</p>
         <h1>Perfil Systems e Baixo Nível</h1>
-        <p>Acesso direto à memória e hardware via <code>@unsafe</code>.</p>
-        <pre><code>@unsafe {
-    let p: ptr = mem_alloc(1024)
+        <p class="lead">Quando você precisa de controle total sobre memória, bits e hardware, o perfil Systems oferece as primitivas necessárias.</p>
+
+        <section>
+          <h2>Bloco <code>@unsafe</code></h2>
+          <p>Toda operação de baixo nível deve estar dentro de um bloco <code>@unsafe</code>. Isso isola o código perigoso e documenta visualmente onde a segurança manual é necessária:</p>
+          <pre><code>@unsafe {
+    // Operações que podem causar UB se mal utilizadas
+    let p: ptr = mem_alloc(64)
     mem_free(p)
 }</code></pre>
+        </section>
+
+        <section>
+          <h2>Memória manual</h2>
+          <pre><code>@unsafe {
+    // Alocar
+    let buf: ptr = mem_alloc(1024)
+    let zerado: ptr = mem_alloc_zero(512)
+
+    // Ler/escrever bytes
+    mem_write_u8(buf, 0, 255)
+    let byte = mem_read_u8(buf, 0)   // 255
+
+    // Ler/escrever words (16 bits)
+    mem_write_u16(buf, 4, 0xAABB)
+    let word = mem_read_u16(buf, 4)
+
+    // Ler/escrever dwords (32 bits)
+    mem_write_u32(buf, 8, 0xDEADBEEF)
+
+    // Preencher bloco
+    mem_fill_u8(buf, 0, 1024, 0)     // zera tudo
+
+    // Copiar entre blocos
+    mem_copy(dest, src, tamanho)
+
+    // Liberar
+    mem_free(buf)
+    mem_free(zerado)
+}</code></pre>
+          <div class="callout danger">
+            <strong>Perigo:</strong> acesso fora dos limites (out-of-bounds) causa falha de segmentação. Sempre verifique os tamanhos.
+          </div>
+        </section>
+
+        <section>
+          <h2>Aritmética wrapping</h2>
+          <p>Operações wrapping não estouram — em vez disso, "viram" (wrap around):</p>
+          <pre><code>let max: float = 255
+let byte = as_u8(max)
+
+// Wrapping: 255 + 1 = 0 (em u8)
+let wrap = wrapping_add(byte, 1)  // 0
+
+// Wrapping: 0 - 1 = 255
+let wrap2 = wrapping_dec(byte)    // 254
+
+// Sub, mul, inc
+let r1 = wrapping_sub(100, 50)
+let r2 = wrapping_mul(16, 16)
+let r3 = wrapping_inc(99)</code></pre>
+        </section>
+
+        <section>
+          <h2>Aritmética saturating</h2>
+          <p>Saturating limita ao valor máximo/mínimo em vez de wrap:</p>
+          <pre><code>let byte = as_u8(200)
+let sat = saturating_add(byte, 100)  // 255 (máximo de u8)</code></pre>
+        </section>
+
+        <section>
+          <h2>Aritmética com carry/borrow</h2>
+          <pre><code>// Carry de soma de 8 bits (simula ADC de hardware)
+let carry = carry_add_u8(255, 1, 0)  // 1 (houve carry)
+
+// Borrow de subtração de 8 bits (simula SBB)
+let borrow = borrow_sub_u8(0, 1, 0)  // 0xFF (borrow)</code></pre>
+        </section>
+
+        <section>
+          <h2>Operações de bits</h2>
+          <pre><code>let flags: float = 0b00001111
+
+// Testar bit
+let tem_bit0 = bit_test(flags, 0)  // true
+let tem_bit4 = bit_test(flags, 4)  // false
+
+// Definir/limpar
+let com_bit5 = bit_set(flags, 5)    // 0b00101111
+let sem_bit0 = bit_clear(flags, 0)  // 0b00001110
+
+// Alternar
+let invertido = bit_toggle(flags, 3) // 0b00000111
+
+// Escrever valor em bit
+let novo = bit_write(flags, 0, false) // 0b00001110</code></pre>
+        </section>
+
+        <section>
+          <h2>Operações com sinal (overflow)</h2>
+          <pre><code>// Overflow detectável em i8
+let resultado = overflow_add_i8(120, 10)  // estoura o range i8
+let resultado2 = overflow_sub_i8(-120, 10) // estoura o range i8</code></pre>
+        </section>
+
+        <section>
+          <h2>Ponteiros e aritmética</h2>
+          <pre><code>@unsafe {
+    let buf: ptr = mem_alloc(64)
+
+    // Avançar ponteiro
+    let p2 = ptr_add(buf, 4)
+    mem_write_u8(p2, 0, 42)
+
+    // Ler de volta
+    let val = mem_read_u8(buf, 4)  // 42
+    mem_free(buf)
+}</code></pre>
+        </section>
+
+        <section>
+          <h2>Quando usar Systems?</h2>
+          <ul>
+            <li><strong>Emuladores</strong> — acesso direto a memória mapeada da CPU emulada.</li>
+            <li><strong>Drivers</strong> — manipular registradores de hardware.</li>
+            <li><strong>Processamento de áudio/vídeo</strong> — buffers raw de pixels/amostras.</li>
+            <li><strong>Serialização binária</strong> — ler/escrever estruturas byte a byte.</li>
+            <li><strong>Interop com C</strong> — chamar bibliotecas que exigem ponteiros.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="../tooling/installation.html" class="path-card"><span class="step">10</span><div><h4>Tooling</h4><p>CLI, build, testes, LSP e Neovim.</p></div></a>
+          </div>
+        </section>
         """,
     },
 ]

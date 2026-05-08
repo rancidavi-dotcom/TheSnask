@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>8. GUI (Gráficos) - Snask Docs</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="nav">
+        <a href="../index.html">Início</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="../reference/functions/index.html">Funções</a>
+        <a href="../systems/om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Aprender</h2>
+        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções e Módulos</a><a href="../learn/collections.html">5. Coleções e Strings</a><a href="../learn/memory-om.html">6. Memória (OM)</a><a href="../learn/io-networking.html">7. IO e Rede</a><a href="../learn/gui.html">8. GUI (Gráficos)</a><a href="../learn/systems-profile.html">9. Perfil Systems</a>
+        <h2>Referência</h2>
+        <a href="../reference/functions/index.html">Índice de Funções</a>
+        <a href="../reference/language.html">Linguagem</a>
+        <a href="../reference/types.html">Tipos</a>
+        <a href="../reference/runtime.html">Runtime</a>
+        <a href="../reference/diagnostics.html">Diagnósticos</a>
+      </aside>
+      <main class="content doc-page">
+        
+        
+        <p class="eyebrow">Capítulo 8</p>
+        <h1>Interface Gráfica</h1>
+        <p class="lead">Crie interfaces gráficas com widgets GTK (<code>gui_*</code>) ou renderização pixel a pixel (<code>snaskgui_*</code>).</p>
+
+        <section>
+          <h2>GUI com Widgets (GTK)</h2>
+          <p>Use o sistema <code>gui_*</code> para criar interfaces com botões, campos de texto, labels e containers:</p>
+          <pre><code>class main {
+    fun start() {
+        gui_init()   // inicializa o runtime GTK
+
+        let win = gui_window("Minha Janela", 400, 300)
+        let vbox = gui_vbox()
+        let label = gui_label("Clique no botão:")
+        let btn = gui_button("OK")
+
+        gui_on_click(btn, fun() {
+            print("Clicou!\n")
+        })
+
+        gui_add(vbox, label)
+        gui_add(vbox, btn)
+        gui_set_child(win, vbox)
+        gui_show_all(win)
+        gui_run()    // entra no loop principal
+    }
+}</code></pre>
+
+          <h3>Widgets disponíveis</h3>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>gui_window</code></td><td>Cria janela</td></tr>
+              <tr><td><code>gui_button</code></td><td>Botão</td></tr>
+              <tr><td><code>gui_label</code></td><td>Texto informativo</td></tr>
+              <tr><td><code>gui_entry</code></td><td>Campo de texto</td></tr>
+              <tr><td><code>gui_textview</code></td><td>Área de texto multi-linha</td></tr>
+              <tr><td><code>gui_hbox</code></td><td>Container horizontal</td></tr>
+              <tr><td><code>gui_vbox</code></td><td>Container vertical</td></tr>
+              <tr><td><code>gui_get_text</code></td><td>Lê texto de widget</td></tr>
+              <tr><td><code>gui_set_text</code></td><td>Define texto de widget</td></tr>
+              <tr><td><code>gui_on_click</code></td><td>Conecta evento de clique</td></tr>
+              <tr><td><code>gui_add</code></td><td>Adiciona filho a container</td></tr>
+              <tr><td><code>gui_set_child</code></td><td>Define filho único</td></tr>
+              <tr><td><code>gui_show_all</code></td><td>Mostra widget e filhos</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>SnaskGUI (Framebuffer)</h2>
+          <p>O sistema <code>snaskgui_*</code> cria janelas de pixels para jogos, emuladores e visualizações. Você controla cada pixel individualmente:</p>
+          <pre><code>class main {
+    fun start() {
+        snaskgui::init()
+        let win = snaskgui::window("Jogo", 320, 200, 2) // 640x400 físico
+
+        while snaskgui::should_close(win) == false {
+            snaskgui::poll(win)
+            // Desenhar pixel a pixel
+            // snaskgui::present_rgba(win, buffer)
+            snaskgui::delay(16)  // ~60 FPS
+        }
+        snaskgui::close(win)
+    }
+}</code></pre>
+
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>snaskgui::init</code></td><td>Inicializa o sistema</td></tr>
+              <tr><td><code>snaskgui::window</code></td><td>Cria janela (largura, altura, escala)</td></tr>
+              <tr><td><code>snaskgui::poll</code></td><td>Processa eventos</td></tr>
+              <tr><td><code>snaskgui::present_rgba</code></td><td>Envia buffer de pixels</td></tr>
+              <tr><td><code>snaskgui::should_close</code></td><td>Verifica se deve fechar</td></tr>
+              <tr><td><code>snaskgui::delay</code></td><td>Espera milissegundos</td></tr>
+              <tr><td><code>snaskgui::key_down</code></td><td>Verifica se tecla está pressionada</td></tr>
+              <tr><td><code>snaskgui::close</code></td><td>Fecha a janela</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout warn">
+            <strong>Perfil:</strong> SnaskGUI é do perfil Systems (<code>@unsafe</code> quando usar ponteiros). Widgets GTK são perfil Humane.
+          </div>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="systems-profile.html" class="path-card"><span class="step">9</span><div><h4>Perfil Systems</h4><p>Baixo nível: ponteiros, bits, unsafe.</p></div></a>
+          </div>
+        </section>
+        
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+    <script>
+      const input = document.getElementById('functionSearch');
+      if(input) {
+        input.addEventListener('input', e => {
+          const term = e.target.value.toLowerCase();
+          document.querySelectorAll('.function-card').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(term) ? 'block' : 'none';
+          });
+        });
+      }
+    </script>
+  </body>
+</html>

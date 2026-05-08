@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>6. Perfil Systems - Snask Docs</title>
+    <title>9. Perfil Systems - Snask Docs</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
@@ -23,7 +23,7 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções</a><a href="../learn/memory-om.html">5. Memória (OM)</a><a href="../learn/systems-profile.html">6. Perfil Systems</a>
+        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções e Módulos</a><a href="../learn/collections.html">5. Coleções e Strings</a><a href="../learn/memory-om.html">6. Memória (OM)</a><a href="../learn/io-networking.html">7. IO e Rede</a><a href="../learn/gui.html">8. GUI (Gráficos)</a><a href="../learn/systems-profile.html">9. Perfil Systems</a>
         <h2>Referência</h2>
         <a href="../reference/functions/index.html">Índice de Funções</a>
         <a href="../reference/language.html">Linguagem</a>
@@ -34,12 +34,145 @@
       <main class="content doc-page">
         
         
+        <p class="eyebrow">Capítulo 9</p>
         <h1>Perfil Systems e Baixo Nível</h1>
-        <p>Acesso direto à memória e hardware via <code>@unsafe</code>.</p>
-        <pre><code>@unsafe {
-    let p: ptr = mem_alloc(1024)
+        <p class="lead">Quando você precisa de controle total sobre memória, bits e hardware, o perfil Systems oferece as primitivas necessárias.</p>
+
+        <section>
+          <h2>Bloco <code>@unsafe</code></h2>
+          <p>Toda operação de baixo nível deve estar dentro de um bloco <code>@unsafe</code>. Isso isola o código perigoso e documenta visualmente onde a segurança manual é necessária:</p>
+          <pre><code>@unsafe {
+    // Operações que podem causar UB se mal utilizadas
+    let p: ptr = mem_alloc(64)
     mem_free(p)
 }</code></pre>
+        </section>
+
+        <section>
+          <h2>Memória manual</h2>
+          <pre><code>@unsafe {
+    // Alocar
+    let buf: ptr = mem_alloc(1024)
+    let zerado: ptr = mem_alloc_zero(512)
+
+    // Ler/escrever bytes
+    mem_write_u8(buf, 0, 255)
+    let byte = mem_read_u8(buf, 0)   // 255
+
+    // Ler/escrever words (16 bits)
+    mem_write_u16(buf, 4, 0xAABB)
+    let word = mem_read_u16(buf, 4)
+
+    // Ler/escrever dwords (32 bits)
+    mem_write_u32(buf, 8, 0xDEADBEEF)
+
+    // Preencher bloco
+    mem_fill_u8(buf, 0, 1024, 0)     // zera tudo
+
+    // Copiar entre blocos
+    mem_copy(dest, src, tamanho)
+
+    // Liberar
+    mem_free(buf)
+    mem_free(zerado)
+}</code></pre>
+          <div class="callout danger">
+            <strong>Perigo:</strong> acesso fora dos limites (out-of-bounds) causa falha de segmentação. Sempre verifique os tamanhos.
+          </div>
+        </section>
+
+        <section>
+          <h2>Aritmética wrapping</h2>
+          <p>Operações wrapping não estouram — em vez disso, "viram" (wrap around):</p>
+          <pre><code>let max: float = 255
+let byte = as_u8(max)
+
+// Wrapping: 255 + 1 = 0 (em u8)
+let wrap = wrapping_add(byte, 1)  // 0
+
+// Wrapping: 0 - 1 = 255
+let wrap2 = wrapping_dec(byte)    // 254
+
+// Sub, mul, inc
+let r1 = wrapping_sub(100, 50)
+let r2 = wrapping_mul(16, 16)
+let r3 = wrapping_inc(99)</code></pre>
+        </section>
+
+        <section>
+          <h2>Aritmética saturating</h2>
+          <p>Saturating limita ao valor máximo/mínimo em vez de wrap:</p>
+          <pre><code>let byte = as_u8(200)
+let sat = saturating_add(byte, 100)  // 255 (máximo de u8)</code></pre>
+        </section>
+
+        <section>
+          <h2>Aritmética com carry/borrow</h2>
+          <pre><code>// Carry de soma de 8 bits (simula ADC de hardware)
+let carry = carry_add_u8(255, 1, 0)  // 1 (houve carry)
+
+// Borrow de subtração de 8 bits (simula SBB)
+let borrow = borrow_sub_u8(0, 1, 0)  // 0xFF (borrow)</code></pre>
+        </section>
+
+        <section>
+          <h2>Operações de bits</h2>
+          <pre><code>let flags: float = 0b00001111
+
+// Testar bit
+let tem_bit0 = bit_test(flags, 0)  // true
+let tem_bit4 = bit_test(flags, 4)  // false
+
+// Definir/limpar
+let com_bit5 = bit_set(flags, 5)    // 0b00101111
+let sem_bit0 = bit_clear(flags, 0)  // 0b00001110
+
+// Alternar
+let invertido = bit_toggle(flags, 3) // 0b00000111
+
+// Escrever valor em bit
+let novo = bit_write(flags, 0, false) // 0b00001110</code></pre>
+        </section>
+
+        <section>
+          <h2>Operações com sinal (overflow)</h2>
+          <pre><code>// Overflow detectável em i8
+let resultado = overflow_add_i8(120, 10)  // estoura o range i8
+let resultado2 = overflow_sub_i8(-120, 10) // estoura o range i8</code></pre>
+        </section>
+
+        <section>
+          <h2>Ponteiros e aritmética</h2>
+          <pre><code>@unsafe {
+    let buf: ptr = mem_alloc(64)
+
+    // Avançar ponteiro
+    let p2 = ptr_add(buf, 4)
+    mem_write_u8(p2, 0, 42)
+
+    // Ler de volta
+    let val = mem_read_u8(buf, 4)  // 42
+    mem_free(buf)
+}</code></pre>
+        </section>
+
+        <section>
+          <h2>Quando usar Systems?</h2>
+          <ul>
+            <li><strong>Emuladores</strong> — acesso direto a memória mapeada da CPU emulada.</li>
+            <li><strong>Drivers</strong> — manipular registradores de hardware.</li>
+            <li><strong>Processamento de áudio/vídeo</strong> — buffers raw de pixels/amostras.</li>
+            <li><strong>Serialização binária</strong> — ler/escrever estruturas byte a byte.</li>
+            <li><strong>Interop com C</strong> — chamar bibliotecas que exigem ponteiros.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="../tooling/installation.html" class="path-card"><span class="step">10</span><div><h4>Tooling</h4><p>CLI, build, testes, LSP e Neovim.</p></div></a>
+          </div>
+        </section>
         
       </main>
     </div>

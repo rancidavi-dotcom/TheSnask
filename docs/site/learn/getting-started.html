@@ -23,7 +23,7 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções</a><a href="../learn/memory-om.html">5. Memória (OM)</a><a href="../learn/systems-profile.html">6. Perfil Systems</a>
+        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções e Módulos</a><a href="../learn/collections.html">5. Coleções e Strings</a><a href="../learn/memory-om.html">6. Memória (OM)</a><a href="../learn/io-networking.html">7. IO e Rede</a><a href="../learn/gui.html">8. GUI (Gráficos)</a><a href="../learn/systems-profile.html">9. Perfil Systems</a>
         <h2>Referência</h2>
         <a href="../reference/functions/index.html">Índice de Funções</a>
         <a href="../reference/language.html">Linguagem</a>
@@ -37,19 +37,51 @@
         <p class="eyebrow">Capítulo 1</p>
         <h1>Introdução ao Snask</h1>
         <p class="lead">Snask é uma linguagem moderna, compilada via LLVM, projetada para ser <strong>"Humana por padrão, Systems quando necessário"</strong>.</p>
+
         <section>
-          <h2>A Filosofia Snask</h2>
-          <p>Diferente de linguagens que forçam uma escolha entre produtividade com GC ou controle manual perigoso, o Snask introduz o conceito de <strong>Perfis Adaptativos</strong>.</p>
+          <h2>Filosofia</h2>
+          <p>O Snask nasce de uma constatação: linguagens de alto nível com GC são produtivas mas desperdiçam hardware; linguagens de sistema são eficientes mas perigosas e verbosas. O Snask oferece <strong>Perfis Adaptativos</strong>:</p>
           <ul>
-            <li><strong>Perfil Humane:</strong> Focado na experiência do desenvolvedor. Memória gerenciada automaticamente via zonas.</li>
-            <li><strong>Perfil Systems:</strong> Ativa primitivas de baixo nível, ponteiros, bits e alocação manual.</li>
+            <li><strong>🛡️ Humane</strong> — padrão. Memória gerenciada automaticamente via zonas. Foco em produtividade e segurança. Ideal para aplicações, scripts, ferramentas.</li>
+            <li><strong>⚙️ Systems</strong> — opcional. Acesso a ponteiros, alocação manual, operações de bits e hardware. Exige blocos <code>@unsafe</code>. Ideal para kernels, drivers, emuladores.</li>
           </ul>
+          <p>Você começa no perfil Humane e ativa Systems apenas onde precisa. Os dois convivem no mesmo programa.</p>
         </section>
+
         <section>
           <h2>Instalação</h2>
           <pre><code>curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
 export PATH="$HOME/.snask/bin:$PATH"
 snask doctor</code></pre>
+        </section>
+
+        <section>
+          <h2>Primeiro programa</h2>
+          <p>Crie um arquivo <code>main.snask</code>:</p>
+          <pre><code>class main {
+    fun start() {
+        print("Olá, Snask!\n")
+    }
+}</code></pre>
+          <pre><code>snask build main.snask -o Hello && ./Hello</code></pre>
+        </section>
+
+        <section>
+          <h2>Estrutura de um programa</h2>
+          <p>Todo programa Snask precisa de uma classe <code>main</code> com um método <code>start</code> — esse é o ponto de entrada. O runtime chama <code>start</code> após inicializar o gerenciamento de memória e recursos.</p>
+          <pre><code>class main {
+    // Executado automaticamente pelo runtime
+    fun start() {
+        // seu código aqui
+    }
+}</code></pre>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="basics.html" class="path-card"><span class="step">2</span><div><h4>Variáveis e Tipos</h4><p>Entenda o sistema de tipos, imutabilidade e inferência.</p></div></a>
+          </div>
         </section>
         
       </main>

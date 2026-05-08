@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>7. IO e Rede - Snask Docs</title>
+    <link rel="stylesheet" href="../assets/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="nav">
+        <a href="../index.html">Início</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="../reference/functions/index.html">Funções</a>
+        <a href="../systems/om.html">OM</a>
+        <a href="../tooling/installation.html">Tooling</a>
+      </nav>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Aprender</h2>
+        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções e Módulos</a><a href="../learn/collections.html">5. Coleções e Strings</a><a href="../learn/memory-om.html">6. Memória (OM)</a><a href="../learn/io-networking.html">7. IO e Rede</a><a href="../learn/gui.html">8. GUI (Gráficos)</a><a href="../learn/systems-profile.html">9. Perfil Systems</a>
+        <h2>Referência</h2>
+        <a href="../reference/functions/index.html">Índice de Funções</a>
+        <a href="../reference/language.html">Linguagem</a>
+        <a href="../reference/types.html">Tipos</a>
+        <a href="../reference/runtime.html">Runtime</a>
+        <a href="../reference/diagnostics.html">Diagnósticos</a>
+      </aside>
+      <main class="content doc-page">
+        
+        
+        <p class="eyebrow">Capítulo 7</p>
+        <h1>Entrada/Saída e Rede</h1>
+        <p class="lead">Comunique-se com o mundo externo: console, arquivos e requisições HTTP.</p>
+
+        <section>
+          <h2>Saída no console</h2>
+          <pre><code>print("texto")        // sem quebra de linha
+println()              // apenas quebra de linha
+
+// Interpolação
+let nome = "Snask"
+print("Olá, {nome}!\n")
+
+// Múltiplos valores
+print("Contagem: "); print(42); print("\n")</code></pre>
+        </section>
+
+        <section>
+          <h2>Arquivos</h2>
+          <p>O Snask oferece funções para leitura e escrita de arquivos:</p>
+          <pre><code>// Leitura completa
+let config = read_file("settings.json")
+print("Tamanho: {len(config)} bytes\n")
+
+// Escrita (sobrescreve)
+write_file("saida.txt", "conteúdo")
+
+// Acrescentar ao final
+append_file("log.txt", "nova entrada\n")
+
+// Trabalhar com diretórios
+let entradas = read_dir(".")
+for item in entradas {
+    if is_file(item) { print("Arquivo: {item}\n") }
+    if is_dir(item)  { print("Diretório: {item}\n") }
+}
+
+// Testar existência
+if exists("config.json") {
+    print("Arquivo existe\n")
+}</code></pre>
+        </section>
+
+        <section>
+          <h2>SFS (Simple File System)</h2>
+          <p>O SFS oferece operações adicionais de arquivo:</p>
+          <pre><code>sfs_copy("origem.txt", "destino.txt")
+sfs_move("antigo.txt", "novo.txt")
+sfs_delete("temporario.txt")
+sfs_mkdir("pasta/nova")
+sfs_rmdir("pasta/antiga")
+sfs_size("arquivo.bin")    // tamanho em bytes
+sfs_mtime("arquivo.txt")   // timestamp de modificação</code></pre>
+        </section>
+
+        <section>
+          <h2>Requisições HTTP</h2>
+          <pre><code>let res = http_get("https://api.github.com/zen")
+print("Status: {json_get(res, \"status\")}\n")
+print("Body: {json_get(res, \"body\")}\n")
+
+// http_post para enviar dados
+// let res = http_post("https://api.exemplo.com/dados", corpo)</code></pre>
+          <div class="callout warn">
+            <strong>Nota:</strong> requisições HTTP são bloqueantes. O runtime precisa ter suporte a rede e certificados SSL.
+          </div>
+        </section>
+
+        <section>
+          <h2>Sistema</h2>
+          <pre><code>let agora = time()           // timestamp atual
+let so = platform()           // nome do SO
+let args = args()             // argumentos da linha de comando
+let vars = env()              // variáveis de ambiente
+let dir = cwd()               // diretório atual
+set_env("PATH", "/usr/bin")   // definir variável de ambiente
+exit(0)                       // sair do programa
+sleep(1000)                   // pausar por 1 segundo</code></pre>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="gui.html" class="path-card"><span class="step">8</span><div><h4>GUI</h4><p>Interfaces gráficas com GTK e framebuffer.</p></div></a>
+          </div>
+        </section>
+        
+      </main>
+    </div>
+    <script src="../assets/site.js"></script>
+    <script>
+      const input = document.getElementById('functionSearch');
+      if(input) {
+        input.addEventListener('input', e => {
+          const term = e.target.value.toLowerCase();
+          document.querySelectorAll('.function-card').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(term) ? 'block' : 'none';
+          });
+        });
+      }
+    </script>
+  </body>
+</html>

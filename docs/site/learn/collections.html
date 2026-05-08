@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>4. Funções e Módulos - Snask Docs</title>
+    <title>5. Coleções e Strings - Snask Docs</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
@@ -34,90 +34,79 @@
       <main class="content doc-page">
         
         
-        <p class="eyebrow">Capítulo 4</p>
-        <h1>Funções e Módulos</h1>
-        <p class="lead">Organize seu código em funções reutilizáveis e módulos.</p>
+        <p class="eyebrow">Capítulo 5</p>
+        <h1>Coleções e Strings</h1>
+        <p class="lead">Trabalhe com listas, strings, JSON e estruturas de dados.</p>
 
         <section>
-          <h2>Declarando funções</h2>
-          <p>Use <code>fun</code> para declarar uma função. Parâmetros e retorno são tipados:</p>
-          <pre><code>fun somar(a: float, b: float) -> float {
-    return a + b
-}
+          <h2>Listas</h2>
+          <p>Listas são coleções dinâmicas. Suportam tipos mistos no perfil Humane:</p>
+          <pre><code>let vazia = []
+let numeros = [1, 2, 3, 4, 5]
+let mista = [42, "texto", true]
 
-fun saudacao(nome: str) {
-    print("Olá, {nome}!\n")
-}</code></pre>
+print(len(numeros))  // 5
+print(numeros[0])    // 1</code></pre>
+
+          <h3>Operações com listas</h3>
+          <table>
+            <thead><tr><th>Função</th><th>Descrição</th></tr></thead>
+            <tbody>
+              <tr><td><code>len(x)</code></td><td>Retorna o tamanho</td></tr>
+              <tr><td><code>sort(x)</code></td><td>Ordena a lista</td></tr>
+              <tr><td><code>reverse(x)</code></td><td>Inverte a ordem</td></tr>
+              <tr><td><code>flatten(x)</code></td><td>Achata listas aninhadas</td></tr>
+              <tr><td><code>contains(x, v)</code></td><td>Verifica se contém valor</td></tr>
+              <tr><td><code>join(x, sep)</code></td><td>Junta em string</td></tr>
+              <tr><td><code>unique(x)</code></td><td>Remove duplicatas</td></tr>
+            </tbody>
+          </table>
         </section>
 
         <section>
-          <h2>Funções sem retorno</h2>
-          <p>Se a função não retorna nada, omite a seta:</p>
-          <pre><code>fun log(mensagem: str) {
-    print("[LOG] {mensagem}\n")
-}</code></pre>
+          <h2>Strings</h2>
+          <p>Strings são UTF-8 e suportam interpolação com <code>{}</code>:</p>
+          <pre><code>let nome = "Snask"
+let versao = 0.4
+let msg = "Bem-vindo ao {nome} v{versao}!"
+print("{msg}\n")
+
+// Operações
+let tamanho = len("texto")           // 5
+let sub = substring("Snask", 0, 2)   // "Sn"
+let maiusculo = upper("snask")       // "SNASK"
+let minusculo = lower("SNASK")       // "snask"
+let tem_prefixo = starts_with("Snask", "Sn")  // true
+let tem_sufixo = ends_with("Snask", "sk")     // true
+let trim = trim("  espaco  ")        // "espaco"
+let partes = split("a,b,c", ",")     // ["a", "b", "c"]
+let trocado = replace("a-a-a", "-", "+") // "a+a+a"</code></pre>
         </section>
 
         <section>
-          <h2>Escopo e variáveis locais</h2>
-          <p>Variáveis declaradas dentro de uma função são locais a ela:</p>
-          <pre><code>fun calcular() -> float {
-    let tmp = 42      // local
-    let resultado = tmp * 2
-    return resultado
-}
-// tmp não existe aqui</code></pre>
-        </section>
+          <h2>JSON</h2>
+          <p>O Snask tem suporte nativo a JSON no perfil Humane:</p>
+          <pre><code>let texto = '{"nome": "Snask", "ano": 2024}'
 
-        <section>
-          <h2>Módulos e <code>import</code></h2>
-          <p>Organize código em módulos com <code>import</code>:</p>
-          <pre><code>// arquivo: math.snask
-fun quadrado(x: float) -> float {
-    return x * x
-}
+// Parse
+let obj = json_parse(texto)
 
-// arquivo: main.snask
-import "math"
+// Acessar campos
+let nome = json_get(obj, "nome")   // "Snask"
+let ano = json_get(obj, "ano")     // 2024.0
 
-class main {
-    fun start() {
-        let q = math::quadrado(5) // 25
-        print("{q}\n")
-    }
-}</code></pre>
-          <p>A sintaxe <code>modulo::funcao</code> acessa itens do módulo importado.</p>
-        </section>
+// Verificar tipo
+let is_str = is_str(nome)   // true
+let is_obj = is_obj(obj)    // true
 
-        <section>
-          <h2>Funções como valores</h2>
-          <p>Funções podem ser passadas como argumento (callbacks):</p>
-          <pre><code>fun executar(f: any) {
-    // f é uma referência de função
-    f()
-}
-
-fun minha_fun() {
-    print("Chamado!\n")
-}
-
-executar(minha_fun)</code></pre>
-        </section>
-
-        <section>
-          <h2>Boas práticas</h2>
-          <ul>
-            <li>Funções pequenas e com propósito único (SRP).</li>
-            <li>Nomes descritivos no padrão <code>snake_case</code>.</li>
-            <li>Evite funções com mais de 30 linhas — extraia.</li>
-            <li>Use <code>import</code> para separar domínios.</li>
-          </ul>
+// Serializar
+let saida = json_stringify(obj)</code></pre>
         </section>
 
         <section>
           <h2>Próximos passos</h2>
           <div class="learning-path">
-            <a href="collections.html" class="path-card"><span class="step">5</span><div><h4>Coleções e Strings</h4><p>Listas, strings, JSON e operações.</p></div></a>
+            <a href="memory-om.html" class="path-card"><span class="step">6</span><div><h4>Memória (OM)</h4><p>Gerenciamento automático com zonas.</p></div></a>
           </div>
         </section>
         

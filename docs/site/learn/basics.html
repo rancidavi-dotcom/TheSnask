@@ -23,7 +23,7 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções</a><a href="../learn/memory-om.html">5. Memória (OM)</a><a href="../learn/systems-profile.html">6. Perfil Systems</a>
+        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções e Módulos</a><a href="../learn/collections.html">5. Coleções e Strings</a><a href="../learn/memory-om.html">6. Memória (OM)</a><a href="../learn/io-networking.html">7. IO e Rede</a><a href="../learn/gui.html">8. GUI (Gráficos)</a><a href="../learn/systems-profile.html">9. Perfil Systems</a>
         <h2>Referência</h2>
         <a href="../reference/functions/index.html">Índice de Funções</a>
         <a href="../reference/language.html">Linguagem</a>
@@ -36,17 +36,80 @@
         
         <p class="eyebrow">Capítulo 2</p>
         <h1>Variáveis e Sistema de Tipos</h1>
-        <p class="lead">Snask possui tipagem estática com inferência poderosa e imutabilidade por padrão.</p>
+        <p class="lead">Snask possui tipagem estática, forte e com inferência. Tudo é imutável por padrão.</p>
+
         <section>
-          <h2>Imutabilidade (let)</h2>
-          <p>Tudo é imutável por padrão, evitando efeitos colaterais indesejados.</p>
-          <pre><code>let pi = 3.1415</code></pre>
+          <h2>Imutabilidade (<code>let</code>)</h2>
+          <p>Por padrão, toda variável é imutável. Uma vez atribuída, o valor não pode ser alterado. Isso elimina classes inteiras de bugs.</p>
+          <pre><code>let nome = "Snask"
+let versao = 0.4
+let is_compilada = true
+
+// nome = "Outro"  ← ERRO de compilação!</code></pre>
         </section>
+
         <section>
-          <h2>Mutabilidade (mut)</h2>
-          <p>Use <code>mut</code> apenas quando o estado precisar variar.</p>
+          <h2>Mutabilidade (<code>mut</code>)</h2>
+          <p>Use <code>mut</code> quando o valor precisar mudar:</p>
           <pre><code>mut contador = 0
-contador = contador + 1</code></pre>
+contador = contador + 1  // OK
+contador = 100           // OK</code></pre>
+          <div class="callout">
+            <strong>Dica:</strong> quanto menos <code>mut</code>, mais fácil de raciocinar sobre o código. Prefira criar novos valores a modificar existentes.
+          </div>
+        </section>
+
+        <section>
+          <h2>Tipos primitivos</h2>
+          <table>
+            <thead><tr><th>Tipo</th><th>Descrição</th><th>Exemplo</th></tr></thead>
+            <tbody>
+              <tr><td><code>float</code></td><td>Número (inteiro ou ponto flutuante, 64 bits)</td><td><code>42</code>, <code>3.14</code></td></tr>
+              <tr><td><code>str</code></td><td>String UTF-8</td><td><code>"olá"</code></td></tr>
+              <tr><td><code>bool</code></td><td>Booleano</td><td><code>true</code>, <code>false</code></td></tr>
+              <tr><td><code>list</code></td><td>Lista dinâmica</td><td><code>[1, 2, 3]</code></td></tr>
+              <tr><td><code>any</code></td><td>Valor dinâmico (JSON)</td><td><code>json_parse(...)</code></td></tr>
+              <tr><td><code>ptr</code></td><td>Ponteiro bruto (perfil Systems)</td><td><code>mem_alloc(64)</code></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>Inferência de tipos</h2>
+          <p>O Snask infere o tipo automaticamente na maioria dos casos. Você só precisa anotar quando o tipo não é óbvio:</p>
+          <pre><code>let a = 10          // float (padrão)
+let b: float = 10   // explícito
+let c: ptr = mem_alloc(64)  // necessário para ptr
+
+// Strings usam aspas duplas
+let texto = "Snask"</code></pre>
+        </section>
+
+        <section>
+          <h2>Conversão entre tipos</h2>
+          <p>O Snask não faz conversão implícita. Use funções de cast:</p>
+          <pre><code>let num = str_to_num("42")      // str → float
+let texto = num_to_str(3.14)    // float → str
+let val = json_parse("{\"a\":1}") // str → any (JSON)</code></pre>
+          <p>No perfil Systems, casts numéricos explícitos:</p>
+          <pre><code>let x: float = 255
+let byte = as_u8(x)   // float → u8
+let word = as_u16(x)  // float → u16</code></pre>
+        </section>
+
+        <section>
+          <h2>Comentários</h2>
+          <pre><code>// Comentário de linha única
+
+/* Comentário
+   multi-linha */</code></pre>
+        </section>
+
+        <section>
+          <h2>Próximos passos</h2>
+          <div class="learning-path">
+            <a href="control-flow.html" class="path-card"><span class="step">3</span><div><h4>Controle de Fluxo</h4><p>if, while, match e loops.</p></div></a>
+          </div>
         </section>
         
       </main>
