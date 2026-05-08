@@ -1,6 +1,6 @@
 # Maintainer: Davi <davidev@snask.lang>
 pkgname=snask
-pkgver=0.4.0
+pkgver=0.4.1
 pkgrel=1
 pkgdesc="Snask Programming Language with Orchestrated Memory (OM)"
 arch=('x86_64')
@@ -9,7 +9,7 @@ license=('MIT')
 depends=('llvm18-libs' 'gtk3' 'zlib' 'sqlite')
 makedepends=('rust' 'cargo' 'llvm18' 'clang18' 'lld18')
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/rancidavi-dotcom/TheSnask/archive/refs/tags/v${pkgver}.tar.gz")
-sha256sums=('SKIP') # Will be updated by release script
+sha256sums=('3c139d42aaaed04c80c6823ccdd35b657529584a4038ac43b4577293b644fac3')
 
 build() {
   cd "${srcdir}/TheSnask-${pkgver}"
