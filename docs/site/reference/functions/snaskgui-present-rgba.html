@@ -9,51 +9,84 @@
   <body>
     <header class="topbar">
       <a class="brand" href="../../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../../index.html">Inicio</a>
+        <a href="../../index.html">Início</a>
         <a href="../../learn/getting-started.html">Aprender</a>
-        <a aria-current="page" href="../language.html">Referencia</a>
+        <a aria-current="page" href="../../reference/functions/index.html">Funções</a>
         <a href="../../systems/om.html">OM</a>
         <a href="../../tooling/installation.html">Tooling</a>
       </nav>
     </header>
     <div class="shell">
       <aside class="sidebar">
-        <h2>Funcoes</h2>
-        <a href="index.html">Indice de funcoes</a>
-        <a href="../language.html">Linguagem</a>
-        <a href="../types.html">Tipos</a>
-        <a href="../runtime.html">Runtime e builtins</a>
-        <a href="../diagnostics.html">Diagnosticos</a>
+        <h2>Aprender</h2>
+        <a href="../../learn/getting-started.html">1. Introdução</a><a href="../../learn/basics.html">2. Variáveis e Tipos</a><a href="../../learn/control-flow.html">3. Controle de Fluxo</a><a href="../../learn/functions.html">4. Funções</a><a href="../../learn/memory-om.html">5. Memória (OM)</a><a href="../../learn/systems-profile.html">6. Perfil Systems</a>
+        <h2>Referência</h2>
+        <a href="../../reference/functions/index.html">Índice de Funções</a>
+        <a href="../../reference/language.html">Linguagem</a>
+        <a href="../../reference/types.html">Tipos</a>
+        <a href="../../reference/runtime.html">Runtime</a>
+        <a href="../../reference/diagnostics.html">Diagnósticos</a>
       </aside>
       <main class="content doc-page">
-        <p class="eyebrow">snaskgui</p>
-        <h1>snaskgui_present_rgba</h1>
-        <p class="lead">Apresenta buffer RGBA.</p>
-        <p>
-          <span class="status experimental">experimental</span>
-          <span class="meta-pill">perfil: systems</span>
-          <span class="meta-pill">seguranca: segura; buffers usam @unsafe quando houver ptr</span>
-        </p>
-        <h2>Assinatura</h2>
-        <pre><code>snaskgui_present_rgba(window: any, pixels: ptr, width: float, height: float) -&gt; bool</code></pre>
-        <h2>Para que serve</h2>
-        <p>A função principal de renderização. Ela pega um bloco de memória bruta contendo pixels no formato RGBA (4 bytes por pixel) e os &#x27;carimba&#x27; na janela.</p>
+        
+        
+    <p class="eyebrow">snaskgui</p>
+    <h1>snaskgui_present_rgba</h1>
+    <p class="lead">Apresenta buffer RGBA.</p>
+
+    <p class="badge-row">
+      <span class="status experimental">experimental</span>
+      <span class="meta-pill">🛡️ humane</span>
+      <span class="meta-pill seguranca">segura <span class="meta-pill-note">✅ Segura — não pode corromper memória ou causar UB.</span></span>
+    </p>
+
+    <section>
+      <h2>Assinatura</h2>
+      <pre><code>snaskgui_present_rgba(window: any, pixels: ptr, width: float, height: float) -&amp;amp;gt; bool</code></pre>
+    </section>
+
+    <section>
+      <h2>Para que serve</h2>
+      <p>A função principal de renderização. Ela pega um bloco de memória bruta contendo pixels no formato RGBA (4 bytes por pixel) e os &#x27;carimba&#x27; na janela.</p>
 <p>É extremamente rápida pois utiliza aceleração de hardware (quando disponível) para converter o buffer de memória em uma textura de tela.</p>
-        <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>window</code></td><td>Handle da janela retornado por snaskgui_window.</td></tr>
-<tr><td><code>pixels</code></td><td>Ponteiro para o buffer de pixels RGBA.</td></tr>
-<tr><td><code>width</code></td><td>Largura do buffer.</td></tr>
-<tr><td><code>height</code></td><td>Altura do buffer.</td></tr></tbody></table>
-        <h2>Retorno</h2>
-        <p>Conforme assinatura.</p>
-        <h2>Exemplo</h2>
-        <pre><code>import &quot;snaskgui&quot;
+        
+    
+    </section>
+
+    <section>
+      <h2>Perfil</h2>
+      <p><strong>🛡️ humane</strong> — Gerenciamento automático de memória via zonas. Seguro por padrão.</p>
+      <p><strong>Segurança:</strong> ✅ Segura — não pode corromper memória ou causar UB.</p>
+    </section>
+
+    <section>
+      <h2>Parâmetros</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Nome</th><th>Descrição</th></tr></thead>
+          <tbody><tr><td><code>window</code></td><td>Handle da janela retornado por snaskgui_window.</td></tr><tr><td><code>pixels</code></td><td>Ponteiro para o buffer de pixels RGBA.</td></tr><tr><td><code>width</code></td><td>Largura do buffer.</td></tr><tr><td><code>height</code></td><td>Altura do buffer.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Retorno</h2>
+      <p>Conforme assinatura.</p>
+    </section>
+
+    
+        <section>
+          <h2>Exemplo</h2>
+          <pre><code>import &amp;amp;quot;snaskgui&amp;amp;quot;
 
 class main {
     fun start() {
         snaskgui::init()
-        let win = snaskgui::window(&quot;Video&quot;, 256, 256, 2)
+        let win = snaskgui::window(&amp;amp;quot;Video&amp;amp;quot;, 256, 256, 2)
         
         // Exemplo: preencher memória com cor sólida (estático)
         @unsafe {
@@ -69,22 +102,41 @@ class main {
         }
     }
 }</code></pre>
-        <h2>Cuidados</h2>
-        <ul><li>Deve ser usada dentro de um bloco `@unsafe` pois lida com ponteiros (`ptr`).</li>
-<li>O buffer de pixels deve ter exatamente `width * height * 4` bytes. Se for menor, haverá leitura inválida de memória (Buffer Overflow).</li>
-<li>A ordem dos bytes é R, G, B, A (8 bits cada).</li></ul>
-        <h2>Funcoes relacionadas</h2>
-        <ul><li><a href="snaskgui-window.html"><code>snaskgui_window</code></a></li>
-<li><a href="mem-alloc-zero.html"><code>mem_alloc_zero</code></a></li>
-<li><a href="snaskgui-poll.html"><code>snaskgui_poll</code></a></li></ul>
-        <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
-        <h2>Notas</h2>
-        <p>
-          Esta pagina e gerada a partir de <code>scripts/generate_docs_reference.py</code>.
-          Se a assinatura mudar no compilador, atualize a fonte de dados e regenere a referencia.
-        </p>
+        </section>
+
+    <section>
+      <h2>Cuidados e Edge Cases</h2>
+      <ul><li>Nenhum cuidado especial documentado.</li></ul>
+    </section>
+
+    <section>
+      <h2>Funções relacionadas</h2>
+      <ul><li><a href="snaskgui-window.html"><code>snaskgui_window</code></a></li><li><a href="mem-alloc-zero.html"><code>mem_alloc_zero</code></a></li><li><a href="snaskgui-poll.html"><code>snaskgui_poll</code></a></li></ul>
+    </section>
+
+    <h2>Teste real</h2><p>Esta pagina ainda nao tem arquivo de exemplo dedicado. O contrato tipado vem do analisador semantico e a funcao permanece marcada conforme status.</p>
+
+    <section>
+      <h2>Notas</h2>
+      <p>
+        Esta página é gerada a partir de <code>scripts/generate_docs_reference.py</code>.
+        Se a assinatura mudar no compilador, atualize a fonte de dados e regenere a referência.
+      </p>
+    </section>
+    
       </main>
     </div>
     <script src="../../assets/site.js"></script>
+    <script>
+      const input = document.getElementById('functionSearch');
+      if(input) {
+        input.addEventListener('input', e => {
+          const term = e.target.value.toLowerCase();
+          document.querySelectorAll('.function-card').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(term) ? 'block' : 'none';
+          });
+        });
+      }
+    </script>
   </body>
 </html>

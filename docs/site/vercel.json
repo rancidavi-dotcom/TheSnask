@@ -5,6 +5,7 @@
   "redirects": [
     { "source": "/aprender", "destination": "/learn/getting-started" },
     { "source": "/referencia", "destination": "/reference/language" },
-    { "source": "/funcoes", "destination": "/reference/functions" }
+    { "source": "/funcoes", "destination": "/reference/functions" },
+    { "source": "/reference/:func", "destination": "/reference/functions/:func" }
   ]
 }

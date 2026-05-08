@@ -3,168 +3,60 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Snask Programming Language</title>
-    <meta name="description" content="Snask: Uma linguagem compilada via LLVM, desenhada para performance de sistemas com ergonomia humana." />
-    <meta name="theme-color" content="#0b7a5a">
-    <meta property="og:title" content="Snask Programming Language" />
-    <meta property="og:description" content="Snask: Linguagem compilada AOT via LLVM 18 com OM-Snask-System para memória determinística." />
-    <meta property="og:type" content="website" />
-    <meta property="og:locale" content="pt_BR" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <link rel="preload" href="assets/site.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <noscript><link rel="stylesheet" href="assets/site.css"></noscript>
+    <title>Snask - Snask Docs</title>
+    <link rel="stylesheet" href="assets/site.css" />
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="index.html"><span class="mark">S</span> Snask</a>
-      <nav class="nav" aria-label="Principal">
-        <a aria-current="page" href="index.html">Início</a>
+      <a class="brand" href="index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="nav">
+        <a href="index.html">Início</a>
         <a href="learn/getting-started.html">Aprender</a>
-        <a href="reference/functions/index.html">Funções</a>
-        <a href="systems/om.html">Memória (OM)</a>
+        <a aria-current="page" href="reference/functions/index.html">Funções</a>
+        <a href="systems/om.html">OM</a>
         <a href="tooling/installation.html">Tooling</a>
       </nav>
     </header>
-
-    <main>
-      <section class="hero" style="padding:80px 36px 48px;max-width:var(--max-width);margin:0 auto;">
-        <p class="eyebrow">v0.4.1-alpha — Lançamento Mais Recente</p>
-        <h1>Performance de Sistemas.<br/><span style="color:var(--accent)">Ergonomia Humana.</span></h1>
-        <p class="lead" style="max-width:720px;">
-          Snask é uma linguagem compilada AOT (Ahead-of-Time) via <strong>LLVM 18</strong> que une tipos estáticos modernos 
-          com controle total sobre o hardware. Desenvolva desde scripts rápidos até emuladores — tudo na mesma linguagem.
-        </p>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 24px;">
-          <span class="status">🚀 Compilado Nativo</span>
-          <span class="status">🧠 Memória Determinística</span>
-          <span class="status">🛡️ Type-Safe</span>
-          <span class="status">🎭 Perfis Humane + Systems</span>
-        </div>
-        <div class="actions">
-          <a class="button primary" href="learn/getting-started.html">Começar a Aprender</a>
-          <a class="button" href="reference/functions/index.html">Referência de API</a>
-          <a class="button" href="https://github.com/rancidavi-dotcom/TheSnask" target="_blank" rel="noopener">GitHub</a>
-        </div>
-      </section>
-
-      <section class="features-grid" style="max-width:var(--max-width);margin:0 auto;padding:0 36px;">
-        <div class="grid">
-          <article class="card">
-            <div class="icon">⚡</div>
-            <h3>Compilado via LLVM 18</h3>
-            <p>Gera binários nativos ultra-otimizados. Sem VM, sem interpretador. Performance comparável a C e Rust.</p>
-          </article>
-          <article class="card">
-            <div class="icon">🧠</div>
-            <h3>OM-Snask-System</h3>
-            <p>Memória determinística via <strong>Zonas</strong>. Performance de C com segurança de tipos, sem pausas de garbage collector.</p>
-          </article>
-          <article class="card">
-            <div class="icon">🎭</div>
-            <h3>Dois Perfis, Uma Linguagem</h3>
-            <p>Use <strong>Humane</strong> para apps (GUI, HTTP, SQLite) ou <strong>Systems</strong> para bits, ponteiros e hardware.</p>
-          </article>
-          <article class="card">
-            <div class="icon">🔧</div>
-            <h3>Toolchain Completo</h3>
-            <p>Compilador, formatador SNIF, sistema de pacotes (SPS), LSP, REPL, empacotamento .deb e AUR integrados.</p>
-          </article>
-          <article class="card">
-            <div class="icon">🌐</div>
-            <h3>Interop com C</h3>
-            <p>Importe bibliotecas C nativamente via contratos OM. SQLite, zlib, GTK, Skia — tudo disponível sem bindings manuais.</p>
-          </article>
-          <article class="card">
-            <div class="icon">📦</div>
-            <h3>Binários Pequenos</h3>
-            <p>Compile com <code>--tiny</code> ou <code>--extreme</code> para binários abaixo de 100KB. Ideal para embedded e CLI.</p>
-          </article>
-        </div>
-      </section>
-
-      <section style="max-width:var(--max-width);margin:0 auto;padding:0 36px;">
-        <h2>Jornada de Aprendizado</h2>
-        <div class="learning-path">
-          <a class="path-card" href="learn/getting-started.html">
-            <span class="step">1</span>
-            <div>
-              <h4>Introdução</h4>
-              <p>Instalação do toolchain e seu primeiro "Olá Mundo" nativo em segundos.</p>
+    <div class="shell">
+      <aside class="sidebar">
+        <h2>Aprender</h2>
+        <a href="learn/getting-started.html">1. Introdução</a><a href="learn/basics.html">2. Variáveis e Tipos</a><a href="learn/control-flow.html">3. Controle de Fluxo</a><a href="learn/functions.html">4. Funções</a><a href="learn/memory-om.html">5. Memória (OM)</a><a href="learn/systems-profile.html">6. Perfil Systems</a>
+        <h2>Referência</h2>
+        <a href="reference/functions/index.html">Índice de Funções</a>
+        <a href="reference/language.html">Linguagem</a>
+        <a href="reference/types.html">Tipos</a>
+        <a href="reference/runtime.html">Runtime</a>
+        <a href="reference/diagnostics.html">Diagnósticos</a>
+      </aside>
+      <main class="content doc-page">
+        
+        
+            <div class="hero">
+              <p class="eyebrow">Snask Language</p>
+              <h1>Performance de Sistemas.<br/>Ergonomia Humana.</h1>
+              <p class="lead">Uma linguagem compilada moderna com perfis adaptativos: use o nível de controle que você precisa, nada mais.</p>
+              <div class="actions">
+                <a href="learn/getting-started.html" class="button primary">Começar Agora</a>
+                <a href="reference/functions/index.html" class="button">Ver Funções</a>
+              </div>
             </div>
-          </a>
-          <a class="path-card" href="learn/basics.html">
-            <span class="step">2</span>
-            <div>
-              <h4>Variáveis e Tipos</h4>
-              <p>Imutabilidade por padrão, tipos estáticos e o sistema de tipos do Snask.</p>
-            </div>
-          </a>
-          <a class="path-card" href="learn/control-flow.html">
-            <span class="step">3</span>
-            <div>
-              <h4>Controle de Fluxo</h4>
-              <p>Condicionais, loops e iterações modernas e seguras.</p>
-            </div>
-          </a>
-          <a class="path-card" href="learn/functions.html">
-            <span class="step">4</span>
-            <div>
-              <h4>Funções e Módulos</h4>
-              <p>Declaração de funções, parâmetros e o sistema de importação.</p>
-            </div>
-          </a>
-          <a class="path-card" href="learn/memory-om.html">
-            <span class="step">5</span>
-            <div>
-              <h4>Domínio da Memória</h4>
-              <p>Zonas, arenas, stack vs heap — performance sem GC.</p>
-            </div>
-          </a>
-          <a class="path-card" href="learn/systems-profile.html">
-            <span class="step">6</span>
-            <div>
-              <h4>Perfil Systems</h4>
-              <p>Bits, ponteiros, memória raw e programação de baixo nível.</p>
-            </div>
-          </a>
-        </div>
-      </section>
-
-      <section style="max-width:var(--max-width);margin:0 auto;padding:0 36px;">
-        <h2>Sintaxe Limpa e Expressiva</h2>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin:20px 0;">
-          <pre style="margin:0;"><code>class main {
-    fun start() {
-        zone "frame" {
-            let user = "Davi"
-            let score = 100
-            print("Olá, {user}! Score: {score}\n")
-        }
-    }
-}</code></pre>
-          <pre style="margin:0;"><code>import "math"
-
-fun fibonacci(n: int) : int {
-    if n <= 1 { return n }
-    return fibonacci(n - 1) + fibonacci(n - 2)
-}
-
-print("{fibonacci(10)}\n")  // 55</code></pre>
-        </div>
-      </section>
-
-      <section style="max-width:var(--max-width);margin:0 auto;padding:0 36px;">
-        <div class="callout">
-          <strong>📌 Status do Projeto:</strong> Snask está em <strong>Alpha</strong> (v0.4.1). Ideal para entusiastas de linguagens, 
-          criadores de emuladores e sistemas embarcados. <a href="reference/status.html">Veja o status completo das features</a>.
-        </div>
-      </section>
-
-      <footer class="footer" style="max-width:var(--max-width);margin:40px auto 0;padding:36px;">
-        <p>© 2026 Snask Foundation. Documentação profissional.</p>
-      </footer>
-    </main>
-
-    <script src="assets/site.js" defer></script>
+            
+      </main>
+    </div>
+    <script src="assets/site.js"></script>
+    <script>
+      const input = document.getElementById('functionSearch');
+      if(input) {
+        input.addEventListener('input', e => {
+          const term = e.target.value.toLowerCase();
+          document.querySelectorAll('.function-card').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(term) ? 'block' : 'none';
+          });
+        });
+      }
+    </script>
   </body>
 </html>

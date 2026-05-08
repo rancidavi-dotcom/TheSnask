@@ -247,6 +247,19 @@ p { max-width: 820px; }
 .card:hover { border-color: var(--accent); transform: translateY(-2px); }
 .card h3 { margin-top: 0; }
 
+/* ─── Badge row ─── */
+.badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+
+.meta-pill.seguranca { background: var(--accent-dim); border-color: var(--accent); }
+.meta-pill-note { display: none; }
+.meta-pill.seguranca:hover .meta-pill-note { display: inline; }
+
+/* ─── Section spacing ─── */
+.doc-page section { margin: 32px 0; }
+.doc-page section:first-of-type { margin-top: 0; }
+
+.table-wrap { overflow-x: auto; }
+
 /* ─── Status pills ─── */
 .status {
   display: inline-flex;

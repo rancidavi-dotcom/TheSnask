@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Capítulo 2: Variáveis e Tipos - Snask Docs</title>
+    <title>2. Variáveis e Tipos - Snask Docs</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
-        <a aria-current="page" href="getting-started.html">Aprender</a>
-        <a href="../reference/language.html">Referencia</a>
+        <a href="../index.html">Início</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="../reference/functions/index.html">Funções</a>
         <a href="../systems/om.html">OM</a>
         <a href="../tooling/installation.html">Tooling</a>
       </nav>
@@ -20,105 +23,45 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="getting-started.html">1. Introdução</a>
-        <a href="basics.html" class="active">2. Variáveis e Tipos</a>
-        <a href="control-flow.html">3. Controle de Fluxo</a>
-        <a href="functions.html">4. Funções</a>
-        <a href="memory-om.html">5. Memória (OM)</a>
-        <a href="systems-profile.html">6. Perfil Systems</a>
+        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções</a><a href="../learn/memory-om.html">5. Memória (OM)</a><a href="../learn/systems-profile.html">6. Perfil Systems</a>
+        <h2>Referência</h2>
+        <a href="../reference/functions/index.html">Índice de Funções</a>
+        <a href="../reference/language.html">Linguagem</a>
+        <a href="../reference/types.html">Tipos</a>
+        <a href="../reference/runtime.html">Runtime</a>
+        <a href="../reference/diagnostics.html">Diagnósticos</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
+        
+        
         <p class="eyebrow">Capítulo 2</p>
         <h1>Variáveis e Sistema de Tipos</h1>
-        <p class="lead">
-          Snask é uma linguagem de tipagem estática com inferência poderosa. No Snask, a clareza sobre 
-          <strong>ownership</strong> e <strong>mutabilidade</strong> começa na declaração da variável.
-        </p>
-
+        <p class="lead">Snask possui tipagem estática com inferência poderosa e imutabilidade por padrão.</p>
         <section>
-          <h2>Imutabilidade por Padrão</h2>
-          <p>
-            Seguindo as melhores práticas de engenharia de software modernas, 
-            no Snask tudo é imutável por padrão. Isso evita bugs de "efeito colateral" onde uma variável 
-            muda de valor inesperadamente.
-          </p>
-          <pre><code>class main {
-    fun start() {
-        let pi = 3.1415
-        // pi = 3.14  <-- Erro de compilação! let é imutável.
-    }
-}</code></pre>
+          <h2>Imutabilidade (let)</h2>
+          <p>Tudo é imutável por padrão, evitando efeitos colaterais indesejados.</p>
+          <pre><code>let pi = 3.1415</code></pre>
         </section>
-
         <section>
-          <h2>Mutabilidade Explícita</h2>
-          <p>
-            Se você precisa que um valor mude ao longo do tempo, 
-            deve usar a palavra-chave <code>mut</code>. Isso deixa claro para quem lê seu código 
-            que aquele estado é volátil.
-          </p>
+          <h2>Mutabilidade (mut)</h2>
+          <p>Use <code>mut</code> apenas quando o estado precisar variar.</p>
           <pre><code>mut contador = 0
-while contador < 10 {
-    contador = contador + 1
-}</code></pre>
+contador = contador + 1</code></pre>
         </section>
-
-        <section>
-          <h2>Constantes de Módulo</h2>
-          <p>
-            Diferente de <code>let</code>, que é uma "ligação imutável" dentro de um escopo, 
-            <code>const</code> define valores que são conhecidos em tempo de compilação.
-          </p>
-          <pre><code>const VERSAO_API = "1.0.4"
-const MAX_CONEXOES = 100</code></pre>
-        </section>
-
-        <section>
-          <h2>Sistema de Tipos</h2>
-          <p>
-            O Snask possui tipos primitivos robustos. Embora o compilador consiga inferir o tipo 
-            na maioria das vezes, você pode ser explícito para aumentar a segurança.
-          </p>
-          <table>
-            <thead>
-              <tr><th>Tipo</th><th>Descrição</th><th>Perfil Recomendado</th></tr>
-            </thead>
-            <tbody>
-              <tr><td><code>str</code></td><td>String UTF-8 dinâmica.</td><td>Humane</td></tr>
-              <tr><td><code>float</code></td><td>Número de ponto flutuante 64-bit.</td><td>Humane / Systems</td></tr>
-              <tr><td><code>bool</code></td><td>Valor booleano (true/false).</td><td>Ambos</td></tr>
-              <tr><td><code>u8 / i8</code></td><td>Inteiros de 8-bit (Byte).</td><td>Systems</td></tr>
-              <tr><td><code>ptr</code></td><td>Ponteiro de memória crua.</td><td>Systems (@unsafe)</td></tr>
-            </tbody>
-          </table>
-          <p>
-            <strong>Anotação de Tipo:</strong> Use <code>nome: tipo</code> para declarar tipos manualmente.
-          </p>
-          <pre><code>let nome: str = "Snask"
-let idade: float = 25.0
-let raw_data: u8 = as_u8(255)</code></pre>
-        </section>
-
-        <section>
-          <h2>Interpolação de Strings</h2>
-          <p>
-            O Snask facilita a exibição de dados com uma sintaxe de interpolação limpa dentro de aspas duplas.
-          </p>
-          <pre><code>let user = "Davi"
-let score = 95
-print("Usuário {user} atingiu a pontuação {score}!\n")</code></pre>
-        </section>
-
-        <section>
-          <h2>Próximos Passos</h2>
-          <p>Agora que você domina os dados, vamos aprender como controlar o fluxo do seu programa.</p>
-          <div class="actions">
-            <a class="button primary" href="control-flow.html">Capítulo 3: Controle de Fluxo</a>
-            <a class="button" href="getting-started.html">Voltar para Introdução</a>
-          </div>
-        </section>
+        
       </main>
     </div>
     <script src="../assets/site.js"></script>
+    <script>
+      const input = document.getElementById('functionSearch');
+      if(input) {
+        input.addEventListener('input', e => {
+          const term = e.target.value.toLowerCase();
+          document.querySelectorAll('.function-card').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(term) ? 'block' : 'none';
+          });
+        });
+      }
+    </script>
   </body>
 </html>

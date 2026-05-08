@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Capítulo 3: Controle de Fluxo - Snask Docs</title>
+    <title>3. Controle de Fluxo - Snask Docs</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
-        <a aria-current="page" href="getting-started.html">Aprender</a>
-        <a href="../reference/language.html">Referencia</a>
+        <a href="../index.html">Início</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="../reference/functions/index.html">Funções</a>
         <a href="../systems/om.html">OM</a>
         <a href="../tooling/installation.html">Tooling</a>
       </nav>
@@ -20,95 +23,42 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="getting-started.html">1. Introdução</a>
-        <a href="basics.html">2. Variáveis e Tipos</a>
-        <a href="control-flow.html" class="active">3. Controle de Fluxo</a>
-        <a href="functions.html">4. Funções</a>
-        <a href="memory-om.html">5. Memória (OM)</a>
-        <a href="systems-profile.html">6. Perfil Systems</a>
+        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções</a><a href="../learn/memory-om.html">5. Memória (OM)</a><a href="../learn/systems-profile.html">6. Perfil Systems</a>
+        <h2>Referência</h2>
+        <a href="../reference/functions/index.html">Índice de Funções</a>
+        <a href="../reference/language.html">Linguagem</a>
+        <a href="../reference/types.html">Tipos</a>
+        <a href="../reference/runtime.html">Runtime</a>
+        <a href="../reference/diagnostics.html">Diagnósticos</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
+        
+        
         <p class="eyebrow">Capítulo 3</p>
         <h1>Controle de Fluxo</h1>
-        <p class="lead">
-          Snask oferece estruturas de controle familiares, mas com um foco rigoroso em 
-          <strong>escopo e segurança</strong>.
-        </p>
+        <p class="lead">Estruturas de decisão e iteração seguras.</p>
+        <pre><code>if score >= 70 {
+    print("Aprovado\n")
+}
 
-        <section>
-          <h2>Condicionais: if e else</h2>
-          <p>
-            No Snask, as condicionais não exigem parênteses ao redor da expressão, 
-            seguindo a tendência de linguagens modernas como Go e Rust.
-          </p>
-          <pre><code>let score = 85
-
-if score >= 90 {
-    print("A - Excelente!\n")
-} else if score >= 70 {
-    print("B - Bom trabalho\n")
-} else {
-    print("C - Precisa melhorar\n")
-}</code></pre>
-        </section>
-
-        <section>
-          <h2>Loops: while</h2>
-          <p>
-            O Snask simplifica a iteração oferecendo apenas o loop <code>while</code> como primitiva básica. 
-            Não existe o loop <code>for(i=0; i<10; i++)</code> clássico de C, o que reduz 
-            erros de "off-by-one".
-          </p>
-          <pre><code>mut i = 0
-while i < 5 {
-    print("Iteração: {i}\n")
+mut i = 0
+while i < 10 {
     i = i + 1
 }</code></pre>
-        </section>
-
-        <section>
-          <h2>Iteração com Coleções</h2>
-          <p>
-            Para iterar sobre listas, usamos a função builtin <code>range()</code> combinada com o <code>while</code>, 
-            mantendo o controle total sobre o índice.
-          </p>
-          <pre><code>let lista = ["A", "B", "C"]
-mut idx = 0
-while idx < len(lista) {
-    print("Item: {lista[idx]}\n")
-    idx = idx + 1
-}</code></pre>
-        </section>
-
-        <section>
-          <h2>Estilos de Bloco: Chaves vs Indentação</h2>
-          <p>
-            Uma característica única do Snask é que ele aceita tanto chaves <code>{}</code> quanto 
-            indentação significativa (estilo Python).
-          </p>
-          <p><strong>Estilo Chaves (Recomendado para tutoriais):</strong></p>
-          <pre><code>if true {
-    print("Bloco com chaves\n")
-}</code></pre>
-          <p><strong>Estilo Indentação:</strong></p>
-          <pre><code>if true:
-    print("Bloco por indentação\n")</code></pre>
-          <div class="callout">
-            <strong>Dica Profissional:</strong> Escolha um estilo para o seu projeto e mantenha a consistência. 
-            O compilador Snask é capaz de detectar misturas inconsistentes e emitir diagnósticos de ajuda.
-          </div>
-        </section>
-
-        <section>
-          <h2>Próximos Passos</h2>
-          <p>Agora que você sabe como o código flui, vamos aprender como organizá-lo em funções reutilizáveis.</p>
-          <div class="actions">
-            <a class="button primary" href="functions.html">Capítulo 4: Funções</a>
-            <a class="button" href="basics.html">Voltar para Variáveis</a>
-          </div>
-        </section>
+        
       </main>
     </div>
     <script src="../assets/site.js"></script>
+    <script>
+      const input = document.getElementById('functionSearch');
+      if(input) {
+        input.addEventListener('input', e => {
+          const term = e.target.value.toLowerCase();
+          document.querySelectorAll('.function-card').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(term) ? 'block' : 'none';
+          });
+        });
+      }
+    </script>
   </body>
 </html>

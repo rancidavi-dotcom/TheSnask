@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Comecando com Snask</title>
+    <title>1. Introdução - Snask Docs</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
-        <a aria-current="page" href="getting-started.html">Aprender</a>
-        <a href="../reference/language.html">Referencia</a>
+        <a href="../index.html">Início</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="../reference/functions/index.html">Funções</a>
         <a href="../systems/om.html">OM</a>
         <a href="../tooling/installation.html">Tooling</a>
       </nav>
@@ -20,80 +23,48 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="getting-started.html">Comecando</a>
-        <a href="basics.html">Basico da linguagem</a>
-        <a href="projects.html">Projetos Snask</a>
-        <h2>Referencia</h2>
+        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções</a><a href="../learn/memory-om.html">5. Memória (OM)</a><a href="../learn/systems-profile.html">6. Perfil Systems</a>
+        <h2>Referência</h2>
+        <a href="../reference/functions/index.html">Índice de Funções</a>
         <a href="../reference/language.html">Linguagem</a>
-        <a href="../reference/status.html">Status</a>
+        <a href="../reference/types.html">Tipos</a>
+        <a href="../reference/runtime.html">Runtime</a>
+        <a href="../reference/diagnostics.html">Diagnósticos</a>
       </aside>
-      <main class="content">
+      <main class="content doc-page">
+        
+        
         <p class="eyebrow">Capítulo 1</p>
         <h1>Introdução ao Snask</h1>
-        <p class="lead">
-          Snask é uma linguagem de programação moderna, compilada via LLVM, desenhada para ser 
-          <strong>"Humana por padrão, Systems quando necessário"</strong>.
-        </p>
-
+        <p class="lead">Snask é uma linguagem moderna, compilada via LLVM, projetada para ser <strong>"Humana por padrão, Systems quando necessário"</strong>.</p>
         <section>
           <h2>A Filosofia Snask</h2>
-          <p>
-            Diferente de linguagens que te forçam a escolher entre "produtividade com Garbage Collector" (como Python/JS) 
-            ou "controle manual perigoso" (como C/C++), o Snask introduz o conceito de <strong>Perfis Adaptativos</strong>.
-          </p>
+          <p>Diferente de linguagens que forçam uma escolha entre produtividade com GC ou controle manual perigoso, o Snask introduz o conceito de <strong>Perfis Adaptativos</strong>.</p>
           <ul>
-            <li><strong>Perfil Humane:</strong> Focado na experiência do desenvolvedor. Erros amigáveis, automação de memória via zonas e segurança total.</li>
-            <li><strong>Perfil Systems:</strong> Ativa primitivas de baixo nível, acesso a ponteiros e operações de bits, ideal para emuladores e kernels.</li>
+            <li><strong>Perfil Humane:</strong> Focado na experiência do desenvolvedor. Memória gerenciada automaticamente via zonas.</li>
+            <li><strong>Perfil Systems:</strong> Ativa primitivas de baixo nível, ponteiros, bits e alocação manual.</li>
           </ul>
         </section>
-
         <section>
-          <h2>Instalação Profissional</h2>
-          <p>O Snask depende do backend LLVM 18 para gerar código nativo de alta performance. O script de instalação oficial cuida de configurar o toolchain para você.</p>
-          <pre><code># Instalação automatizada para Linux
-curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
-
-# Configure o PATH (adicione ao seu .bashrc ou .zshrc)
+          <h2>Instalação</h2>
+          <pre><code>curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
 export PATH="$HOME/.snask/bin:$PATH"
-
-# Verifique a saúde da instalação
 snask doctor</code></pre>
         </section>
-
-        <section>
-          <h2>Anatomia de um Programa Snask</h2>
-          <p>Um programa executável sempre começa em uma <code>class main</code> com uma função <code>start()</code>. Diferente de C, não usamos <code>int argc, char** argv</code> na assinatura da main; os argumentos são acessados via builtin <code>args()</code>.</p>
-          <pre><code>class main {
-    fun start() {
-        print("Olá Mundo!\n")
-    }
-}</code></pre>
-          <p>
-            <strong>Por que class main?</strong> Para garantir que o compilador possa orquestrar o ciclo de vida inicial 
-            do programa e as zonas de memória raiz de forma determinística.
-          </p>
-        </section>
-
-        <section>
-          <h2>O Ciclo de Build</h2>
-          <p>O Snask compila seu código diretamente para binários nativos (AOT - Ahead of Time). Ele não usa uma máquina virtual (VM) como Java ou um interpretador como Python.</p>
-          <pre><code># Compilação padrão (Humane)
-snask build hello.snask --output hello
-
-# Compilação para sistemas (sem runtime pesado)
-snask build app.snask --profile systems --output app</code></pre>
-        </section>
-
-        <section>
-          <h2>Próximos Passos</h2>
-          <p>Agora que você tem o compilador pronto, vamos mergulhar na sintaxe que torna o Snask único.</p>
-          <div class="actions">
-            <a class="button primary" href="basics.html">Capítulo 2: Variáveis e Tipos</a>
-            <a class="button" href="../reference/functions/index.html">Explorar Funções</a>
-          </div>
-        </section>
+        
       </main>
     </div>
     <script src="../assets/site.js"></script>
+    <script>
+      const input = document.getElementById('functionSearch');
+      if(input) {
+        input.addEventListener('input', e => {
+          const term = e.target.value.toLowerCase();
+          document.querySelectorAll('.function-card').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(term) ? 'block' : 'none';
+          });
+        });
+      }
+    </script>
   </body>
 </html>

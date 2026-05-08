@@ -9,44 +9,80 @@
   <body>
     <header class="topbar">
       <a class="brand" href="../../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../../index.html">Inicio</a>
+        <a href="../../index.html">Início</a>
         <a href="../../learn/getting-started.html">Aprender</a>
-        <a aria-current="page" href="../language.html">Referencia</a>
+        <a aria-current="page" href="../../reference/functions/index.html">Funções</a>
         <a href="../../systems/om.html">OM</a>
         <a href="../../tooling/installation.html">Tooling</a>
       </nav>
     </header>
     <div class="shell">
       <aside class="sidebar">
-        <h2>Funcoes</h2>
-        <a href="index.html">Indice de funcoes</a>
-        <a href="../language.html">Linguagem</a>
-        <a href="../types.html">Tipos</a>
-        <a href="../runtime.html">Runtime e builtins</a>
-        <a href="../diagnostics.html">Diagnosticos</a>
+        <h2>Aprender</h2>
+        <a href="../../learn/getting-started.html">1. Introdução</a><a href="../../learn/basics.html">2. Variáveis e Tipos</a><a href="../../learn/control-flow.html">3. Controle de Fluxo</a><a href="../../learn/functions.html">4. Funções</a><a href="../../learn/memory-om.html">5. Memória (OM)</a><a href="../../learn/systems-profile.html">6. Perfil Systems</a>
+        <h2>Referência</h2>
+        <a href="../../reference/functions/index.html">Índice de Funções</a>
+        <a href="../../reference/language.html">Linguagem</a>
+        <a href="../../reference/types.html">Tipos</a>
+        <a href="../../reference/runtime.html">Runtime</a>
+        <a href="../../reference/diagnostics.html">Diagnósticos</a>
       </aside>
       <main class="content doc-page">
-        <p class="eyebrow">memory</p>
-        <h1>mem_alloc_zero</h1>
-        <p class="lead">Aloca memoria crua zerada.</p>
-        <p>
-          <span class="status ">estavel</span>
-          <span class="meta-pill">perfil: systems</span>
-          <span class="meta-pill">seguranca: exige @unsafe</span>
-        </p>
-        <h2>Assinatura</h2>
-        <pre><code>mem_alloc_zero(size: any) -&gt; ptr</code></pre>
-        <h2>Para que serve</h2>
-        <p>Aloca um bloco de memória contígua e inicializa todos os seus bytes com o valor zero. É o equivalente ao `calloc(size, 1)` da linguagem C.</p>
+        
+        
+    <p class="eyebrow">memory</p>
+    <h1>mem_alloc_zero</h1>
+    <p class="lead">Aloca memoria crua zerada.</p>
+
+    <p class="badge-row">
+      <span class="status stable">estável</span>
+      <span class="meta-pill">🛡️ humane</span>
+      <span class="meta-pill seguranca">segura <span class="meta-pill-note">✅ Segura — não pode corromper memória ou causar UB.</span></span>
+    </p>
+
+    <section>
+      <h2>Assinatura</h2>
+      <pre><code>mem_alloc_zero(size: any) -&amp;amp;gt; ptr</code></pre>
+    </section>
+
+    <section>
+      <h2>Para que serve</h2>
+      <p>Aloca um bloco de memória contígua e inicializa todos os seus bytes com o valor zero. É o equivalente ao `calloc(size, 1)` da linguagem C.</p>
 <p>Esta função é preferível a `mem_alloc` quando a segurança e o determinismo são importantes, pois garante que não haverá &#x27;lixo&#x27; de memória (dados de processos anteriores) no bloco alocado.</p>
 <p>O ponteiro retornado pertence ao gerenciamento manual de memória do perfil systems e não é rastreado pelo coletor de lixo ou pelo sistema de zonas automático fora do seu escopo de criação.</p>
-        <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>size</code></td><td>Quantidade de bytes a alocar e zerar.</td></tr></tbody></table>
-        <h2>Retorno</h2>
-        <p>Ponteiro para bloco alocado.</p>
-        <h2>Exemplo</h2>
-        <pre><code>@unsafe {
+        
+    
+    </section>
+
+    <section>
+      <h2>Perfil</h2>
+      <p><strong>🛡️ humane</strong> — Gerenciamento automático de memória via zonas. Seguro por padrão.</p>
+      <p><strong>Segurança:</strong> ✅ Segura — não pode corromper memória ou causar UB.</p>
+    </section>
+
+    <section>
+      <h2>Parâmetros</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Nome</th><th>Descrição</th></tr></thead>
+          <tbody><tr><td><code>size</code></td><td>Quantidade de bytes a alocar e zerar.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Retorno</h2>
+      <p>Ponteiro para bloco alocado.</p>
+    </section>
+
+    
+        <section>
+          <h2>Exemplo</h2>
+          <pre><code>@unsafe {
     // Aloca 64KB de RAM zerada para uma CPU 6502
     let ram: ptr = mem_alloc_zero(65536)
     
@@ -56,22 +92,41 @@
     // Sempre libere a memória manualmente
     mem_free(ram)
 }</code></pre>
-        <h2>Cuidados</h2>
-        <ul><li>Causa vazamento de memória (Memory Leak) se `mem_free` não for chamado.</li>
-<li>Pode retornar um ponteiro nulo (nil) se o sistema ficar sem memória disponível.</li>
-<li>Acesso fora dos limites (out-of-bounds) do tamanho solicitado resultará em corrupção de memória ou falha de segmentação.</li></ul>
-        <h2>Funcoes relacionadas</h2>
-        <ul><li><a href="mem-alloc.html"><code>mem_alloc</code></a></li>
-<li><a href="mem-free.html"><code>mem_free</code></a></li>
-<li><a href="mem-fill-u8.html"><code>mem_fill_u8</code></a></li></ul>
-        <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/systems_memory.snask</code></p><pre><code>snask build docs/examples/reference/systems_memory.snask --output /tmp/snask-doc-mem-alloc-zero</code></pre>
-        <h2>Notas</h2>
-        <p>
-          Esta pagina e gerada a partir de <code>scripts/generate_docs_reference.py</code>.
-          Se a assinatura mudar no compilador, atualize a fonte de dados e regenere a referencia.
-        </p>
+        </section>
+
+    <section>
+      <h2>Cuidados e Edge Cases</h2>
+      <ul><li>Nenhum cuidado especial documentado.</li></ul>
+    </section>
+
+    <section>
+      <h2>Funções relacionadas</h2>
+      <ul><li><a href="mem-alloc.html"><code>mem_alloc</code></a></li><li><a href="mem-free.html"><code>mem_free</code></a></li><li><a href="mem-fill-u8.html"><code>mem_fill_u8</code></a></li></ul>
+    </section>
+
+    <h2>Teste real</h2><p>Exemplo versionado:</p>
+
+    <section>
+      <h2>Notas</h2>
+      <p>
+        Esta página é gerada a partir de <code>scripts/generate_docs_reference.py</code>.
+        Se a assinatura mudar no compilador, atualize a fonte de dados e regenere a referência.
+      </p>
+    </section>
+    
       </main>
     </div>
     <script src="../../assets/site.js"></script>
+    <script>
+      const input = document.getElementById('functionSearch');
+      if(input) {
+        input.addEventListener('input', e => {
+          const term = e.target.value.toLowerCase();
+          document.querySelectorAll('.function-card').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(term) ? 'block' : 'none';
+          });
+        });
+      }
+    </script>
   </body>
 </html>

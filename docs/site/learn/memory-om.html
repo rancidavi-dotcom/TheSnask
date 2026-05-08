@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Capítulo 5: Gerenciamento de Memória (OM) - Snask Docs</title>
+    <title>5. Memória (OM) - Snask Docs</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
-        <a aria-current="page" href="getting-started.html">Aprender</a>
-        <a href="../reference/language.html">Referencia</a>
+        <a href="../index.html">Início</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="../reference/functions/index.html">Funções</a>
         <a href="../systems/om.html">OM</a>
         <a href="../tooling/installation.html">Tooling</a>
       </nav>
@@ -20,85 +23,36 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="getting-started.html">1. Introdução</a>
-        <a href="basics.html">2. Variáveis e Tipos</a>
-        <a href="control-flow.html">3. Controle de Fluxo</a>
-        <a href="functions.html">4. Funções</a>
-        <a href="memory-om.html" class="active">5. Memória (OM)</a>
-        <a href="systems-profile.html">6. Perfil Systems</a>
+        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções</a><a href="../learn/memory-om.html">5. Memória (OM)</a><a href="../learn/systems-profile.html">6. Perfil Systems</a>
+        <h2>Referência</h2>
+        <a href="../reference/functions/index.html">Índice de Funções</a>
+        <a href="../reference/language.html">Linguagem</a>
+        <a href="../reference/types.html">Tipos</a>
+        <a href="../reference/runtime.html">Runtime</a>
+        <a href="../reference/diagnostics.html">Diagnósticos</a>
       </aside>
-      <main class="content">
-        <p class="eyebrow">Capítulo 5</p>
+      <main class="content doc-page">
+        
+        
         <h1>Gerenciamento de Memória (OM)</h1>
-        <p class="lead">
-          O Snask introduz o <strong>OM-Snask-System</strong>, uma alternativa revolucionária ao 
-          Garbage Collector (GC) e ao gerenciamento manual (malloc/free).
-        </p>
-
-        <section>
-          <h2>O Problema do GC</h2>
-          <p>
-            Linguagens como Java e Python usam um Garbage Collector que "pausa" seu programa para 
-            limpar a memória. Em sistemas de alta performance ou emuladores, essas pausas causam 
-            quedas de frames (stuttering). O Snask resolve isso com <strong>Zonas</strong>.
-          </p>
-        </section>
-
-        <section>
-          <h2>O Conceito de Zonas</h2>
-          <p>
-            Uma Zona é um bloco de tempo e espaço onde a memória vive. Quando a zona termina, 
-            <strong>toda</strong> a memória alocada dentro dela é liberada instantaneamente, 
-            sem busca recursiva e sem pausa.
-          </p>
-          <pre><code>class main {
-    fun start() {
-        zone "processamento" {
-            let dados = carregar_arquivo_gigante()
-            // Os dados vivem aqui...
-        } 
-        // AO CHEGAR AQUI, 'dados' e toda a memória usada na zona 
-        // são liberados imediatamente pelo hardware/runtime.
-    }
-}</code></pre>
-        </section>
-
-        <section>
-          <h2>Zonas de Frame</h2>
-          <p>
-            Em jogos ou emuladores, o Snask permite criar zonas que duram exatamente 1 frame (1/60 de segundo). 
-            Isso garante que seu jogo nunca consuma mais memória do que o necessário para um único ciclo.
-          </p>
-          <pre><code>while true {
-    zone "frame" {
-        atualizar_logica()
-        renderizar_pixels()
-    } // Limpeza total do frame anterior aqui!
-}</code></pre>
-        </section>
-
-        <section>
-          <h2>New Stack vs New Heap</h2>
-          <p>
-            No Snask, você tem controle sobre onde seus dados são colocados:
-          </p>
-          <ul>
-            <li><strong>Stack:</strong> Rápido, automático, para dados pequenos e locais.</li>
-            <li><strong>Arena/Zone:</strong> Para grupos de dados que devem morrer juntos.</li>
-            <li><strong>Heap:</strong> Para dados persistentes (raramente necessário no estilo idiomático Snask).</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2>Próximos Passos</h2>
-          <p>Agora que você entende como a memória é orquestrada, vamos ver como quebrar as regras com segurança no Perfil Systems.</p>
-          <div class="actions">
-            <a class="button primary" href="systems-profile.html">Capítulo 6: Perfil Systems</a>
-            <a class="button" href="functions.html">Voltar para Funções</a>
-          </div>
-        </section>
+        <p>O Snask utiliza o <strong>OM-Snask-System</strong> baseado em <strong>Zonas</strong> para gerenciamento automático de memória.</p>
+        <pre><code>zone "request" {
+    let dados = carregar()
+} // Limpeza instantânea!</code></pre>
+        
       </main>
     </div>
     <script src="../assets/site.js"></script>
+    <script>
+      const input = document.getElementById('functionSearch');
+      if(input) {
+        input.addEventListener('input', e => {
+          const term = e.target.value.toLowerCase();
+          document.querySelectorAll('.function-card').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(term) ? 'block' : 'none';
+          });
+        });
+      }
+    </script>
   </body>
 </html>

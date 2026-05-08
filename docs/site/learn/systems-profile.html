@@ -3,16 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Capítulo 6: Perfil Systems - Snask Docs</title>
+    <title>6. Perfil Systems - Snask Docs</title>
     <link rel="stylesheet" href="../assets/site.css" />
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../index.html">Inicio</a>
-        <a aria-current="page" href="getting-started.html">Aprender</a>
-        <a href="../reference/language.html">Referencia</a>
+        <a href="../index.html">Início</a>
+        <a href="../learn/getting-started.html">Aprender</a>
+        <a aria-current="page" href="../reference/functions/index.html">Funções</a>
         <a href="../systems/om.html">OM</a>
         <a href="../tooling/installation.html">Tooling</a>
       </nav>
@@ -20,81 +23,37 @@
     <div class="shell">
       <aside class="sidebar">
         <h2>Aprender</h2>
-        <a href="getting-started.html">1. Introdução</a>
-        <a href="basics.html">2. Variáveis e Tipos</a>
-        <a href="control-flow.html">3. Controle de Fluxo</a>
-        <a href="functions.html">4. Funções</a>
-        <a href="memory-om.html">5. Memória (OM)</a>
-        <a href="systems-profile.html" class="active">6. Perfil Systems</a>
+        <a href="../learn/getting-started.html">1. Introdução</a><a href="../learn/basics.html">2. Variáveis e Tipos</a><a href="../learn/control-flow.html">3. Controle de Fluxo</a><a href="../learn/functions.html">4. Funções</a><a href="../learn/memory-om.html">5. Memória (OM)</a><a href="../learn/systems-profile.html">6. Perfil Systems</a>
+        <h2>Referência</h2>
+        <a href="../reference/functions/index.html">Índice de Funções</a>
+        <a href="../reference/language.html">Linguagem</a>
+        <a href="../reference/types.html">Tipos</a>
+        <a href="../reference/runtime.html">Runtime</a>
+        <a href="../reference/diagnostics.html">Diagnósticos</a>
       </aside>
-      <main class="content">
-        <p class="eyebrow">Capítulo 6</p>
+      <main class="content doc-page">
+        
+        
         <h1>Perfil Systems e Baixo Nível</h1>
-        <p class="lead">
-          Quando o desempenho e o controle de hardware superam a necessidade de conveniência, 
-          entra em cena o <strong>Perfil Systems</strong> do Snask.
-        </p>
-
-        <section>
-          <h2>Ativando o Perfil Systems</h2>
-          <p>
-            Por padrão, o Snask compila no perfil <code>humane</code>. Para ativar o modo de sistemas, 
-            você deve informar ao compilador via flag:
-          </p>
-          <pre><code>snask build app.snask --profile systems --output app</code></pre>
-          <p>
-            No perfil systems, o runtime pesado é removido, o binário fica menor e você ganha 
-            acesso a primitivas de hardware.
-          </p>
-        </section>
-
-        <section>
-          <h2>O Bloco @unsafe</h2>
-          <p>
-            Seguindo a filosofia de linguagens seguras modernas, operações perigosas (como aritmética de ponteiros) 
-            são isoladas em blocos <code>@unsafe</code>. Isso serve como um "contrato de consciência" para o desenvolvedor.
-          </p>
-          <pre><code>@unsafe {
+        <p>Acesso direto à memória e hardware via <code>@unsafe</code>.</p>
+        <pre><code>@unsafe {
     let p: ptr = mem_alloc(1024)
-    mem_write_u8(p, 0, 0xFF)
     mem_free(p)
 }</code></pre>
-        </section>
-
-        <section>
-          <h2>Aritmética de Bits e Casts</h2>
-          <p>
-            Em sistemas, cada bit conta. O Snask oferece funções de alta performance para manipular bits 
-            sem a verbosidade de C.
-          </p>
-          <pre><code>let flags = 0b10101010
-if bit_test(flags, 7) {
-    print("Bit de status ativo!\n")
-}
-
-let byte: u8 = as_u8(512) // Truncamento explícito para 8 bits</code></pre>
-        </section>
-
-        <section>
-          <h2>Por que usar Systems?</h2>
-          <ul>
-            <li><strong>Emuladores:</strong> Para modelar barramentos de memória e CPUs reais.</li>
-            <li><strong>Drivers:</strong> Para conversar com hardware via mapeamento de memória.</li>
-            <li><strong>Sistemas Operacionais:</strong> O Snask foi desenhado para permitir a escrita de microkernels.</li>
-            <li><strong>Binários Minimalistas:</strong> Quando você precisa de um executável de poucos KBs.</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2>Parabéns!</h2>
-          <p>Você concluiu o guia fundamental do Snask. Agora você está pronto para construir o futuro.</p>
-          <div class="actions">
-            <a class="button primary" href="../reference/functions/index.html">Explorar Referência de API</a>
-            <a class="button" href="../index.html">Voltar ao Início</a>
-          </div>
-        </section>
+        
       </main>
     </div>
     <script src="../assets/site.js"></script>
+    <script>
+      const input = document.getElementById('functionSearch');
+      if(input) {
+        input.addEventListener('input', e => {
+          const term = e.target.value.toLowerCase();
+          document.querySelectorAll('.function-card').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(term) ? 'block' : 'none';
+          });
+        });
+      }
+    </script>
   </body>
 </html>

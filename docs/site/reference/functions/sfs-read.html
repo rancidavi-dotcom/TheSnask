@@ -9,61 +9,118 @@
   <body>
     <header class="topbar">
       <a class="brand" href="../../index.html"><span class="mark">S</span> Snask Docs</a>
+      <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
+        <span></span><span></span><span></span>
+      </button>
       <nav class="nav">
-        <a href="../../index.html">Inicio</a>
+        <a href="../../index.html">Início</a>
         <a href="../../learn/getting-started.html">Aprender</a>
-        <a aria-current="page" href="../language.html">Referencia</a>
+        <a aria-current="page" href="../../reference/functions/index.html">Funções</a>
         <a href="../../systems/om.html">OM</a>
         <a href="../../tooling/installation.html">Tooling</a>
       </nav>
     </header>
     <div class="shell">
       <aside class="sidebar">
-        <h2>Funcoes</h2>
-        <a href="index.html">Indice de funcoes</a>
-        <a href="../language.html">Linguagem</a>
-        <a href="../types.html">Tipos</a>
-        <a href="../runtime.html">Runtime e builtins</a>
-        <a href="../diagnostics.html">Diagnosticos</a>
+        <h2>Aprender</h2>
+        <a href="../../learn/getting-started.html">1. Introdução</a><a href="../../learn/basics.html">2. Variáveis e Tipos</a><a href="../../learn/control-flow.html">3. Controle de Fluxo</a><a href="../../learn/functions.html">4. Funções</a><a href="../../learn/memory-om.html">5. Memória (OM)</a><a href="../../learn/systems-profile.html">6. Perfil Systems</a>
+        <h2>Referência</h2>
+        <a href="../../reference/functions/index.html">Índice de Funções</a>
+        <a href="../../reference/language.html">Linguagem</a>
+        <a href="../../reference/types.html">Tipos</a>
+        <a href="../../reference/runtime.html">Runtime</a>
+        <a href="../../reference/diagnostics.html">Diagnósticos</a>
       </aside>
       <main class="content doc-page">
-        <p class="eyebrow">sfs</p>
-        <h1>sfs_read</h1>
-        <p class="lead">Le arquivo pela biblioteca SFS.</p>
-        <p>
-          <span class="status partial">parcial</span>
-          <span class="meta-pill">perfil: humane</span>
-          <span class="meta-pill">seguranca: segura</span>
-        </p>
-        <h2>Assinatura</h2>
-        <pre><code>sfs_read(path: str) -&gt; str</code></pre>
-        <h2>Para que serve</h2>
-        <p>Lê o conteúdo de um arquivo através da biblioteca SFS (Snask File System), que oferece uma camada de abstração mais robusta que o `read_file` básico.</p>
+        
+        
+    <p class="eyebrow">sfs</p>
+    <h1>sfs_read</h1>
+    <p class="lead">Le arquivo pela biblioteca SFS.</p>
+
+    <p class="badge-row">
+      <span class="status partial">parcial</span>
+      <span class="meta-pill">🛡️ humane</span>
+      <span class="meta-pill seguranca">segura <span class="meta-pill-note">✅ Segura — não pode corromper memória ou causar UB.</span></span>
+    </p>
+
+    <section>
+      <h2>Assinatura</h2>
+      <pre><code>sfs_read(path: str) -&amp;amp;gt; str</code></pre>
+    </section>
+
+    <section>
+      <h2>Para que serve</h2>
+      <p>Lê o conteúdo de um arquivo através da biblioteca SFS (Snask File System), que oferece uma camada de abstração mais robusta que o `read_file` básico.</p>
 <p>Geralmente associada a runtimes que suportam sandboxing ou sistemas de arquivos virtuais.</p>
-        <h2>Parametros</h2>
-        <table><thead><tr><th>Nome</th><th>Descricao</th></tr></thead><tbody><tr><td><code>path</code></td><td>Caminho do arquivo.</td></tr></tbody></table>
-        <h2>Retorno</h2>
-        <p>Conforme assinatura.</p>
-        <h2>Exemplo</h2>
-        <pre><code>import &quot;sfs&quot;
-if sfs::exists(&quot;data.txt&quot;) {
-    let content = sfs::read(&quot;data.txt&quot;)
+        
+    
+    </section>
+
+    <section>
+      <h2>Perfil</h2>
+      <p><strong>🛡️ humane</strong> — Gerenciamento automático de memória via zonas. Seguro por padrão.</p>
+      <p><strong>Segurança:</strong> ✅ Segura — não pode corromper memória ou causar UB.</p>
+    </section>
+
+    <section>
+      <h2>Parâmetros</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Nome</th><th>Descrição</th></tr></thead>
+          <tbody><tr><td><code>path</code></td><td>Caminho do arquivo.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Retorno</h2>
+      <p>Conforme assinatura.</p>
+    </section>
+
+    
+        <section>
+          <h2>Exemplo</h2>
+          <pre><code>import &amp;amp;quot;sfs&amp;amp;quot;
+if sfs::exists(&amp;amp;quot;data.txt&amp;amp;quot;) {
+    let content = sfs::read(&amp;amp;quot;data.txt&amp;amp;quot;)
     print(content)
 }</code></pre>
-        <h2>Cuidados</h2>
-        <ul><li>Caminhos podem ser relativos à raiz do projeto ou absolutos, dependendo da configuração do SFS no runtime.</li></ul>
-        <h2>Funcoes relacionadas</h2>
-        <ul><li><a href="sfs-write.html"><code>sfs_write</code></a></li>
-<li><a href="read-file.html"><code>read_file</code></a></li>
-<li><a href="sfs-exists.html"><code>sfs_exists</code></a></li></ul>
-        <h2>Teste real</h2><p>Exemplo versionado: <code>docs/examples/reference/sfs_basic.snask</code></p><pre><code>snask build docs/examples/reference/sfs_basic.snask --output /tmp/snask-doc-sfs-read</code></pre>
-        <h2>Notas</h2>
-        <p>
-          Esta pagina e gerada a partir de <code>scripts/generate_docs_reference.py</code>.
-          Se a assinatura mudar no compilador, atualize a fonte de dados e regenere a referencia.
-        </p>
+        </section>
+
+    <section>
+      <h2>Cuidados e Edge Cases</h2>
+      <ul><li>Nenhum cuidado especial documentado.</li></ul>
+    </section>
+
+    <section>
+      <h2>Funções relacionadas</h2>
+      <ul><li><a href="sfs-write.html"><code>sfs_write</code></a></li><li><a href="read-file.html"><code>read_file</code></a></li><li><a href="sfs-exists.html"><code>sfs_exists</code></a></li></ul>
+    </section>
+
+    <h2>Teste real</h2><p>Exemplo versionado:</p>
+
+    <section>
+      <h2>Notas</h2>
+      <p>
+        Esta página é gerada a partir de <code>scripts/generate_docs_reference.py</code>.
+        Se a assinatura mudar no compilador, atualize a fonte de dados e regenere a referência.
+      </p>
+    </section>
+    
       </main>
     </div>
     <script src="../../assets/site.js"></script>
+    <script>
+      const input = document.getElementById('functionSearch');
+      if(input) {
+        input.addEventListener('input', e => {
+          const term = e.target.value.toLowerCase();
+          document.querySelectorAll('.function-card').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(term) ? 'block' : 'none';
+          });
+        });
+      }
+    </script>
   </body>
 </html>
