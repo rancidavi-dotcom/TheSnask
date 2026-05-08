@@ -286,10 +286,25 @@ if [ "$PUSH" = true ]; then
     CODEBERG_REMOTE_RESOLVED="$(resolve_codeberg_remote)"
 
     push_release_to_all "$GITHUB_REMOTE_RESOLVED" "$CODEBERG_REMOTE_RESOLVED"
-    
+
     info "Enviando tags..."
     git push "$GITHUB_REMOTE_RESOLVED" --tags --force
     git push "$CODEBERG_REMOTE_RESOLVED" --tags --force
+
+    info "Criando Release no GitHub e enviando binário..."
+    if command -v gh >/dev/null 2>&1; then
+        # Garante que o binário atual seja renomeado para o padrão da release
+        cp target/release/snask snask-linux-amd64
+        
+        # Cria a release (ou atualiza se já existir)
+        gh release create "v${VERSION}" snask-linux-amd64 --title "Release v${VERSION}" --notes "Automated binary release for v${VERSION}" --overwrite || \
+        gh release upload "v${VERSION}" snask-linux-amd64 --clobber
+        
+        ok "Binário enviado para GitHub Releases."
+    else
+        warn "GitHub CLI (gh) não encontrada. Binário não enviado para as Releases."
+        warn "O AUR VAI FALHAR pois o link de download não existirá."
+    fi
 
     update_aur "$VERSION"
 
