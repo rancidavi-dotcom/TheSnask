@@ -13,7 +13,8 @@ source_x86_64=(
   "${pkgname}-${pkgver}-x86_64::${url}/releases/download/v${pkgver}/snask-linux-amd64"
   "${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz"
 )
-sha256sums_x86_64=('SKIP' 'SKIP')
+sha256sums_x86_64=('20a7dac42c7e8f47d53ac889a41c80398b4ae9b979015c2a9389526a9c3262de'
+                   'a4ed13084f939148300592ed3572314f6737e58b8611a68e2acad18f5f7c3e41')
 
 package() {
   # Instala o binário
@@ -22,7 +23,7 @@ package() {
   # Pasta do código fonte extraído
   local src_dir="TheSnask-${pkgver}"
 
-  # Cria diretórios de biblioteca
+  # Cria diretórios de biblioteca e src
   install -dm755 "${pkgdir}/usr/lib/snask/src"
   install -dm755 "${pkgdir}/usr/lib/snask/runtime"
   install -dm755 "${pkgdir}/usr/lib/snask/stdlib"
@@ -30,3 +31,9 @@ package() {
   # Copia stdlib e runtime do código fonte
   cp -r "${src_dir}/src/"* "${pkgdir}/usr/lib/snask/src/"
 }
+
+# Adiciona um hook para linkar a pasta esperada pelo snask setup na primeira execução
+# Como não podemos rodar código no post_install facilmente via AUR, 
+# vamos instruir o binário a procurar em /usr/lib/snask/src
+# Mas como o binário está estático, vamos criar um symlink se não existir.
+# Alternativamente, corrigimos o código do snask.

@@ -101,6 +101,9 @@ pub fn run_setup(target: Option<String>) -> Result<(), String> {
     // 1. Locate Runtime Source
     let mut runtime_src = PathBuf::from("src/runtime.c");
     if !runtime_src.exists() {
+        runtime_src = PathBuf::from("/usr/lib/snask/src/runtime.c");
+    }
+    if !runtime_src.exists() {
         runtime_src = PathBuf::from(format!("{}/src/TheSnask/src/runtime.c", snask_home));
     }
 
