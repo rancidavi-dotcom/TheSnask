@@ -7,14 +7,12 @@
 #   - empacota o .deb local;
 #   - atualiza repo/;
 #   - cria commit de release;
-#   - envia para GitHub e Codeberg na mesma execucao.
+#   - envia para GitHub.
 #
 # Variaveis opcionais:
 #   RELEASE_BRANCH=main
 #   GITHUB_REMOTE=github
 #   GITHUB_URL=git@github.com:rancidavi-dotcom/TheSnask.git
-#   CODEBERG_REMOTE=codeberg
-#   CODEBERG_URL=git@codeberg.org:DaviVilasBoas/SnaskLang.git
 
 set -euo pipefail
 
@@ -51,9 +49,7 @@ done
 
 RELEASE_BRANCH="${RELEASE_BRANCH:-main}"
 GITHUB_REMOTE_ENV="${GITHUB_REMOTE:-}"
-CODEBERG_REMOTE_ENV="${CODEBERG_REMOTE:-}"
 GITHUB_URL="${GITHUB_URL:-git@github.com:rancidavi-dotcom/TheSnask.git}"
-CODEBERG_URL="${CODEBERG_URL:-git@codeberg.org:DaviVilasBoas/SnaskLang.git}"
 AUR_URL="${AUR_URL:-ssh://aur@aur.archlinux.org/snask.git}"
 
 require_tool() {
@@ -112,47 +108,12 @@ resolve_github_remote() {
     ensure_named_remote "github" "$GITHUB_URL"
 }
 
-resolve_codeberg_remote() {
-    if [ -n "$CODEBERG_REMOTE_ENV" ]; then
-        remote_exists "$CODEBERG_REMOTE_ENV" || git remote add "$CODEBERG_REMOTE_ENV" "$CODEBERG_URL"
-        echo "$CODEBERG_REMOTE_ENV"
-        return 0
-    fi
-
-    if remote="$(find_remote_by_url_fragment "codeberg.org")"; then
-        echo "$remote"
-        return 0
-    fi
-
-    ensure_named_remote "codeberg" "$CODEBERG_URL"
-}
-
 push_release() {
     local remote="$1"
     local label="$2"
 
     info "Forçando envio para ${label} (${remote}/${RELEASE_BRANCH})..."
     git push --force-with-lease "$remote" "HEAD:${RELEASE_BRANCH}"
-}
-
-push_release_to_all() {
-    local github_remote="$1"
-    local codeberg_remote="$2"
-    local github_pid codeberg_pid
-    local failed=0
-
-    push_release "$github_remote" "GitHub" &
-    github_pid=$!
-
-    push_release "$codeberg_remote" "Codeberg" &
-    codeberg_pid=$!
-
-    wait "$github_pid" || failed=1
-    wait "$codeberg_pid" || failed=1
-
-    if [ "$failed" -ne 0 ]; then
-        die "Falha ao enviar para um ou mais remotes."
-    fi
 }
 
 update_aur() {
@@ -279,13 +240,11 @@ if [ "$PUSH" = true ]; then
     git tag -a "v${VERSION}" -m "Release v${VERSION}" --force
 
     GITHUB_REMOTE_RESOLVED="$(resolve_github_remote)"
-    CODEBERG_REMOTE_RESOLVED="$(resolve_codeberg_remote)"
 
-    push_release_to_all "$GITHUB_REMOTE_RESOLVED" "$CODEBERG_REMOTE_RESOLVED"
+    push_release "$GITHUB_REMOTE_RESOLVED" "GitHub"
 
     info "Enviando tags..."
     git push "$GITHUB_REMOTE_RESOLVED" --tags --force
-    git push "$CODEBERG_REMOTE_RESOLVED" --tags --force
 
     info "Criando Release no GitHub e enviando binário..."
     if command -v gh >/dev/null 2>&1; then
@@ -306,7 +265,7 @@ if [ "$PUSH" = true ]; then
 
     update_aur "$VERSION"
 
-    ok "Snask v${VERSION} enviado para GitHub e Codeberg."
+    ok "Snask v${VERSION} enviado para GitHub."
 else
     warn "Push ignorado (--no-push). Pacote gerado localmente."
   fi
