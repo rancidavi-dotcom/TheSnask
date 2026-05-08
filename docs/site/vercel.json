@@ -8,13 +8,13 @@
     { "source": "/funcoes", "destination": "/reference/functions" }
   ],
   "rewrites": [
-    { "source": "/reference/functions", "destination": "/reference/functions/index" },
-    { "source": "/reference/language", "destination": "/reference/language" },
-    { "source": "/reference/types", "destination": "/reference/types" },
-    { "source": "/reference/runtime", "destination": "/reference/runtime" },
-    { "source": "/reference/diagnostics", "destination": "/reference/diagnostics" },
-    { "source": "/reference/status", "destination": "/reference/status" },
-    { "source": "/reference/testing", "destination": "/reference/testing" },
-    { "source": "/reference/:func", "destination": "/reference/functions/:func" }
+    { "source": "/reference/functions", "destination": "/reference/functions/index.html" },
+    { "source": "/reference/language", "destination": "/reference/language.html" },
+    { "source": "/reference/types", "destination": "/reference/types.html" },
+    { "source": "/reference/runtime", "destination": "/reference/runtime.html" },
+    { "source": "/reference/diagnostics", "destination": "/reference/diagnostics.html" },
+    { "source": "/reference/status", "destination": "/reference/status.html" },
+    { "source": "/reference/testing", "destination": "/reference/testing.html" },
+    { "source": "/reference/:func", "destination": "/reference/functions/:func.html" }
   ]
 }
