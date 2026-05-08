@@ -4,11 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Snask — Performance de Sistemas, Ergonomia Humana</title>
-    <link rel="stylesheet" href="assets/site.css" />
+    <link rel="icon" href="favicon.ico" /><link rel="stylesheet" href="assets/site.css" />
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="index.html"><span class="mark">S</span> Snask Docs</a>
+      <a class="brand" href="index.html"><img src="assets/media/snask-logo.png" alt="Snask" class="brand-logo"> Snask Docs</a>
       <button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">
         <span></span><span></span><span></span>
       </button>
@@ -33,7 +33,9 @@
         <a href="reference/diagnostics.html">Diagnósticos</a>
       </aside>
       <main class="content doc-page">
-        <div class="hero">
+        <div class="hero" style="display: flex; align-items: center; gap: 36px; flex-wrap: wrap;">
+          <img src="assets/media/snask-logo-144.png" alt="Snask" style="width: 120px; height: 120px; border-radius: 24px; flex-shrink: 0;" />
+          <div>
           <p class="eyebrow">Snask Language</p>
           <h1>Performance de Sistemas.<br/>Ergonomia Humana.</h1>
           <p class="lead">Uma linguagem compilada moderna com perfis adaptativos: use o nível de controle que você precisa, nada mais.</p>
@@ -42,7 +44,7 @@
             <a href="showcase.html" class="button">🔥 Ver Showcase</a>
             <a href="reference/functions/index.html" class="button">Ver Funções</a>
           </div>
-        </div>
+        </div></div>
 
         <section id="features">
           <h2><a href="#features">#</a> Features</h2>
