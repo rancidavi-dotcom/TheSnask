@@ -164,12 +164,8 @@ update_aur() {
         return
     fi
 
-    # Remove tarballs locais para forçar o download do arquivo real pelo updpkgsums
-    rm -f snask-*.tar.gz
-
-    # Dá um tempo para o GitHub processar a tag recém-enviada
-    info "Aguardando 5 segundos para o GitHub processar a tag..."
-    sleep 5
+    # Remove arquivos antigos para forçar o download dos arquivos atuais do GitHub
+    rm -f snask-linux-amd64 snask-*.tar.gz
 
     # Atualiza versão no PKGBUILD local
     sed -i "s/^pkgver=.*/pkgver=${version}/" PKGBUILD
@@ -181,8 +177,7 @@ update_aur() {
         echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
         chown -R builder:builder /work
         
-        # O updpkgsums precisa encontrar os arquivos baixados. 
-        # Como o PKGBUILD define 'source_x86_64', o updpkgsums baixará os arquivos se eles não existirem.
+        # Baixa os arquivos reais e atualiza o PKGBUILD
         sudo -u builder updpkgsums
         sudo -u builder makepkg --printsrcinfo > .SRCINFO
     " || { warn "Falha ao processar AUR via Docker."; return; }
