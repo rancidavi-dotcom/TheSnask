@@ -1,6 +1,6 @@
 # Maintainer: Davi <davidev@snask.lang>
 pkgname=snask
-pkgver=0.4.1
+pkgver=04.2
 pkgrel=1
 pkgdesc="Snask Programming Language with Orchestrated Memory (OM) - Binary Release"
 arch=('x86_64')
