@@ -1,0 +1,6 @@
+fun foo()
+    return 1
+
+class main
+    fun start()
+        let x = foo()

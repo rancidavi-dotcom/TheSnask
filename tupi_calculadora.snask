@@ -1,0 +1,282 @@
+import "third_party/Tupi-8/snask/tupi.snask"
+
+mut valor_atual: str = ""
+mut acumulador: float = 0.0
+mut operador: str = ""
+mut aguardando_proximo: bool = false
+mut teclas_estado: dict = {}
+mut mouse_pressionado: bool = false
+
+fun tecla_pressionada(k: int) : bool
+    let k_str = num_to_str(k * 1.0)
+    let esta_baixa = tupi::tecla(k)
+    mut estava_baixa = teclas_estado[k_str]
+    if is_nil(estava_baixa)
+        estava_baixa = false
+    teclas_estado[k_str] = esta_baixa
+    return esta_baixa and (estava_baixa == false)
+
+fun calcular()
+    if operador == "" or valor_atual == ""
+        return nil
+    let v = str_to_num(valor_atual)
+    if operador == "+"
+        acumulador = acumulador + v
+    elif operador == "-"
+        acumulador = acumulador - v
+    valor_atual = num_to_str(acumulador)
+    aguardando_proximo = true
+
+fun definir_operador(op: str)
+    if valor_atual != ""
+        if operador != ""
+            calcular()
+        else
+            acumulador = str_to_num(valor_atual)
+    operador = op
+    aguardando_proximo = true
+
+fun processar_clique(s: str)
+    print("Click: ")
+    print(s)
+    print("\n")
+    if s == "0" or s == "1" or s == "2" or s == "3" or s == "4" or s == "5" or s == "6" or s == "7" or s == "8" or s == "9"
+        if aguardando_proximo
+            valor_atual = ""
+            aguardando_proximo = false
+        valor_atual = valor_atual + s
+    elif s == "+" or s == "-"
+        definir_operador(s)
+    elif s == "="
+        calcular()
+        operador = ""
+    elif s == "C"
+        valor_atual = ""
+        acumulador = 0.0
+        operador = ""
+
+fun atualizar()
+    let mx = tupi::mouseX()
+    let my = tupi::mouseY()
+    let clicou = tupi::mouseClicou(1)
+    
+    mut mouse_clicou_agora = false
+    if clicou
+        if mouse_pressionado == false
+            mouse_clicou_agora = true
+        mouse_pressionado = true
+    else
+        mouse_pressionado = false
+
+    if mouse_clicou_agora
+        mut bx = 10.0
+        mut by = 80.0
+        mut row = 0
+        while row < 4
+            mut col = 0
+            while col < 4
+                let x = bx + (col * 75) * 1.0
+                let y = by + (row * 35) * 1.0
+                if mx >= x and mx <= x + 70.0 and my >= y and my <= y + 30.0
+                    mut btn = ""
+                    if row == 0
+                        if col == 0
+                            btn = "7"
+                        elif col == 1
+                            btn = "8"
+                        elif col == 2
+                            btn = "9"
+                        elif col == 3
+                            btn = "C"
+                    elif row == 1
+                        if col == 0
+                            btn = "4"
+                        elif col == 1
+                            btn = "5"
+                        elif col == 2
+                            btn = "6"
+                        elif col == 3
+                            btn = "+"
+                    elif row == 2
+                        if col == 0
+                            btn = "1"
+                        elif col == 1
+                            btn = "2"
+                        elif col == 2
+                            btn = "3"
+                        elif col == 3
+                            btn = "-"
+                    elif row == 3
+                        if col == 0
+                            btn = "0"
+                        elif col == 2
+                            btn = "="
+                    
+                    if btn != ""
+                        processar_clique(btn)
+                col = col + 1
+            row = row + 1
+
+    if tecla_pressionada(43)
+        processar_clique("+")
+    elif tecla_pressionada(45)
+        processar_clique("-")
+    elif tecla_pressionada(61)
+        processar_clique("=")
+    elif tecla_pressionada(67)
+        processar_clique("C")
+
+fun desenhar_simbolo_gigante(s: str, x: float, y: float, r: float, g: float, b: float)
+    tupi::cor(r, g, b, 1.0)
+    if s == "0"
+        tupi::retangulo(x, y, 20, 25)
+        tupi::cor(0.3, 0.3, 0.3, 1.0)
+        tupi::retangulo(x+5, y+5, 10, 15)
+    elif s == "1"
+        tupi::retangulo(x+15, y, 5, 25)
+    elif s == "2"
+        tupi::retangulo(x, y, 20, 5)
+        tupi::retangulo(x+15, y+5, 5, 5)
+        tupi::retangulo(x, y+10, 20, 5)
+        tupi::retangulo(x, y+15, 5, 5)
+        tupi::retangulo(x, y+20, 20, 5)
+    elif s == "3"
+        tupi::retangulo(x, y, 20, 5)
+        tupi::retangulo(x+15, y+5, 5, 5)
+        tupi::retangulo(x, y+10, 20, 5)
+        tupi::retangulo(x+15, y+15, 5, 5)
+        tupi::retangulo(x, y+20, 20, 5)
+    elif s == "4"
+        tupi::retangulo(x, y, 5, 15)
+        tupi::retangulo(x+15, y, 5, 25)
+        tupi::retangulo(x, y+10, 20, 5)
+    elif s == "5"
+        tupi::retangulo(x, y, 20, 5)
+        tupi::retangulo(x, y+5, 5, 5)
+        tupi::retangulo(x, y+10, 20, 5)
+        tupi::retangulo(x+15, y+15, 5, 5)
+        tupi::retangulo(x, y+20, 20, 5)
+    elif s == "6"
+        tupi::retangulo(x, y, 5, 25)
+        tupi::retangulo(x, y, 20, 5)
+        tupi::retangulo(x, y+10, 20, 5)
+        tupi::retangulo(x+15, y+15, 5, 5)
+        tupi::retangulo(x, y+20, 20, 5)
+    elif s == "7"
+        tupi::retangulo(x, y, 20, 5)
+        tupi::retangulo(x+15, y+5, 5, 20)
+    elif s == "8"
+        tupi::retangulo(x, y, 20, 25)
+        tupi::cor(0.3, 0.3, 0.3, 1.0)
+        tupi::retangulo(x+5, y+5, 10, 5)
+        tupi::retangulo(x+5, y+15, 10, 5)
+    elif s == "9"
+        tupi::retangulo(x, y, 20, 15)
+        tupi::retangulo(x+15, y+15, 5, 10)
+        tupi::cor(0.3, 0.3, 0.3, 1.0)
+        tupi::retangulo(x+5, y+5, 10, 5)
+    elif s == "+"
+        tupi::retangulo(x+8, y, 5, 20)
+        tupi::retangulo(x, y+8, 20, 5)
+    elif s == "-"
+        tupi::retangulo(x, y+8, 20, 5)
+    elif s == "="
+        tupi::retangulo(x, y+5, 20, 4)
+        tupi::retangulo(x, y+12, 20, 4)
+    elif s == "C"
+        tupi::retangulo(x, y, 20, 25)
+        tupi::cor(0.3, 0.3, 0.3, 1.0)
+        tupi::retangulo(x+5, y+5, 15, 15)
+
+fun desenhar()
+    tupi::corFundo(0, 0, 0)
+    tupi::limparTela()
+    
+    tupi::cor(0.1, 0.4, 0.1, 1.0)
+    tupi::retangulo(10.0, 10.0, 300.0, 60.0)
+    
+    mut disp = valor_atual
+    if disp == ""
+        disp = "0"
+    
+    mut dx = 280.0
+    let slen = len(disp)
+    mut i = as_i64(slen) - 1
+    while i >= 0 and dx > 20.0
+        let char = disp[i]
+        desenhar_simbolo_gigante(char, dx, 25.0, 1.0, 1.0, 1.0)
+        dx = dx - 30.0
+        i = i - 1
+    
+    let mx = tupi::mouseX()
+    let my = tupi::mouseY()
+    
+    mut bx = 10.0
+    mut by = 80.0
+    mut r = 0
+    while r < 4
+        mut c = 0
+        while c < 4
+            let x = bx + (c * 75) * 1.0
+            let y = by + (r * 35) * 1.0
+            
+            if mx >= x and mx <= x + 70.0 and my >= y and my <= y + 30.0
+                tupi::cor(1.0, 1.0, 0.0, 1.0)
+            else
+                tupi::cor(0.3, 0.3, 0.3, 1.0)
+            
+            tupi::retangulo(x, y, 70.0, 30.0)
+            
+            mut lbl = ""
+            if r == 0
+                if c == 0
+                    lbl = "7"
+                elif c == 1
+                    lbl = "8"
+                elif c == 2
+                    lbl = "9"
+                elif c == 3
+                    lbl = "C"
+            elif r == 1
+                if c == 0
+                    lbl = "4"
+                elif c == 1
+                    lbl = "5"
+                elif c == 2
+                    lbl = "6"
+                elif c == 3
+                    lbl = "+"
+            elif r == 2
+                if c == 0
+                    lbl = "1"
+                elif c == 1
+                    lbl = "2"
+                elif c == 2
+                    lbl = "3"
+                elif c == 3
+                    lbl = "-"
+            elif r == 3
+                if c == 0
+                    lbl = "0"
+                elif c == 2
+                    lbl = "="
+            
+            if lbl != ""
+                desenhar_simbolo_gigante(lbl, x + 25.0, y + 2.0, 1.0, 1.0, 1.0)
+            
+            c = c + 1
+        r = r + 1
+    
+    tupi::cor(1, 0, 0, 1)
+    tupi::retangulo(mx-2, my-2, 4, 4)
+
+class main
+    fun start()
+        let ok = tupi::tupi_janela_criar(320, 240, "Snask Calc", 2.0, 0, "")
+        if ok == 0
+            return nil
+        while tupi::tupi_janela_aberta()
+            atualizar()
+            desenhar()
+            tupi::tupi_janela_atualizar()
+        tupi::tupi_janela_fechar()

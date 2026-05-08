@@ -1028,6 +1028,14 @@ impl SemanticAnalyzer {
             Type::Bool,
             false,
         );
+        self.define_builtin_with_alias("snaskgui_mouse_x", vec![Type::Any], Type::Float, false);
+        self.define_builtin_with_alias("snaskgui_mouse_y", vec![Type::Any], Type::Float, false);
+        self.define_builtin_with_alias(
+            "snaskgui_mouse_down",
+            vec![Type::Any, Type::Float],
+            Type::Bool,
+            false,
+        );
         self.define_builtin_with_alias("snaskgui_should_close", vec![Type::Any], Type::Bool, false);
         self.define_builtin_with_alias("snaskgui_delay", vec![Type::Float], Type::Void, false);
         self.define_builtin_with_alias("snaskgui_close", vec![Type::Any], Type::Void, false);
@@ -1093,8 +1101,14 @@ impl SemanticAnalyzer {
             ("hi_u8", Type::U8),
             ("is_zero_u8", Type::Bool),
             ("is_negative_u8", Type::Bool),
+            ("null_ptr", Type::Ptr),
         ] {
-            self.define_builtin(name, vec![Type::Any], ret, false);
+            let params = if name == "null_ptr" {
+                Vec::new()
+            } else {
+                vec![Type::Any]
+            };
+            self.define_builtin(name, params, ret, false);
         }
 
         for name in [
@@ -1181,6 +1195,7 @@ impl SemanticAnalyzer {
 
     pub fn analyze(&mut self, program: &Program) {
         self.register_classes(program);
+        self.register_functions(program);
         for statement in program {
             self.analyze_statement(statement);
         }
@@ -1194,6 +1209,23 @@ impl SemanticAnalyzer {
                     name: class.name.clone(),
                     symbol_type: Type::User(class.name.clone()),
                     kind: SemanticSymbolKind::Immutable,
+                    is_variadic: false,
+                });
+            }
+        }
+    }
+
+    fn register_functions(&mut self, program: &Program) {
+        for statement in program {
+            if let StmtKind::FuncDeclaration(func) = &statement.kind {
+                let params_types: Vec<Type> = func.params.iter().map(|p| p.1.clone()).collect();
+                self.symbol_table.define(SemanticSymbol {
+                    name: func.name.clone(),
+                    symbol_type: Type::Function(
+                        params_types,
+                        Box::new(func.return_type.clone().unwrap_or(Type::Any)),
+                    ),
+                    kind: SemanticSymbolKind::Function,
                     is_variadic: false,
                 });
             }
@@ -2130,6 +2162,7 @@ impl SemanticAnalyzer {
             "as_i64" => Some(Type::I64),
             "as_usize" => Some(Type::Usize),
             "as_isize" => Some(Type::Isize),
+            "null_ptr" => Some(Type::Ptr),
             "lo_u8" | "hi_u8" => Some(Type::U8),
             "make_u16" => Some(Type::U16),
             "is_zero_u8" | "is_negative_u8" | "bit_test" | "flag_has" | "carry_add_u8"

@@ -69,6 +69,9 @@ void snaskgui_window(SnaskValue* out, SnaskValue* title, SnaskValue* w, SnaskVal
 void snaskgui_present_rgba(SnaskValue* out, SnaskValue* win_h, SnaskValue* pixels, SnaskValue* w, SnaskValue* h);
 void snaskgui_poll(SnaskValue* out, SnaskValue* win_h);
 void snaskgui_key_down(SnaskValue* out, SnaskValue* win_h, SnaskValue* key);
+void snaskgui_mouse_x(SnaskValue* out, SnaskValue* win_h);
+void snaskgui_mouse_y(SnaskValue* out, SnaskValue* win_h);
+void snaskgui_mouse_down(SnaskValue* out, SnaskValue* win_h, SnaskValue* btn);
 void snaskgui_should_close(SnaskValue* out, SnaskValue* win_h);
 void snaskgui_delay(SnaskValue* out, SnaskValue* ms);
 void snaskgui_close(SnaskValue* out, SnaskValue* win_h);

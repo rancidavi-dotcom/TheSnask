@@ -54,6 +54,7 @@ GITHUB_REMOTE_ENV="${GITHUB_REMOTE:-}"
 CODEBERG_REMOTE_ENV="${CODEBERG_REMOTE:-}"
 GITHUB_URL="${GITHUB_URL:-git@github.com:rancidavi-dotcom/TheSnask.git}"
 CODEBERG_URL="${CODEBERG_URL:-git@codeberg.org:DaviVilasBoas/SnaskLang.git}"
+AUR_URL="${AUR_URL:-ssh://aur@aur.archlinux.org/snask.git}"
 
 require_tool() {
     command -v "$1" >/dev/null 2>&1 || die "Ferramenta faltando: $1"
@@ -154,6 +155,51 @@ push_release_to_all() {
     fi
 }
 
+update_aur() {
+    local version="$1"
+    info "7. Atualizando AUR (Arch User Repository)..."
+
+    if ! command -v docker >/dev/null 2>&1; then
+        warn "Docker não encontrado. No Linux Mint, o Docker é necessário para gerar as informações do AUR com segurança."
+        return
+    fi
+
+    # Atualiza versão no PKGBUILD local
+    sed -i "s/^pkgver=.*/pkgver=${version}/" PKGBUILD
+
+    info "Gerando checksums e .SRCINFO via Docker (Arch Linux)..."
+    # Criamos um container temporário para rodar as ferramentas do Arch
+    docker run --rm -v "$(pwd):/work" -w /work archlinux:latest bash -c "
+        pacman -Syu --noconfirm pacman-contrib sudo binutils --needed
+        useradd -m builder
+        echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+        chown -R builder:builder /work
+        sudo -u builder updpkgsums
+        sudo -u builder makepkg --printsrcinfo > .SRCINFO
+    " || { warn "Falha ao processar AUR via Docker."; return; }
+
+    local aur_dir="target/aur-snask"
+    rm -rf "$aur_dir"
+    
+    info "Clonando repositório AUR..."
+    if git clone "$AUR_URL" "$aur_dir"; then
+        cp PKGBUILD .SRCINFO "$aur_dir/"
+        (
+            cd "$aur_dir"
+            git add PKGBUILD .SRCINFO
+            git commit -m "chore: update to version ${version}" || true
+            if [ "$PUSH" = true ]; then
+                git push origin master
+                ok "AUR atualizado com sucesso."
+            else
+                warn "Push para AUR ignorado (--no-push)."
+            fi
+        )
+    else
+        warn "Não foi possível clonar o AUR em $AUR_URL. Verifique permissões/SSH."
+    fi
+}
+
 require_tool cargo
 require_tool git
 require_tool dpkg-deb
@@ -217,10 +263,19 @@ if [ "$PUSH" = true ]; then
         git commit -m "chore(release): version ${VERSION} [automated]"
     fi
 
+    info "Criando tag v${VERSION}..."
+    git tag -a "v${VERSION}" -m "Release v${VERSION}" --force
+
     GITHUB_REMOTE_RESOLVED="$(resolve_github_remote)"
     CODEBERG_REMOTE_RESOLVED="$(resolve_codeberg_remote)"
 
     push_release_to_all "$GITHUB_REMOTE_RESOLVED" "$CODEBERG_REMOTE_RESOLVED"
+    
+    info "Enviando tags..."
+    git push "$GITHUB_REMOTE_RESOLVED" --tags --force
+    git push "$CODEBERG_REMOTE_RESOLVED" --tags --force
+
+    update_aur "$VERSION"
 
     ok "Snask v${VERSION} enviado para GitHub e Codeberg."
 else

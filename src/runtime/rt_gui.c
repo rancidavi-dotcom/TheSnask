@@ -32,6 +32,9 @@ typedef struct {
     int scale;
     int should_close;
     unsigned char keys[512];
+    double mouse_x;
+    double mouse_y;
+    int mouse_btns[5];
 } SnaskGuiWindow;
 
 static gboolean snaskgui_draw_cb(GtkWidget* widget, cairo_t* cr, gpointer user_data) {
@@ -41,13 +44,13 @@ static gboolean snaskgui_draw_cb(GtkWidget* widget, cairo_t* cr, gpointer user_d
 
     cairo_surface_t* surface = cairo_image_surface_create_for_data(
         win->pixels,
-        CAIRO_FORMAT_RGB24,
+        CAIRO_FORMAT_ARGB32,
         win->width,
         win->height,
         win->width * 4
     );
     cairo_save(cr);
-    cairo_scale(cr, win->scale, win->scale);
+    cairo_scale(cr, (double)win->scale, (double)win->scale);
     cairo_set_source_surface(cr, surface, 0, 0);
     cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_NEAREST);
     cairo_paint(cr);
@@ -92,6 +95,28 @@ static gboolean snaskgui_key_release_cb(GtkWidget* widget, GdkEventKey* event, g
     if (!win || !event) return FALSE;
     int idx = snaskgui_key_index(event->keyval);
     if (idx >= 0 && idx < 512) win->keys[idx] = 0;
+    return FALSE;
+}
+
+static gboolean snaskgui_motion_cb(GtkWidget* widget, GdkEventMotion* event, gpointer user_data) {
+    (void)widget;
+    SnaskGuiWindow* win = (SnaskGuiWindow*)user_data;
+    if (win && event) {
+        win->mouse_x = event->x / win->scale;
+        win->mouse_y = event->y / win->scale;
+    }
+    return FALSE;
+}
+
+static gboolean snaskgui_button_cb(GtkWidget* widget, GdkEventButton* event, gpointer user_data) {
+    (void)widget;
+    SnaskGuiWindow* win = (SnaskGuiWindow*)user_data;
+    if (win && event) {
+        if (event->button < 5) {
+            if (event->type == GDK_BUTTON_PRESS) win->mouse_btns[event->button] = 1;
+            else if (event->type == GDK_BUTTON_RELEASE) win->mouse_btns[event->button] = 0;
+        }
+    }
     return FALSE;
 }
 
@@ -751,13 +776,35 @@ void snaskgui_window(SnaskValue* out, SnaskValue* title, SnaskValue* w, SnaskVal
     gtk_container_add(GTK_CONTAINER(win->window), win->area);
 
     gtk_widget_add_events(win->window, GDK_KEY_PRESS_MASK | GDK_KEY_RELEASE_MASK);
+    gtk_widget_add_events(win->area, GDK_POINTER_MOTION_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK);
+    
     g_signal_connect(win->area, "draw", G_CALLBACK(snaskgui_draw_cb), win);
     g_signal_connect(win->window, "key-press-event", G_CALLBACK(snaskgui_key_press_cb), win);
     g_signal_connect(win->window, "key-release-event", G_CALLBACK(snaskgui_key_release_cb), win);
+    g_signal_connect(win->area, "motion-notify-event", G_CALLBACK(snaskgui_motion_cb), win);
+    g_signal_connect(win->area, "button-press-event", G_CALLBACK(snaskgui_button_cb), win);
+    g_signal_connect(win->area, "button-release-event", G_CALLBACK(snaskgui_button_cb), win);
     g_signal_connect(win->window, "destroy", G_CALLBACK(snaskgui_destroy_cb), win);
     gtk_widget_show_all(win->window);
 
     *out = MAKE_STR(gui_ptr_to_handle(win));
+}
+
+void snaskgui_mouse_x(SnaskValue* out, SnaskValue* win_h) {
+    SnaskGuiWindow* win = snaskgui_from_handle(win_h);
+    *out = MAKE_NUM(win ? win->mouse_x : 0.0);
+}
+
+void snaskgui_mouse_y(SnaskValue* out, SnaskValue* win_h) {
+    SnaskGuiWindow* win = snaskgui_from_handle(win_h);
+    *out = MAKE_NUM(win ? win->mouse_y : 0.0);
+}
+
+void snaskgui_mouse_down(SnaskValue* out, SnaskValue* win_h, SnaskValue* btn) {
+    SnaskGuiWindow* win = snaskgui_from_handle(win_h);
+    if (!win || (int)btn->tag != SNASK_NUM) { *out = MAKE_BOOL(false); return; }
+    int b = (int)btn->num;
+    *out = MAKE_BOOL(b >= 0 && b < 5 && win->mouse_btns[b] != 0);
 }
 
 void snaskgui_present_rgba(SnaskValue* out, SnaskValue* win_h, SnaskValue* pixels, SnaskValue* w, SnaskValue* h) {

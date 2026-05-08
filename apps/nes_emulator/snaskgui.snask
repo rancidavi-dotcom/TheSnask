@@ -19,6 +19,15 @@ fun should_close(window_handle) : bool
 fun key_down(window_handle, key: int) : bool
     return snaskgui_key_down(window_handle, key)
 
+fun mouse_x(window_handle) : float
+    return snaskgui_mouse_x(window_handle)
+
+fun mouse_y(window_handle) : float
+    return snaskgui_mouse_y(window_handle)
+
+fun mouse_down(window_handle, button: float) : bool
+    return snaskgui_mouse_down(window_handle, button)
+
 fun delay(ms: int)
     snaskgui_delay(ms)
 

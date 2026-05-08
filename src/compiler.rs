@@ -6,9 +6,9 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::ast::{
-    ConstDecl, DictDecl, DictSet, Expr, ExprKind, IndexAssignment, ListDecl, ListPush,
-    LiteralValue, Location, LoopStmt, MutDecl, Program, PropertyAssignment, Stmt, StmtKind,
-    VarDecl, VarSet,
+    ClassDecl, ConditionalStmt, ConstDecl, DictDecl, DictSet, Expr, ExprKind, FuncDecl, IfBlock,
+    IndexAssignment, ListDecl, ListPush, LiteralValue, Location, LoopStmt, MutDecl, Program,
+    PropertyAssignment, Stmt, StmtKind, VarDecl, VarSet,
 };
 use crate::diagnostics::{humane_code, Annotation, Diagnostic, DiagnosticBag};
 use crate::llvm_generator::LLVMGenerator;
@@ -20,6 +20,7 @@ use crate::semantic_analyzer::{SemanticAnalyzer, SemanticError};
 use crate::sps::SnifFeatureValue;
 use crate::toolchain;
 use crate::tools::{get_pkg_cflags, get_pkg_libs, has_pkg};
+use crate::types::Type;
 
 /// Options for the compiler build process.
 #[derive(Debug, Clone, Default)]
@@ -801,8 +802,8 @@ fn render_baremetal_restrictions(
 #[cfg(test)]
 mod tests {
     use super::{
-        find_baremetal_restrictions, render_baremetal_restrictions, render_parser_diagnostics,
-        render_semantic_diagnostics, validate_entrypoint,
+        find_baremetal_restrictions, namespace_imported_module, render_baremetal_restrictions,
+        render_parser_diagnostics, render_semantic_diagnostics, validate_entrypoint,
     };
     use crate::ast::{ClassDecl, Location, Stmt, StmtKind};
     use crate::parser::Parser;
@@ -892,6 +893,34 @@ mod tests {
         assert!(rendered.contains("error[S2010]: expected `int`, found `str`"));
         assert!(rendered.contains("type mismatch here"));
         assert!(!rendered.contains("String"));
+    }
+
+    #[test]
+    fn imported_module_namespace_keeps_parameters_local() {
+        let source = "fun largura() : int\n    return 1\n\nfun area(largura: int, altura: int) : int\n    return largura * altura\n";
+        let mut parser = Parser::new(source).expect("source should tokenize");
+        let (program, errors) = parser.parse_program_recovering(10);
+        assert!(errors.is_empty(), "unexpected parse errors: {errors:?}");
+        let mut program = program.expect("program should parse");
+
+        namespace_imported_module(&mut program, "tupi");
+
+        let area = program
+            .iter()
+            .find_map(|stmt| match &stmt.kind {
+                StmtKind::FuncDeclaration(func) if func.name == "tupi::area" => Some(func),
+                _ => None,
+            })
+            .expect("area function should be namespaced");
+
+        if let StmtKind::Return(expr) = &area.body[0].kind {
+            let rendered = format!("{:?}", expr.kind);
+            assert!(rendered.contains("Variable(\"largura\")"));
+            assert!(rendered.contains("Variable(\"altura\")"));
+            assert!(!rendered.contains("tupi::largura"));
+        } else {
+            panic!("area body should return an expression");
+        }
     }
 
     #[test]
@@ -1279,28 +1308,14 @@ pub fn resolve_imports(
                                 ));
                             }
                             if let Some(mut prog) = module_program {
-                                let prefix = module_name.split('/').last().unwrap_or(module_name);
+                                let prefix = Path::new(module_name)
+                                    .file_stem()
+                                    .and_then(|stem| stem.to_str())
+                                    .unwrap_or_else(|| {
+                                        module_name.split('/').last().unwrap_or(module_name)
+                                    });
                                 if prefix != "prelude" {
-                                    for s in &mut prog {
-                                        match &mut s.kind {
-                                            StmtKind::FuncDeclaration(f) => {
-                                                f.name = format!("{}::{}", prefix, f.name)
-                                            }
-                                            StmtKind::ClassDeclaration(c) => {
-                                                c.name = format!("{}::{}", prefix, c.name)
-                                            }
-                                            StmtKind::VarDeclaration(v) => {
-                                                v.name = format!("{}::{}", prefix, v.name)
-                                            }
-                                            StmtKind::MutDeclaration(v) => {
-                                                v.name = format!("{}::{}", prefix, v.name)
-                                            }
-                                            StmtKind::ConstDeclaration(v) => {
-                                                v.name = format!("{}::{}", prefix, v.name)
-                                            }
-                                            _ => {}
-                                        }
-                                    }
+                                    namespace_imported_module(&mut prog, prefix);
                                 }
                                 resolve_imports(
                                     &mut prog,
@@ -1327,6 +1342,326 @@ pub fn resolve_imports(
         }
     }
     Ok(())
+}
+
+fn namespace_imported_module(program: &mut Program, prefix: &str) {
+    let local_symbols: HashSet<String> = program
+        .iter()
+        .filter_map(|stmt| match &stmt.kind {
+            StmtKind::FuncDeclaration(f) => Some(f.name.clone()),
+            StmtKind::ClassDeclaration(c) => Some(c.name.clone()),
+            StmtKind::VarDeclaration(v) => Some(v.name.clone()),
+            StmtKind::MutDeclaration(v) => Some(v.name.clone()),
+            StmtKind::ConstDeclaration(v) => Some(v.name.clone()),
+            _ => None,
+        })
+        .collect();
+
+    for stmt in program {
+        rewrite_stmt_for_namespace(stmt, prefix, &local_symbols);
+        match &mut stmt.kind {
+            StmtKind::FuncDeclaration(f) => f.name = namespaced(prefix, &f.name),
+            StmtKind::ClassDeclaration(c) => c.name = namespaced(prefix, &c.name),
+            StmtKind::VarDeclaration(v) => v.name = namespaced(prefix, &v.name),
+            StmtKind::MutDeclaration(v) => v.name = namespaced(prefix, &v.name),
+            StmtKind::ConstDeclaration(v) => v.name = namespaced(prefix, &v.name),
+            _ => {}
+        }
+    }
+}
+
+fn namespaced(prefix: &str, name: &str) -> String {
+    if name.contains("::") {
+        name.to_string()
+    } else {
+        format!("{prefix}::{name}")
+    }
+}
+
+fn rewrite_type_for_namespace(ty: &mut Type, prefix: &str, local_symbols: &HashSet<String>) {
+    match ty {
+        Type::User(name) if local_symbols.contains(name) => *name = namespaced(prefix, name),
+        Type::ListOf(inner) => rewrite_type_for_namespace(inner, prefix, local_symbols),
+        Type::DictOf(key, value) => {
+            rewrite_type_for_namespace(key, prefix, local_symbols);
+            rewrite_type_for_namespace(value, prefix, local_symbols);
+        }
+        Type::Function(params, ret) => {
+            for p in params {
+                rewrite_type_for_namespace(p, prefix, local_symbols);
+            }
+            rewrite_type_for_namespace(ret, prefix, local_symbols);
+        }
+        _ => {}
+    }
+}
+
+fn rewrite_opt_type_for_namespace(
+    ty: &mut Option<Type>,
+    prefix: &str,
+    local_symbols: &HashSet<String>,
+) {
+    if let Some(ty) = ty {
+        rewrite_type_for_namespace(ty, prefix, local_symbols);
+    }
+}
+
+fn rewrite_var_decl_for_namespace(v: &mut VarDecl, prefix: &str, local_symbols: &HashSet<String>) {
+    rewrite_opt_type_for_namespace(&mut v.var_type, prefix, local_symbols);
+    rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols);
+}
+
+fn rewrite_mut_decl_for_namespace(v: &mut MutDecl, prefix: &str, local_symbols: &HashSet<String>) {
+    rewrite_opt_type_for_namespace(&mut v.var_type, prefix, local_symbols);
+    rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols);
+}
+
+fn rewrite_const_decl_for_namespace(
+    v: &mut ConstDecl,
+    prefix: &str,
+    local_symbols: &HashSet<String>,
+) {
+    rewrite_opt_type_for_namespace(&mut v.var_type, prefix, local_symbols);
+    rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols);
+}
+
+fn rewrite_func_decl_for_namespace(
+    f: &mut FuncDecl,
+    prefix: &str,
+    local_symbols: &HashSet<String>,
+) {
+    for (_, ty) in &mut f.params {
+        rewrite_type_for_namespace(ty, prefix, local_symbols);
+    }
+    rewrite_opt_type_for_namespace(&mut f.return_type, prefix, local_symbols);
+    let mut visible_symbols = local_symbols.clone();
+    for (name, _) in &f.params {
+        visible_symbols.remove(name);
+    }
+    let mut local_names = HashSet::new();
+    collect_stmt_local_names(&f.body, &mut local_names);
+    for name in local_names {
+        visible_symbols.remove(&name);
+    }
+    rewrite_stmts_for_namespace(&mut f.body, prefix, &visible_symbols);
+}
+
+fn collect_stmt_local_names(stmts: &[Stmt], names: &mut HashSet<String>) {
+    for stmt in stmts {
+        match &stmt.kind {
+            StmtKind::VarDeclaration(v) => {
+                names.insert(v.name.clone());
+            }
+            StmtKind::MutDeclaration(v) => {
+                names.insert(v.name.clone());
+            }
+            StmtKind::ConstDeclaration(v) => {
+                names.insert(v.name.clone());
+            }
+            StmtKind::ListDeclaration(v) => {
+                names.insert(v.name.clone());
+            }
+            StmtKind::DictDeclaration(v) => {
+                names.insert(v.name.clone());
+            }
+            StmtKind::Conditional(c) => {
+                collect_stmt_local_names(&c.if_block.body, names);
+                for block in &c.elif_blocks {
+                    collect_stmt_local_names(&block.body, names);
+                }
+                if let Some(body) = &c.else_block {
+                    collect_stmt_local_names(body, names);
+                }
+            }
+            StmtKind::Loop(LoopStmt::While { body, .. }) => collect_stmt_local_names(body, names),
+            StmtKind::Loop(LoopStmt::For { iterator, body, .. }) => {
+                names.insert(iterator.clone());
+                collect_stmt_local_names(body, names);
+            }
+            StmtKind::UnsafeBlock(body)
+            | StmtKind::Scope { body, .. }
+            | StmtKind::Zone { body, .. } => {
+                collect_stmt_local_names(body, names);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn rewrite_class_decl_for_namespace(
+    c: &mut ClassDecl,
+    prefix: &str,
+    local_symbols: &HashSet<String>,
+) {
+    if let Some(parent) = &mut c.parent {
+        if local_symbols.contains(parent) {
+            *parent = namespaced(prefix, parent);
+        }
+    }
+    for p in &mut c.properties {
+        rewrite_var_decl_for_namespace(p, prefix, local_symbols);
+    }
+    for m in &mut c.methods {
+        rewrite_func_decl_for_namespace(m, prefix, local_symbols);
+    }
+}
+
+fn rewrite_stmts_for_namespace(stmts: &mut [Stmt], prefix: &str, local_symbols: &HashSet<String>) {
+    for stmt in stmts {
+        rewrite_stmt_for_namespace(stmt, prefix, local_symbols);
+    }
+}
+
+fn rewrite_if_block_for_namespace(
+    block: &mut IfBlock,
+    prefix: &str,
+    local_symbols: &HashSet<String>,
+) {
+    rewrite_expr_for_namespace(&mut block.condition, prefix, local_symbols);
+    rewrite_stmts_for_namespace(&mut block.body, prefix, local_symbols);
+}
+
+fn rewrite_conditional_for_namespace(
+    c: &mut ConditionalStmt,
+    prefix: &str,
+    local_symbols: &HashSet<String>,
+) {
+    rewrite_if_block_for_namespace(&mut c.if_block, prefix, local_symbols);
+    for block in &mut c.elif_blocks {
+        rewrite_if_block_for_namespace(block, prefix, local_symbols);
+    }
+    if let Some(body) = &mut c.else_block {
+        rewrite_stmts_for_namespace(body, prefix, local_symbols);
+    }
+}
+
+fn rewrite_stmt_for_namespace(stmt: &mut Stmt, prefix: &str, local_symbols: &HashSet<String>) {
+    match &mut stmt.kind {
+        StmtKind::Expression(e) | StmtKind::FuncCall(e) | StmtKind::Return(e) => {
+            rewrite_expr_for_namespace(e, prefix, local_symbols)
+        }
+        StmtKind::VarDeclaration(v) => rewrite_var_decl_for_namespace(v, prefix, local_symbols),
+        StmtKind::MutDeclaration(v) => rewrite_mut_decl_for_namespace(v, prefix, local_symbols),
+        StmtKind::ConstDeclaration(v) => rewrite_const_decl_for_namespace(v, prefix, local_symbols),
+        StmtKind::VarAssignment(v) => {
+            if local_symbols.contains(&v.name) {
+                v.name = namespaced(prefix, &v.name);
+            }
+            rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols)
+        }
+        StmtKind::PropertyAssignment(a) => {
+            rewrite_expr_for_namespace(&mut a.target, prefix, local_symbols);
+            rewrite_expr_for_namespace(&mut a.value, prefix, local_symbols);
+        }
+        StmtKind::IndexAssignment(a) => {
+            rewrite_expr_for_namespace(&mut a.target, prefix, local_symbols);
+            rewrite_expr_for_namespace(&mut a.index, prefix, local_symbols);
+            rewrite_expr_for_namespace(&mut a.value, prefix, local_symbols);
+        }
+        StmtKind::Print(exprs) => {
+            for e in exprs {
+                rewrite_expr_for_namespace(e, prefix, local_symbols);
+            }
+        }
+        StmtKind::Input { var_type, .. } => {
+            rewrite_type_for_namespace(var_type, prefix, local_symbols);
+        }
+        StmtKind::FuncDeclaration(f) => rewrite_func_decl_for_namespace(f, prefix, local_symbols),
+        StmtKind::ClassDeclaration(c) => rewrite_class_decl_for_namespace(c, prefix, local_symbols),
+        StmtKind::Conditional(c) => rewrite_conditional_for_namespace(c, prefix, local_symbols),
+        StmtKind::Loop(LoopStmt::While { condition, body }) => {
+            rewrite_expr_for_namespace(condition, prefix, local_symbols);
+            rewrite_stmts_for_namespace(body, prefix, local_symbols);
+        }
+        StmtKind::Loop(LoopStmt::For { iterable, body, .. }) => {
+            rewrite_expr_for_namespace(iterable, prefix, local_symbols);
+            rewrite_stmts_for_namespace(body, prefix, local_symbols);
+        }
+        StmtKind::ListDeclaration(v) => {
+            rewrite_opt_type_for_namespace(&mut v.var_type, prefix, local_symbols);
+            rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols);
+        }
+        StmtKind::ListPush(v) => {
+            if local_symbols.contains(&v.name) {
+                v.name = namespaced(prefix, &v.name);
+            }
+            rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols);
+        }
+        StmtKind::DictDeclaration(v) => {
+            rewrite_opt_type_for_namespace(&mut v.var_type, prefix, local_symbols);
+            rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols);
+        }
+        StmtKind::DictSet(v) => {
+            if local_symbols.contains(&v.name) {
+                v.name = namespaced(prefix, &v.name);
+            }
+            rewrite_expr_for_namespace(&mut v.key, prefix, local_symbols);
+            rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols);
+        }
+        StmtKind::UnsafeBlock(body)
+        | StmtKind::Scope { body, .. }
+        | StmtKind::Zone { body, .. } => {
+            rewrite_stmts_for_namespace(body, prefix, local_symbols);
+        }
+        _ => {}
+    }
+}
+
+fn rewrite_literal_for_namespace(
+    lit: &mut LiteralValue,
+    prefix: &str,
+    local_symbols: &HashSet<String>,
+) {
+    match lit {
+        LiteralValue::List(items) => {
+            for item in items {
+                rewrite_expr_for_namespace(item, prefix, local_symbols);
+            }
+        }
+        LiteralValue::Dict(items) => {
+            for (k, v) in items {
+                rewrite_expr_for_namespace(k, prefix, local_symbols);
+                rewrite_expr_for_namespace(v, prefix, local_symbols);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn rewrite_expr_for_namespace(expr: &mut Expr, prefix: &str, local_symbols: &HashSet<String>) {
+    match &mut expr.kind {
+        ExprKind::Literal(lit) => rewrite_literal_for_namespace(lit, prefix, local_symbols),
+        ExprKind::Variable(name) if local_symbols.contains(name) => {
+            *name = namespaced(prefix, name)
+        }
+        ExprKind::Unary { expr, .. } => rewrite_expr_for_namespace(expr, prefix, local_symbols),
+        ExprKind::Binary { left, right, .. } => {
+            rewrite_expr_for_namespace(left, prefix, local_symbols);
+            rewrite_expr_for_namespace(right, prefix, local_symbols);
+        }
+        ExprKind::FunctionCall { callee, args } => {
+            rewrite_expr_for_namespace(callee, prefix, local_symbols);
+            for arg in args {
+                rewrite_expr_for_namespace(arg, prefix, local_symbols);
+            }
+        }
+        ExprKind::PropertyAccess { target, .. } => {
+            rewrite_expr_for_namespace(target, prefix, local_symbols);
+        }
+        ExprKind::IndexAccess { target, index } => {
+            rewrite_expr_for_namespace(target, prefix, local_symbols);
+            rewrite_expr_for_namespace(index, prefix, local_symbols);
+        }
+        ExprKind::New { class, args, .. } => {
+            if local_symbols.contains(class) {
+                *class = namespaced(prefix, class);
+            }
+            for arg in args {
+                rewrite_expr_for_namespace(arg, prefix, local_symbols);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn resolve_module_path(entry_dir: &Path, module_name: &str) -> Result<String, String> {

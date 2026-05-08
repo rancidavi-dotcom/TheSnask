@@ -275,6 +275,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
             "i64" => Some(crate::types::Type::I64),
             "usize" => Some(crate::types::Type::Usize),
             "isize" => Some(crate::types::Type::Isize),
+            "ptr" => Some(crate::types::Type::Ptr),
             _ => None,
         }
     }
@@ -282,7 +283,7 @@ impl<'ctx> LLVMGenerator<'ctx> {
     fn runtime_function_return_type(&self, name: &str) -> Option<crate::types::Type> {
         match name {
             "is_nil" | "is_str" | "is_obj" => Some(crate::types::Type::Bool),
-            "len" => Some(crate::types::Type::Float),
+            "len" | "time" | "s_time" => Some(crate::types::Type::Float),
             "num_to_str" => Some(crate::types::Type::String),
             "str_to_num" => Some(crate::types::Type::Float),
             "binfile_size" | "binfile_read_into" => Some(crate::types::Type::Float),
@@ -331,7 +332,9 @@ impl<'ctx> LLVMGenerator<'ctx> {
             | "snaskgui_present_rgba"
             | "snaskgui_poll"
             | "snaskgui_key_down"
+            | "snaskgui_mouse_down"
             | "snaskgui_should_close" => Some(crate::types::Type::Bool),
+            "snaskgui_mouse_x" | "snaskgui_mouse_y" => Some(crate::types::Type::Float),
             "snaskgui_delay" | "snaskgui_close" => Some(crate::types::Type::Void),
             _ => None,
         }
@@ -455,6 +458,15 @@ impl<'ctx> LLVMGenerator<'ctx> {
         }
 
         match name {
+            "null_ptr" => {
+                if !args.is_empty() {
+                    return Err("null_ptr expects 0 arguments.".to_string());
+                }
+                Ok(Some((
+                    self.ptr_type.const_null().into(),
+                    crate::types::Type::Ptr,
+                )))
+            }
             "lo_u8" | "hi_u8" => {
                 if args.len() != 1 {
                     return Err(format!("{name} expects 1 argument."));
@@ -1122,6 +1134,40 @@ impl<'ctx> LLVMGenerator<'ctx> {
                         let mut l_args = Vec::new();
                         let r_a = self.create_entry_block_alloca(self.value_type, "ra");
                         l_args.push(r_a.into());
+                        let self_a = self.create_entry_block_alloca(self.value_type, "entry_self");
+                        let mut self_v = self.value_type.get_undef();
+                        self_v = self
+                            .builder
+                            .build_insert_value(
+                                self_v,
+                                self.context.f64_type().const_float(TYPE_NIL as f64),
+                                0,
+                                "entry_self_tag",
+                            )
+                            .unwrap()
+                            .into_struct_value();
+                        self_v = self
+                            .builder
+                            .build_insert_value(
+                                self_v,
+                                self.context.f64_type().const_float(0.0),
+                                1,
+                                "entry_self_num",
+                            )
+                            .unwrap()
+                            .into_struct_value();
+                        self_v = self
+                            .builder
+                            .build_insert_value(
+                                self_v,
+                                self.ptr_type.const_null(),
+                                2,
+                                "entry_self_ptr",
+                            )
+                            .unwrap()
+                            .into_struct_value();
+                        self.builder.build_store(self_a, self_v).unwrap();
+                        l_args.push(self_a.into());
                         self.builder.build_call(*f, &l_args, "call_entry").unwrap();
                         entry_point_found = true;
                     }
@@ -1851,6 +1897,18 @@ impl<'ctx> LLVMGenerator<'ctx> {
         self.functions.insert(
             "snaskgui_key_down".to_string(),
             self.module.add_function("snaskgui_key_down", fn_2, None),
+        );
+        self.functions.insert(
+            "snaskgui_mouse_x".to_string(),
+            self.module.add_function("snaskgui_mouse_x", fn_1, None),
+        );
+        self.functions.insert(
+            "snaskgui_mouse_y".to_string(),
+            self.module.add_function("snaskgui_mouse_y", fn_1, None),
+        );
+        self.functions.insert(
+            "snaskgui_mouse_down".to_string(),
+            self.module.add_function("snaskgui_mouse_down", fn_2, None),
         );
         self.functions.insert(
             "snaskgui_should_close".to_string(),
@@ -4381,6 +4439,88 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     ));
                 }
 
+                if (lty == crate::types::Type::Any || rty == crate::types::Type::Any)
+                    && matches!(
+                        op,
+                        BinaryOp::Add
+                            | BinaryOp::Subtract
+                            | BinaryOp::Multiply
+                            | BinaryOp::Divide
+                            | BinaryOp::LessThan
+                            | BinaryOp::LessThanOrEquals
+                            | BinaryOp::GreaterThan
+                            | BinaryOp::GreaterThanOrEquals
+                    )
+                {
+                    let lhs_boxed = self.box_value(lhs, lty);
+                    let rhs_boxed = self.box_value(rhs, rty);
+                    let lf = self
+                        .builder
+                        .build_extract_value(lhs_boxed, 1, "any_lnum")
+                        .unwrap()
+                        .into_float_value();
+                    let rf = self
+                        .builder
+                        .build_extract_value(rhs_boxed, 1, "any_rnum")
+                        .unwrap()
+                        .into_float_value();
+                    let res = match op {
+                        BinaryOp::Add => self
+                            .builder
+                            .build_float_add(lf, rf, "any_add")
+                            .unwrap()
+                            .into(),
+                        BinaryOp::Subtract => self
+                            .builder
+                            .build_float_sub(lf, rf, "any_sub")
+                            .unwrap()
+                            .into(),
+                        BinaryOp::Multiply => self
+                            .builder
+                            .build_float_mul(lf, rf, "any_mul")
+                            .unwrap()
+                            .into(),
+                        BinaryOp::Divide => self
+                            .builder
+                            .build_float_div(lf, rf, "any_div")
+                            .unwrap()
+                            .into(),
+                        BinaryOp::LessThan => self
+                            .builder
+                            .build_float_compare(inkwell::FloatPredicate::OLT, lf, rf, "any_lt")
+                            .unwrap()
+                            .into(),
+                        BinaryOp::LessThanOrEquals => self
+                            .builder
+                            .build_float_compare(inkwell::FloatPredicate::OLE, lf, rf, "any_le")
+                            .unwrap()
+                            .into(),
+                        BinaryOp::GreaterThan => self
+                            .builder
+                            .build_float_compare(inkwell::FloatPredicate::OGT, lf, rf, "any_gt")
+                            .unwrap()
+                            .into(),
+                        BinaryOp::GreaterThanOrEquals => self
+                            .builder
+                            .build_float_compare(inkwell::FloatPredicate::OGE, lf, rf, "any_ge")
+                            .unwrap()
+                            .into(),
+                        _ => unreachable!(),
+                    };
+                    let res_ty = if matches!(
+                        op,
+                        BinaryOp::LessThan
+                            | BinaryOp::LessThanOrEquals
+                            | BinaryOp::GreaterThan
+                            | BinaryOp::GreaterThanOrEquals
+                    ) {
+                        crate::types::Type::Bool
+                    } else {
+                        crate::types::Type::Float
+                    };
+                    return Ok((res, res_ty));
+                }
+
                 if lty == crate::types::Type::String && rty == crate::types::Type::String {
                     let helper_name = match op {
                         BinaryOp::Equals | BinaryOp::StrictEquals => "s_eq",
@@ -4652,8 +4792,8 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 }
 
                 Err(format!(
-                    "Operation {:?} not supported for types {:?} and {:?}",
-                    op, lty, rty
+                    "Operation {:?} not supported for types {:?} and {:?} at {}:{}",
+                    op, lty, rty, expr.loc.line, expr.loc.column
                 ))
             }
             ExprKind::PropertyAccess { target, property } => {
