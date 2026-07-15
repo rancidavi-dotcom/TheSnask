@@ -2,6 +2,7 @@ use crate::ast::{
     BinaryOp, Expr, ExprKind, FuncDecl, LiteralValue, Location, Program, Stmt, StmtKind, VarDecl,
 };
 use crate::om_contract::{OmContract, OmFunctionContract, OmResourceContract};
+use crate::types::Type;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
@@ -135,10 +136,16 @@ pub struct LLVMGenerator<'ctx> {
     active_zone_depth: usize,
     om_contracts: HashMap<String, OmContract>,
     function_return_types: HashMap<String, crate::types::Type>,
+    is_baremetal: bool,
+    global_asm: String,
+    struct_types: HashMap<String, StructType<'ctx>>,
+    struct_decls: HashMap<String, crate::ast::StructDecl>,
+    current_func_is_raw: bool,
+    raw_function_params: HashMap<String, Vec<crate::types::Type>>,
 }
 
 impl<'ctx> LLVMGenerator<'ctx> {
-    pub fn new(context: &'ctx Context, module_name: &str) -> Self {
+    pub fn new(context: &'ctx Context, module_name: &str, is_baremetal: bool) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
         let i32_type = context.i32_type();
@@ -167,6 +174,12 @@ impl<'ctx> LLVMGenerator<'ctx> {
             active_zone_depth: 0,
             om_contracts: HashMap::new(),
             function_return_types: HashMap::new(),
+            is_baremetal,
+            global_asm: String::new(),
+            struct_types: HashMap::new(),
+            struct_decls: HashMap::new(),
+            current_func_is_raw: false,
+            raw_function_params: HashMap::new(),
         }
     }
 
@@ -183,6 +196,13 @@ impl<'ctx> LLVMGenerator<'ctx> {
             Type::Float | Type::F64 => self.f64_type.into(),
             Type::Bool => self.bool_type.into(),
             Type::String | Type::Ptr | Type::User(_) => self.ptr_type.into(),
+            Type::Volatile(inner) => self.snask_type_to_llvm(inner),
+            Type::Struct(name) => self.struct_types.get(name)
+                .map(|s| s.as_basic_type_enum())
+                .unwrap_or_else(|| self.ptr_type.into()),
+            Type::Array(_, _) => {
+                self.context.i8_type().array_type(0).into() // placeholder, will improve later
+            }
             _ => self.value_type.into(), // Fallback para Any/Complexos
         }
     }
@@ -260,6 +280,21 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 .into();
         }
         value
+    }
+
+    fn unbox_to_ptr(&self, val: BasicValueEnum<'ctx>) -> PointerValue<'ctx> {
+        if val.is_struct_value() {
+            self.unbox_value(val.into_struct_value(), crate::types::Type::Ptr)
+                .into_pointer_value()
+        } else if val.is_pointer_value() {
+            val.into_pointer_value()
+        } else {
+            self.builder.build_int_to_ptr(
+                val.into_int_value(),
+                self.ptr_type,
+                "inttoptr",
+            ).unwrap()
+        }
     }
 
     fn int_type_for_bits(&self, bits: u32) -> IntType<'ctx> {
@@ -1131,21 +1166,33 @@ impl<'ctx> LLVMGenerator<'ctx> {
             }
         }
 
-        let i32_type = self.context.i32_type();
-        let main_func = self
-            .module
-            .add_function("main", i32_type.fn_type(&[], false), None);
-        let entry = self.context.append_basic_block(main_func, "entry");
-        self.builder.position_at_end(entry);
-        self.current_func = Some(main_func);
+        if !self.is_baremetal {
+            let i32_type = self.context.i32_type();
+            let main_func = self
+                .module
+                .add_function("main", i32_type.fn_type(&[], false), None);
+            let entry = self.context.append_basic_block(main_func, "entry");
+            self.builder.position_at_end(entry);
+            self.current_func = Some(main_func);
+        } else {
+            // Baremetal: create a temporary init function for top-level globals
+            let init_func = self
+                .module
+                .add_function("__snask_init", self.context.void_type().fn_type(&[], false), None);
+            let entry = self.context.append_basic_block(init_func, "entry");
+            self.builder.position_at_end(entry);
+            self.current_func = Some(init_func);
+        }
 
         // ABI version check — aborta se runtime e compiler não combinam
-        if let Some(abi_check) = self.module.get_function("s_check_abi") {
-            self.builder.build_call(
-                abi_check,
-                &[self.context.i32_type().const_int(SNASK_ABI_VERSION as u64, false).into()],
-                "abi_check",
-            ).unwrap();
+        if !self.is_baremetal {
+            if let Some(abi_check) = self.module.get_function("s_check_abi") {
+                self.builder.build_call(
+                    abi_check,
+                    &[self.context.i32_type().const_int(SNASK_ABI_VERSION as u64, false).into()],
+                    "abi_check",
+                ).unwrap();
+            }
         }
 
         // Always execute top-level statements (globals) before start.
@@ -1282,15 +1329,21 @@ impl<'ctx> LLVMGenerator<'ctx> {
             .get_terminator()
             .is_none()
         {
-            self.builder
-                .build_return(Some(&i32_type.const_int(0, false)))
-                .unwrap();
+            if self.is_baremetal {
+                self.builder.build_return(None).unwrap();
+            } else {
+                self.builder
+                    .build_return(Some(&self.i32_type.const_int(0, false)))
+                    .unwrap();
+            }
         }
 
         // Gera o corpo das funções
         for stmt in program {
             if let StmtKind::FuncDeclaration(func) = &stmt.kind {
-                self.generate_function_body(func.clone())?;
+                if !func.is_extern {
+                    self.generate_function_body(func.clone())?;
+                }
             }
             if let StmtKind::ClassDeclaration(class) = &stmt.kind {
                 // Pega a versão atualizada da classe (com o self injetado)
@@ -1300,6 +1353,9 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     self.generate_function_body(method)?;
                 }
             }
+        }
+        if !self.global_asm.is_empty() {
+            self.module.set_inline_assembly(&self.global_asm);
         }
         Ok(self.module.print_to_string().to_string())
     }
@@ -3436,7 +3492,41 @@ impl<'ctx> LLVMGenerator<'ctx> {
     }
 
     fn declare_function(&mut self, func: &FuncDecl) -> Result<(), String> {
-        let mut p_types: Vec<inkwell::types::BasicMetadataTypeEnum> = vec![self.ptr_type.into()];
+        if func.is_raw || func.is_extern || func.is_naked {
+            // Raw/extern/naked function: use native LLVM types (no SnaskValue boxing)
+            let mut p_types: Vec<BasicMetadataTypeEnum<'ctx>> = Vec::new();
+            for (_, param_ty) in &func.params {
+                let llvm_ty = self.snask_type_to_llvm(param_ty);
+                p_types.push(llvm_ty.into());
+            }
+            let fn_t: inkwell::types::FunctionType<'ctx> = match &func.return_type {
+                Some(t) if *t != Type::Void => {
+                    let ret_llvm = self.snask_type_to_llvm(t);
+                    ret_llvm.fn_type(&p_types, false)
+                }
+                _ => self.context.void_type().fn_type(&p_types, false),
+            };
+            let f_name = if func.is_extern || func.is_naked || func.is_raw {
+                func.name.clone()
+            } else {
+                format!("f_{}", self.sanitize_name(&func.name))
+            };
+            let function = self.module.add_function(&f_name, fn_t, None);
+            self.functions.insert(func.name.clone(), function);
+            if let Some(return_type) = &func.return_type {
+                self.function_return_types
+                    .insert(func.name.clone(), return_type.clone());
+            }
+            self.raw_function_params.insert(func.name.clone(),
+                func.params.iter().map(|(_, t)| t.clone()).collect());
+            if func.is_naked {
+                let attr = self.context.create_string_attribute("naked", "");
+                function.add_attribute(inkwell::attributes::AttributeLoc::Function, attr);
+            }
+            return Ok(());
+        }
+
+        let mut p_types: Vec<BasicMetadataTypeEnum> = vec![self.ptr_type.into()];
         for _ in &func.params {
             p_types.push(self.ptr_type.into());
         }
@@ -3446,6 +3536,12 @@ impl<'ctx> LLVMGenerator<'ctx> {
             self.context.void_type().fn_type(&p_types, false),
             None,
         );
+        
+        if func.is_interrupt {
+            let attr = self.context.create_string_attribute("interrupt", "");
+            function.add_attribute(inkwell::attributes::AttributeLoc::Function, attr);
+        }
+
         self.functions.insert(func.name.clone(), function);
         if let Some(return_type) = &func.return_type {
             self.function_return_types
@@ -3456,69 +3552,123 @@ impl<'ctx> LLVMGenerator<'ctx> {
 
     fn generate_function_body(&mut self, func: FuncDecl) -> Result<(), String> {
         let function = *self.functions.get(&func.name).unwrap();
-        let entry = self.context.append_basic_block(function, "entry");
-        self.builder.position_at_end(entry);
         self.current_func = Some(function);
         let old_vars = self.variables.clone();
         let old_zone_depth = self.active_zone_depth;
+        let old_raw_mode = self.current_func_is_raw;
         self.active_zone_depth = 0;
         self.local_vars.clear();
-        let r_ptr = function.get_nth_param(0).unwrap().into_pointer_value();
+        self.current_func_is_raw = func.is_raw || func.is_naked;
 
-        // Parâmetros começam no índice 1, porque o 0 é o RA (Return Address/Pointer)
-        for (i, (name, param_ty)) in func.params.iter().enumerate() {
-            let p_ptr = function
-                .get_nth_param((i + 1) as u32)
-                .unwrap()
-                .into_pointer_value();
-            let boxed = self
-                .builder
-                .build_load(self.value_type, p_ptr, "boxed_param")
-                .unwrap()
-                .into_struct_value();
-            let llvm_ty = self.snask_type_to_llvm(param_ty);
-            let local_ptr = self.create_entry_block_alloca(llvm_ty, name);
-            let unboxed = self.unbox_value(boxed, param_ty.clone());
-            self.builder.build_store(local_ptr, unboxed).unwrap();
-            self.local_vars
-                .insert(name.clone(), (local_ptr, param_ty.clone()));
-        }
-        for stmt in func.body {
-            self.generate_statement(stmt)?;
+        if func.is_naked {
+            // Naked: create entry block but NO prologue/alloca for params.
+            // User accesses params via registers and must provide ret.
+            let entry = self.context.append_basic_block(function, "entry");
+            self.builder.position_at_end(entry);
+            for stmt in func.body {
+                self.generate_statement(stmt)?;
+                if self.builder.get_insert_block().unwrap().get_terminator().is_some() {
+                    break;
+                }
+            }
+            // Naked functions must end with unreachable (inline asm handles return)
+            if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
+                self.builder.build_unreachable().unwrap();
+            }
+        } else {
+            if func.is_raw {
+                let entry = self.context.append_basic_block(function, "entry");
+                self.builder.position_at_end(entry);
+                // Raw function: parameters are direct values (no boxing)
+                for (i, (name, param_ty)) in func.params.iter().enumerate() {
+                    let param_val = function
+                        .get_nth_param(i as u32)
+                        .unwrap();
+                    let llvm_ty = self.snask_type_to_llvm(param_ty);
+                    let local_ptr = self.create_entry_block_alloca(llvm_ty, name);
+                    self.builder.build_store(local_ptr, param_val).unwrap();
+                    self.local_vars
+                        .insert(name.clone(), (local_ptr, param_ty.clone()));
+                }
+            } else {
+                // Boxed function: first param is return pointer, rest are pointers to boxed values
+                let entry = self.context.append_basic_block(function, "entry");
+                self.builder.position_at_end(entry);
+                let r_ptr = function.get_nth_param(0).unwrap().into_pointer_value();
+
+                for (i, (name, param_ty)) in func.params.iter().enumerate() {
+                    let p_ptr = function
+                        .get_nth_param((i + 1) as u32)
+                        .unwrap()
+                        .into_pointer_value();
+                    let boxed = self
+                        .builder
+                        .build_load(self.value_type, p_ptr, "boxed_param")
+                        .unwrap()
+                        .into_struct_value();
+                    let llvm_ty = self.snask_type_to_llvm(param_ty);
+                    let local_ptr = self.create_entry_block_alloca(llvm_ty, name);
+                    let unboxed = self.unbox_value(boxed, param_ty.clone());
+                    self.builder.build_store(local_ptr, unboxed).unwrap();
+                    self.local_vars
+                        .insert(name.clone(), (local_ptr, param_ty.clone()));
+                }
+            }
+
+            for stmt in func.body {
+                self.generate_statement(stmt)?;
+                if self
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_terminator()
+                    .is_some()
+                {
+                    break;
+                }
+            }
+
             if self
                 .builder
                 .get_insert_block()
                 .unwrap()
                 .get_terminator()
-                .is_some()
+                .is_none()
             {
-                break;
+                if self.current_func_is_raw {
+                    // Raw function: return Void or the appropriate zero value
+                    match &func.return_type {
+                        Some(t) if *t != Type::Void => {
+                            let llvm_ty = self.snask_type_to_llvm(t);
+                            self.builder.build_return(Some(&llvm_ty.const_zero())).unwrap();
+                        }
+                        _ => {
+                            self.builder.build_return(None).unwrap();
+                        }
+                    }
+                } else {
+                    let mut s = self.value_type.get_undef();
+                    s = self
+                        .builder
+                        .build_insert_value(
+                            s,
+                            self.context.f64_type().const_float(TYPE_NIL as f64),
+                            0,
+                            "t",
+                        )
+                        .unwrap()
+                        .into_struct_value();
+                    let r_ptr = function.get_nth_param(0).unwrap().into_pointer_value();
+                    self.builder.build_store(r_ptr, s).unwrap();
+                    self.builder.build_return(None).unwrap();
+                }
             }
         }
-        if self
-            .builder
-            .get_insert_block()
-            .unwrap()
-            .get_terminator()
-            .is_none()
-        {
-            let mut s = self.value_type.get_undef();
-            s = self
-                .builder
-                .build_insert_value(
-                    s,
-                    self.context.f64_type().const_float(TYPE_NIL as f64),
-                    0,
-                    "t",
-                )
-                .unwrap()
-                .into_struct_value();
-            self.builder.build_store(r_ptr, s).unwrap();
-            self.builder.build_return(None).unwrap();
-        }
+
         self.local_vars.clear();
         self.variables = old_vars;
         self.active_zone_depth = old_zone_depth;
+        self.current_func_is_raw = old_raw_mode;
         Ok(())
     }
 
@@ -3530,7 +3680,9 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 let llvm_ty = self.snask_type_to_llvm(&actual_ty);
                 let stored_v = self.cast_basic_value(v, ty, &actual_ty);
 
-                if self.current_func.unwrap().get_name().to_str().unwrap() == "main" {
+                let is_global = self.is_baremetal
+                    || self.current_func.map(|f| f.get_name().to_str().unwrap() == "main").unwrap_or(false);
+                if is_global {
                     let gv = self
                         .module
                         .add_global(llvm_ty, None, &format!("g_{}", d.name));
@@ -3550,7 +3702,9 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 let llvm_ty = self.snask_type_to_llvm(&actual_ty);
                 let stored_v = self.cast_basic_value(v, ty, &actual_ty);
 
-                if self.current_func.unwrap().get_name().to_str().unwrap() == "main" {
+                let is_global = self.is_baremetal
+                    || self.current_func.map(|f| f.get_name().to_str().unwrap() == "main").unwrap_or(false);
+                if is_global {
                     let gv = self
                         .module
                         .add_global(llvm_ty, None, &format!("g_{}", d.name));
@@ -3570,7 +3724,9 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 let llvm_ty = self.snask_type_to_llvm(&actual_ty);
                 let stored_v = self.cast_basic_value(v, ty, &actual_ty);
 
-                if self.current_func.unwrap().get_name().to_str().unwrap() == "main" {
+                let is_global = self.is_baremetal
+                    || self.current_func.map(|f| f.get_name().to_str().unwrap() == "main").unwrap_or(false);
+                if is_global {
                     let gv = self
                         .module
                         .add_global(llvm_ty, None, &format!("g_{}", d.name));
@@ -3690,7 +3846,23 @@ impl<'ctx> LLVMGenerator<'ctx> {
             }
             StmtKind::Return(expr) => {
                 let (v, ty) = self.evaluate_expression(expr)?;
-                if self.current_func.unwrap().get_name().to_str().unwrap() != "main" {
+                if self.current_func_is_raw {
+                    self.emit_active_zone_cleanups();
+                    let func_name = self.current_func.unwrap().get_name().to_str().unwrap().to_string();
+                    let ret_ty = self.function_return_types.get(&func_name)
+                        .or_else(|| {
+                            // Try without f_ prefix
+                            let stripped = func_name.strip_prefix("f_").unwrap_or(&func_name);
+                            self.function_return_types.get(stripped)
+                        })
+                        .cloned();
+                    if let Some(expected_ty) = ret_ty {
+                        let casted = self.cast_basic_value(v, ty, &expected_ty);
+                        self.builder.build_return(Some(&casted)).unwrap();
+                    } else {
+                        self.builder.build_return(Some(&v)).unwrap();
+                    }
+                } else if self.current_func.unwrap().get_name().to_str().unwrap() != "main" {
                     let op = self
                         .current_func
                         .unwrap()
@@ -4140,6 +4312,150 @@ impl<'ctx> LLVMGenerator<'ctx> {
             StmtKind::Entangle { .. } => {
                 // Future OM feature: static anchoring
             }
+            StmtKind::Asm(asm_str) => {
+                // Create void function type for the inline asm
+                let void_type = self.context.void_type();
+                let fn_type = void_type.fn_type(&[], false);
+                                // Create inline assembly without constraints, with side effects
+                let asm = self.context.create_inline_asm(
+                    fn_type,
+                    asm_str.clone(),
+                    "".to_string(), // constraints
+                    true,           // side_effects
+                    false,          // align_stack
+                    Some(inkwell::InlineAsmDialect::Intel),           // dialect
+
+
+                    false,          // can_throw
+                );
+                self.builder.build_indirect_call(fn_type, asm, &[], "asm_call").unwrap();
+            }
+            StmtKind::WritePtr { ptr, value, type_hint } => {
+                let (ptr_val, _) = self.evaluate_expression(ptr.clone())?;
+                let (val_val, val_ty) = self.evaluate_expression(value.clone())?;
+                
+                let val_unboxed = if val_val.is_struct_value() {
+                    self.unbox_value(val_val.into_struct_value(), type_hint.clone())
+                } else {
+                    if val_val.is_int_value() {
+                        self.builder.build_int_cast(val_val.into_int_value(), self.snask_type_to_llvm(&type_hint).into_int_type(), "val_cast").unwrap().into()
+                    } else {
+                        val_val
+                    }
+                };
+
+                let ptr_unboxed = if ptr_val.is_struct_value() {
+                    self.unbox_value(ptr_val.into_struct_value(), crate::types::Type::Usize)
+                } else {
+                    ptr_val
+                };
+
+                let ptr_as_ptr = self.builder.build_int_to_ptr(
+                    ptr_unboxed.into_int_value(),
+                    self.ptr_type,
+                    "ptr_cast"
+                ).unwrap();
+                
+                self.builder.build_store(ptr_as_ptr, val_unboxed).unwrap();
+            }
+            StmtKind::Outb { port, value } => {
+                let (port_val, _) = self.evaluate_expression(port.clone())?;
+                let (val_val, _) = self.evaluate_expression(value.clone())?;
+                
+                let port_unboxed = if port_val.is_struct_value() {
+                    self.unbox_value(port_val.into_struct_value(), crate::types::Type::Int)
+                } else {
+                    port_val
+                };
+                let val_unboxed = if val_val.is_struct_value() {
+                    self.unbox_value(val_val.into_struct_value(), crate::types::Type::Int)
+                } else {
+                    val_val
+                };
+
+                let void_type = self.context.void_type();
+                let asm_str = "outb $0, $1";
+                let constraints = "{al},{dx},~{dirflag},~{fpsr},~{flags}";
+                let asm_fn_ty = void_type.fn_type(&[self.context.i8_type().into(), self.context.i16_type().into()], false);
+                let inline_asm = self.context.create_inline_asm(
+                    asm_fn_ty,
+                    asm_str.to_string(),
+                    constraints.to_string(),
+                    true,
+                    false,
+                    None,
+                    false,
+                );
+                
+                let val_cast = self.builder.build_int_cast(val_unboxed.into_int_value(), self.context.i8_type(), "outb_val").unwrap();
+                let port_cast = self.builder.build_int_cast(port_unboxed.into_int_value(), self.context.i16_type(), "outb_port").unwrap();
+
+                self.builder.build_indirect_call(asm_fn_ty, inline_asm, &[val_cast.into(), port_cast.into()], "outb").unwrap();
+            }
+            StmtKind::GlobalAsm(asm_str) => {
+                self.global_asm.push_str(&asm_str);
+                self.global_asm.push('\n');
+            }
+            StmtKind::StructDeclaration(decl) => {
+                if !self.struct_types.contains_key(&decl.name) {
+                    let mut member_types: Vec<BasicTypeEnum<'ctx>> = Vec::new();
+                    for member in &decl.members {
+                        let llvm_ty = self.snask_type_to_llvm(&member.var_type);
+                        member_types.push(llvm_ty);
+                    }
+                    let struct_ty = self.context.opaque_struct_type(&format!("struct.{}", decl.name));
+                    if decl.repr_c {
+                        struct_ty.set_body(&member_types, true);
+                    } else {
+                        struct_ty.set_body(&member_types, false);
+                    }
+                    self.struct_types.insert(decl.name.clone(), struct_ty);
+                    self.struct_decls.insert(decl.name.clone(), decl);
+                }
+            }
+            StmtKind::Fence { ordering } => {
+                let fence_kind = match ordering.as_str() {
+                    "acquire" => inkwell::AtomicOrdering::Acquire,
+                    "release" => inkwell::AtomicOrdering::Release,
+                    "acqrel" => inkwell::AtomicOrdering::AcquireRelease,
+                    "seq_cst" => inkwell::AtomicOrdering::SequentiallyConsistent,
+                    _ => inkwell::AtomicOrdering::SequentiallyConsistent,
+                };
+                self.builder.build_fence(fence_kind, 0, "").ok();
+            }
+            StmtKind::AtomicRmw { ptr, op, value, ordering } => {
+                let ptr_val = self.evaluate_expression(ptr)?.0;
+                let val_val = self.evaluate_expression(value)?.0;
+                let ptr_ptr = self.unbox_to_ptr(ptr_val);
+                let val_int = val_val.into_int_value();
+                let atomic_ordering = match ordering.as_str() {
+                    "acquire" => inkwell::AtomicOrdering::Acquire,
+                    "release" => inkwell::AtomicOrdering::Release,
+                    "acqrel" => inkwell::AtomicOrdering::AcquireRelease,
+                    "seq_cst" => inkwell::AtomicOrdering::SequentiallyConsistent,
+                    "relaxed" => inkwell::AtomicOrdering::Monotonic,
+                    _ => inkwell::AtomicOrdering::SequentiallyConsistent,
+                };
+                let rmw_op = match op.as_str() {
+                    "add" => inkwell::AtomicRMWBinOp::Add,
+                    "sub" => inkwell::AtomicRMWBinOp::Sub,
+                    "or" => inkwell::AtomicRMWBinOp::Or,
+                    "and" => inkwell::AtomicRMWBinOp::And,
+                    "xor" => inkwell::AtomicRMWBinOp::Xor,
+                    "xchg" => inkwell::AtomicRMWBinOp::Xchg,
+                    _ => return Err(format!("Unknown atomic rmw op: {}", op)),
+                };
+                self.builder.build_atomicrmw(rmw_op, ptr_ptr, val_int, atomic_ordering);
+            }
+            StmtKind::VolatileStore { ptr, value, type_hint } => {
+                let ptr_val = self.evaluate_expression(ptr)?.0;
+                let val_val = self.evaluate_expression(value)?.0;
+                let ptr_ptr = self.unbox_to_ptr(ptr_val);
+                let llvm_ty = self.snask_type_to_llvm(&type_hint);
+                let casted = self.cast_basic_value(val_val, crate::types::Type::Int, &type_hint);
+                let typed_ptr = self.builder.build_pointer_cast(ptr_ptr, llvm_ty.ptr_type(inkwell::AddressSpace::from(0)), "typed_ptr").unwrap();
+                self.builder.build_store(typed_ptr, casted).unwrap();
+            }
             _ => {}
         }
         Ok(())
@@ -4481,6 +4797,13 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     return Ok((
                         self.builder.build_load(llvm_ty, *p, &name).unwrap(),
                         ty.clone(),
+                    ));
+                }
+                // Allow sizeof/alignof/offsetof to reference struct names as variables
+                if self.struct_types.contains_key(&name) {
+                    return Ok((
+                        self.i64_type.const_zero().into(),
+                        crate::types::Type::Struct(name.clone()),
                     ));
                 }
                 Err(format!("Var {} not found.", name))
@@ -5006,6 +5329,40 @@ impl<'ctx> LLVMGenerator<'ctx> {
                 Ok((res_v.into(), crate::types::Type::Any))
             }
             ExprKind::FunctionCall { callee, args } => {
+                // Raw mode: direct function call with raw values
+                if self.current_func_is_raw {
+                    if let ExprKind::Variable(name) = &callee.kind {
+                        // Try builtins first (as_i32, null_ptr, mem_read_u8, etc.)
+                        if let Some(result) = self.emit_systems_low_level_builtin(name, &args)? {
+                            return Ok(result);
+                        }
+                        // Runtime intrinsics (__snask_*)
+                        if name.starts_with("__snask_") {
+                            return self.emit_snask_intrinsic(name, &args);
+                        }
+                        // Then look up declared functions
+                        let f = self.functions.get(name).copied()
+                            .or_else(|| self.module.get_function(name))
+                            .or_else(|| self.module.get_function(&format!("f_{}", name)))
+                            .ok_or_else(|| format!("Function {} not found in raw mode.", name))?;
+                        let mut call_args: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
+                        let param_types = self.raw_function_params.get(name).cloned().unwrap_or_default();
+                        for (i, arg) in args.iter().enumerate() {
+                            let (v, arg_ty) = self.evaluate_expression(arg.clone())?;
+                            let target_ty = param_types.get(i).cloned().unwrap_or(arg_ty.clone());
+                            let casted = self.cast_basic_value(v, arg_ty, &target_ty);
+                            call_args.push(casted.into());
+                        }
+                        let call = self.builder.build_call(f, &call_args, "raw_call").unwrap();
+                        if let Some(ret_val) = call.try_as_basic_value().left() {
+                            let ret_ty = self.function_return_types.get(name)
+                                .cloned().unwrap_or(crate::types::Type::Void);
+                            return Ok((ret_val, ret_ty));
+                        }
+                        return Ok((self.value_type.const_zero().into(), crate::types::Type::Void));
+                    }
+                }
+
                 if let Some(path) = Self::expr_path(&callee) {
                     if path.len() == 2 {
                         let library = &path[0];
@@ -5323,6 +5680,213 @@ impl<'ctx> LLVMGenerator<'ctx> {
                     .unwrap()
                     .into_struct_value();
                 Ok((res_v.into(), crate::types::Type::User(class)))
+            }
+            ExprKind::Deref { ptr, type_hint } => {
+                let (ptr_val, _) = self.evaluate_expression(*ptr.clone())?;
+                let ptr_unboxed = if ptr_val.is_struct_value() {
+                    self.unbox_value(ptr_val.into_struct_value(), crate::types::Type::Usize)
+                } else {
+                    ptr_val
+                };
+                let ptr_as_ptr = self.builder.build_int_to_ptr(
+                    ptr_unboxed.into_int_value(),
+                    self.ptr_type,
+                    "ptr_cast"
+                ).unwrap();
+                
+                let loaded = self.builder.build_load(self.snask_type_to_llvm(&type_hint), ptr_as_ptr, "deref_val").unwrap();
+                let boxed = self.box_value(loaded, type_hint.clone());
+                Ok((boxed.into(), type_hint.clone()))
+            }
+            ExprKind::Inb(port) => {
+                let (port_val, _) = self.evaluate_expression(*port.clone())?;
+                let port_unboxed = if port_val.is_struct_value() {
+                    self.unbox_value(port_val.into_struct_value(), crate::types::Type::Int)
+                } else {
+                    port_val
+                };
+                let port_cast = self.builder.build_int_cast(port_unboxed.into_int_value(), self.context.i16_type(), "inb_port").unwrap();
+
+                let asm_str = "inb $1, $0";
+                let constraints = "={al},{dx},~{dirflag},~{fpsr},~{flags}";
+                let asm_fn_ty = self.context.i8_type().fn_type(&[self.context.i16_type().into()], false);
+                let inline_asm = self.context.create_inline_asm(
+                    asm_fn_ty,
+                    asm_str.to_string(),
+                    constraints.to_string(),
+                    true,
+                    false,
+                    None,
+                    false,
+                );
+                
+                let call_site = self.builder.build_indirect_call(asm_fn_ty, inline_asm, &[port_cast.into()], "inb").unwrap();
+                let inb_val = call_site.try_as_basic_value().left().unwrap();
+                let val_64 = self.builder.build_int_z_extend(inb_val.into_int_value(), self.i64_type, "inb_zext").unwrap();
+                let boxed = self.box_value(val_64.into(), crate::types::Type::Int);
+                Ok((boxed.into(), crate::types::Type::Int))
+            }
+            ExprKind::AddrOf(fn_name) => {
+                let actual_name = if fn_name == "_start" {
+                    fn_name.clone()
+                } else {
+                    format!("f_{}", fn_name.replace("::", "_NS_"))
+                };
+
+                let func = self.module.get_function(&actual_name)
+                    .or_else(|| self.module.get_function(&fn_name))
+                    .ok_or_else(|| format!("Function {} not found for @addr", fn_name))?;
+
+                let ptr_val = func.as_global_value().as_pointer_value();
+                let boxed = self.box_value(ptr_val.into(), crate::types::Type::Ptr);
+                Ok((boxed.into(), crate::types::Type::Ptr))
+            }
+            ExprKind::SizeOf(inner) => {
+                let (_, ty) = self.evaluate_expression(*inner)?;
+                let llvm_ty = self.snask_type_to_llvm(&ty);
+                let size_val = llvm_ty.size_of().unwrap_or_else(|| self.i64_type.const_int(8, false));
+                if self.current_func_is_raw {
+                    Ok((size_val.into(), crate::types::Type::U64))
+                } else {
+                    let boxed = self.box_value(size_val.into(), crate::types::Type::Int);
+                    Ok((boxed.into(), crate::types::Type::Int))
+                }
+            }
+            ExprKind::AlignOf(inner) => {
+                let (_, ty) = self.evaluate_expression(*inner)?;
+                let align_bytes = crate::types::Type::align_of(&ty);
+                let align_val = self.i64_type.const_int(align_bytes, false);
+                if self.current_func_is_raw {
+                    Ok((align_val.into(), crate::types::Type::U64))
+                } else {
+                    let boxed = self.box_value(align_val.into(), crate::types::Type::Int);
+                    Ok((boxed.into(), crate::types::Type::Int))
+                }
+            }
+            ExprKind::OffsetOf { expr, field } => {
+                let (_, ty) = self.evaluate_expression(*expr)?;
+                let struct_name = match &ty {
+                    crate::types::Type::Struct(n) => n.clone(),
+                    crate::types::Type::User(n) => n.clone(),
+                    _ => return Err(format!("offsetof: expected struct type, got {:?}", ty)),
+                };
+                let decl = self.struct_decls.get(&struct_name)
+                    .ok_or_else(|| format!("struct not found: {}", struct_name))?;
+                let field_idx = decl.members.iter().position(|m| m.name == field)
+                    .ok_or_else(|| format!("field '{}' not in struct {}", field, struct_name))?;
+                // Compute offset manually using the struct member sizes
+                let mut offset: u64 = 0;
+                for (i, member) in decl.members.iter().enumerate() {
+                    if i == field_idx {
+                        break;
+                    }
+                    let member_align = crate::types::Type::align_of(&member.var_type);
+                    let member_size = crate::types::Type::size_in_bytes(&member.var_type, &HashMap::new());
+                    // Align offset to member alignment
+                    if member_align > 0 {
+                        offset = (offset + member_align - 1) & !(member_align - 1);
+                    }
+                    offset += member_size;
+                }
+                // Align final offset to the field's alignment
+                let field_align = crate::types::Type::align_of(&decl.members[field_idx].var_type);
+                if field_align > 0 {
+                    offset = (offset + field_align - 1) & !(field_align - 1);
+                }
+                let offset_val = self.i64_type.const_int(offset, false);
+                if self.current_func_is_raw {
+                    Ok((offset_val.into(), crate::types::Type::U64))
+                } else {
+                    let boxed = self.box_value(offset_val.into(), crate::types::Type::Int);
+                    Ok((boxed.into(), crate::types::Type::Int))
+                }
+            }
+            ExprKind::VolatileLoad { ptr, type_hint } => {
+                let (ptr_val, _) = self.evaluate_expression(*ptr)?;
+                let ptr_unboxed = if ptr_val.is_struct_value() {
+                    self.unbox_value(ptr_val.into_struct_value(), crate::types::Type::Ptr)
+                } else {
+                    ptr_val
+                };
+                let ptr_as_ptr = if ptr_unboxed.is_pointer_value() {
+                    ptr_unboxed.into_pointer_value()
+                } else {
+                    self.builder.build_int_to_ptr(
+                        ptr_unboxed.into_int_value(),
+                        self.ptr_type,
+                        "vol_ptr"
+                    ).unwrap()
+                };
+                let llvm_ty = self.snask_type_to_llvm(&type_hint);
+                let load = self.builder.build_load(llvm_ty, ptr_as_ptr, "vol_load").unwrap();
+                if self.current_func_is_raw {
+                    Ok((load, type_hint))
+                } else {
+                    let boxed = self.box_value(load, type_hint.clone());
+                    Ok((boxed.into(), type_hint))
+                }
+            }
+            ExprKind::VolatileStore { ptr, value } => {
+                let (ptr_val, _) = self.evaluate_expression(*ptr)?;
+                let (val_val, val_ty) = self.evaluate_expression(*value)?;
+                let ptr_unboxed = if ptr_val.is_struct_value() {
+                    self.unbox_value(ptr_val.into_struct_value(), crate::types::Type::Ptr)
+                } else {
+                    ptr_val
+                };
+                let ptr_as_ptr = if ptr_unboxed.is_pointer_value() {
+                    ptr_unboxed.into_pointer_value()
+                } else {
+                    self.builder.build_int_to_ptr(
+                        ptr_unboxed.into_int_value(),
+                        self.ptr_type,
+                        "vol_store_ptr"
+                    ).unwrap()
+                };
+                let stored = self.cast_basic_value(val_val, val_ty.clone(), &val_ty);
+                self.builder.build_store(ptr_as_ptr, stored).unwrap();
+                if self.current_func_is_raw {
+                    Ok((self.i64_type.const_zero().into(), crate::types::Type::Void))
+                } else {
+                    Ok((self.value_type.const_zero().into(), crate::types::Type::Void))
+                }
+            }
+            ExprKind::IntToPtr { expr, type_hint } => {
+                let (val, _) = self.evaluate_expression(*expr)?;
+                let int_val = if val.is_struct_value() {
+                    self.unbox_value(val.into_struct_value(), crate::types::Type::U64).into_int_value()
+                } else {
+                    val.into_int_value()
+                };
+                let ptr_val = self.builder.build_int_to_ptr(
+                    int_val,
+                    self.ptr_type,
+                    "inttoptr"
+                ).unwrap();
+                if self.current_func_is_raw {
+                    Ok((ptr_val.into(), type_hint))
+                } else {
+                    let boxed = self.box_value(ptr_val.into(), type_hint.clone());
+                    Ok((boxed.into(), type_hint))
+                }
+            }
+            ExprKind::PtrToInt { expr, type_hint } => {
+                let (val, _) = self.evaluate_expression(*expr)?;
+                let int_val = if val.is_struct_value() {
+                    let ptr_val = self.unbox_value(val.into_struct_value(), crate::types::Type::Ptr).into_pointer_value();
+                    self.builder.build_ptr_to_int(ptr_val, self.i64_type, "ptrtoint").unwrap()
+                } else if val.is_pointer_value() {
+                    self.builder.build_ptr_to_int(val.into_pointer_value(), self.i64_type, "ptrtoint").unwrap()
+                } else {
+                    // Already an integer (e.g., raw mode pointer-as-int)
+                    val.into_int_value()
+                };
+                if self.current_func_is_raw {
+                    Ok((int_val.into(), type_hint))
+                } else {
+                    let boxed = self.box_value(int_val.into(), type_hint.clone());
+                    Ok((boxed.into(), type_hint))
+                }
             }
             _ => Err(format!("Expr not supported: {:?}", expr.kind)),
         }

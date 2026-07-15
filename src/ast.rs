@@ -105,6 +105,34 @@ pub enum ExprKind {
         args: Vec<Expr>,
         strategy: MemoryStrategy,
     },
+    Deref {
+        ptr: Box<Expr>,
+        type_hint: Type,
+    },
+    Inb(Box<Expr>),
+    AddrOf(String),
+    SizeOf(Box<Expr>),
+    AlignOf(Box<Expr>),
+    OffsetOf {
+        expr: Box<Expr>,
+        field: String,
+    },
+    VolatileLoad {
+        ptr: Box<Expr>,
+        type_hint: Type,
+    },
+    VolatileStore {
+        ptr: Box<Expr>,
+        value: Box<Expr>,
+    },
+    IntToPtr {
+        expr: Box<Expr>,
+        type_hint: Type,
+    },
+    PtrToInt {
+        expr: Box<Expr>,
+        type_hint: Type,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -183,6 +211,23 @@ pub struct FuncDecl {
     pub return_type: Option<Type>,
     pub body: Vec<Stmt>,
     pub is_unsafe: bool,
+    pub is_interrupt: bool,
+    pub is_raw: bool,
+    pub is_extern: bool,
+    pub is_naked: bool,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct StructMember {
+    pub name: String,
+    pub var_type: Type,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct StructDecl {
+    pub name: String,
+    pub members: Vec<StructMember>,
+    pub repr_c: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -315,6 +360,32 @@ pub enum StmtKind {
     Entangle {
         target: String,
         anchor: String,
+    },
+    Asm(String),
+    WritePtr {
+        ptr: Expr,
+        value: Expr,
+        type_hint: Type,
+    },
+    Outb {
+        port: Expr,
+        value: Expr,
+    },
+    GlobalAsm(String),
+    StructDeclaration(StructDecl),
+    Fence {
+        ordering: String, // "acquire", "release", "acqrel", "seq_cst"
+    },
+    AtomicRmw {
+        ptr: Expr,
+        op: String, // "add", "sub", "or", "and", "xor", "xchg"
+        value: Expr,
+        ordering: String,
+    },
+    VolatileStore {
+        ptr: Expr,
+        value: Expr,
+        type_hint: Type,
     },
 }
 

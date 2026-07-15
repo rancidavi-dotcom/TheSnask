@@ -1,0 +1,67 @@
+import "snaskgui"
+import "binfile"
+import "cpu_65c816"
+import "memory_bus"
+import "ppu"
+
+fun load_snes_rom(path: str, bus: ptr) : bool
+    let size = binfile::size(path)
+    if size < 32768
+        return false
+    
+    // Aloca memoria temporaria para a ROM
+    @unsafe zone "rom_loader":
+        let rom = mem_alloc_zero(size)
+        let lido = binfile::read_into(path, rom, size)
+        
+        mut offset = 0
+        if size % 1024 == 512
+            // Pular header SMC de 512 bytes
+            offset = 512
+            
+        // Copiar para a memoria principal simulando LoROM map (Simplificado)
+        // Bancos 00-7D, espelhando na metade superior (8000-FFFF)
+        mut i = 0
+        while i < (size - offset)
+            let rom_byte = mem_read_u8(rom, offset + i)
+            let bank = i / 32768
+            let bank_offset = i % 32768
+            let addr = (bank * 65536) + 32768 + bank_offset
+            memory_bus::bus_write_u8(bus, addr, rom_byte)
+            i = i + 1
+            
+        // Verificando o Cabecalho SNES (Localizado em 0x7FC0 no modo LoROM)
+        // Lemos o byte 0x7FD6 (ROM Type) e 0x7FD7 (ROM Size)
+        let rom_type = memory_bus::bus_read_u8(bus, 32726)
+        let rom_size = memory_bus::bus_read_u8(bus, 32727)
+        
+    return true
+
+class main
+    fun start()
+        print("Iniciando emulador de SNES (Modo TUI)...\n")
+        
+        // Alocar componentes (Bus, CPU, PPU)
+        @unsafe zone "snes_runtime":
+            let bus = mem_alloc_zero(16777216) // 16MB de enderecamento total teorico
+            let cpu = mem_alloc_zero(128) // Estado da CPU
+            let ppu_mem = mem_alloc_zero(65536) // VRAM
+            
+            // Tenta carregar uma rom de exemplo
+            load_snes_rom("smw.sfc", bus)
+            
+            // Define o Program Counter para 0x8000 (Onde a ROM inicia)
+            cpu_65c816::set_pc(cpu, 32768)
+            
+            // Vamos rodar a CPU algumas instrucoes para dar tempo
+            // de ela carregar e salvar na VRAM
+            cpu_65c816::cpu_step(cpu, bus) // LDA #0x40
+            cpu_65c816::cpu_step(cpu, bus) // STA 0x2000
+            cpu_65c816::cpu_step(cpu, bus) // JMP (Laco infinito)
+            
+            // Agora rodamos a PPU para desenhar a tela final!
+            ppu::ppu_step(ppu_mem, bus)
+            
+            mem_free(bus)
+            mem_free(cpu)
+            mem_free(ppu_mem)

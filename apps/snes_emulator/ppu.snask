@@ -1,0 +1,33 @@
+// Emulador da PPU (Picture Processing Unit) do SNES - MODO ASCII TUI
+
+fun ppu_step(ppu_mem: ptr, bus: ptr) : bool
+    // A PPU vai desenhar em uma tela compacta 64x32
+    // para caber de forma responsiva no console ASCII.
+    
+    // A PPU vai ler o valor que a CPU gravou no endereco de memoria 0x2000 do bus.
+    let char_from_cpu = memory_bus::bus_read_u8(bus, 8192)
+    
+    mut y = 0
+    while y < 32
+        mut x = 0
+        while x < 64
+            // Se a CPU escreveu '@' (0x40 = 64), a PPU imprime '@'
+            // senao usa o fallback original.
+            if char_from_cpu == 64
+                print("@")
+            elif char_from_cpu == 42
+                print("*")
+            else
+                if ((x + y) % 2) == 0
+                    print("#")
+                else
+                    print(".")
+            x = x + 1
+        print("\n") // Pula a linha do framebuffer
+        y = y + 1
+        
+    print("----------------------------------------------------------------\n")
+    print("SNES FRAME RENDERIZADO VIA TUI!\n")
+    print("----------------------------------------------------------------\n")
+    
+    return true

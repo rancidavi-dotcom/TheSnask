@@ -1,0 +1,12 @@
+[project]
+name = "snes_emulator"
+version = "0.1.0"
+main = "snes_master.snask"
+
+[dependencies]
+snaskgui = "0.4.0"
+binfile = "0.4.0"
+
+[build]
+profile = "systems"
+target = "native"

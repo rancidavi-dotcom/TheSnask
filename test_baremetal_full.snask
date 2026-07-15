@@ -1,0 +1,38 @@
+struct Point
+    volatile x: I32
+    volatile y: I32
+
+const MAGIC: I32 = 42
+
+mut counter: U64 = 0
+
+@naked fun isr_handler()
+    @asm("iretq")
+
+@extern fun putchar(c: I32) : I32
+
+@raw fun add(a: I32, b: I32) : I32
+    return a + b
+
+@raw fun write_vga(addr: U64, val: I32)
+    @store(addr, val)
+
+@raw fun struct_info() : U64
+    let sz: U64 = sizeof(Point)
+    let al: U64 = alignof(Point)
+    let off: U64 = offsetof(Point, y)
+    return sz + al + off
+
+@raw fun atomic_demo(ptr: U64, val: I32) : I32
+    fence seq_cst
+    atomic rmw(add, ptr, val, seq_cst)
+    fence acqrel
+    return @volatile(ptr, I32)
+
+@raw fun kmain() : I32
+    let x: I32 = add(40, 2)
+    @store(0xB8000, 0x0F4F)
+    counter = 42
+    let p: U64 = @inttoptr(0xB8000, U64)
+    let addr_back: U64 = @ptrtoint(p, U64)
+    return x

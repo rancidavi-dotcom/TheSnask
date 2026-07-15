@@ -1,0 +1,13 @@
+@interrupt fun isr_keyboard() {
+    @asm("hlt")
+}
+
+@unsafe fun _start() {
+    // Write 'O' to VGA memory
+    @write(0xb8000, 0x0F4F, U16)
+    
+    // Write 'S' to VGA memory
+    @write(0xb8002, 0x0F53, U16)
+
+    @asm("hlt")
+}

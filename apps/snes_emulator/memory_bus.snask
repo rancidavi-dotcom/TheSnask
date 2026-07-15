@@ -1,0 +1,10 @@
+// Controle de memoria do SNES (LoROM / HiROM)
+
+fun bus_read_u8(bus: ptr, addr: int) : u8
+    @unsafe:
+        return mem_read_u8(bus, addr)
+
+fun bus_write_u8(bus: ptr, addr: int, value: u8) : bool
+    @unsafe:
+        mem_write_u8(bus, addr, value)
+    return true

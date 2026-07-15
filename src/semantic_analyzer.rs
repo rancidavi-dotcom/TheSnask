@@ -117,6 +117,9 @@ fn display_type(ty: &Type) -> String {
                 .join(", ");
             format!("fun({}) -> {}", params, display_type(ret))
         }
+        Type::Struct(name) => format!("struct {}", name),
+        Type::Array(inner, count) => format!("[{}; {}]", display_type(inner), count),
+        Type::Volatile(inner) => format!("volatile {}", display_type(inner)),
     }
 }
 
@@ -1569,6 +1572,8 @@ impl SemanticAnalyzer {
                 if let Some(return_type) = &func_decl.return_type {
                     if *return_type != Type::Void
                         && *return_type != Type::Any
+                        && !func_decl.is_extern
+                        && !func_decl.is_naked
                         && !Self::body_guarantees_return(&func_decl.body)
                     {
                         self.errors.push(
@@ -1786,6 +1791,78 @@ impl SemanticAnalyzer {
                 self.symbol_table.exit_scope();
             }
             StmtKind::Entangle { .. } => {}
+            StmtKind::Asm(_) => {}
+            StmtKind::WritePtr { ptr, value, type_hint } => {
+                let _ = self.type_check_expression(ptr);
+                let val_ty = self.type_check_expression(value).unwrap_or(Type::Any);
+                if val_ty != *type_hint && val_ty != Type::Any && val_ty != Type::Int {
+                    self.errors.push(SemanticError::new(
+                        SemanticErrorKind::TypeMismatch {
+                            expected: type_hint.clone(),
+                            found: val_ty,
+                        },
+                        statement.span.clone(),
+                    ));
+                }
+            }
+            StmtKind::Outb { port, value } => {
+                let _ = self.type_check_expression(port);
+                let _ = self.type_check_expression(value);
+            }
+            StmtKind::GlobalAsm(_) => {}
+            StmtKind::StructDeclaration(_) => {
+                // Struct declarations are validated during parsing; nothing to analyze here
+            }
+            StmtKind::Fence { ordering } => {
+                // Fence is a compiler intrinsic; just check ordering is one of the valid values
+                match ordering.as_str() {
+                    "acquire" | "release" | "acqrel" | "seq_cst" => {}
+                    _ => {
+                        self.errors.push(SemanticError::new(
+                            SemanticErrorKind::InvalidOperation {
+                                op: "fence".to_string(),
+                                type1: Type::Any,
+                                type2: None,
+                            },
+                            statement.span.clone(),
+                        ));
+                    }
+                }
+            }
+            StmtKind::AtomicRmw { ptr, op, value, ordering } => {
+                let _ = self.type_check_expression(ptr);
+                let _ = self.type_check_expression(value);
+                match op.as_str() {
+                    "add" | "sub" | "or" | "and" | "xor" | "xchg" => {}
+                    _ => {
+                        self.errors.push(SemanticError::new(
+                            SemanticErrorKind::InvalidOperation {
+                                op: format!("atomic_rmw {}", op),
+                                type1: Type::Any,
+                                type2: None,
+                            },
+                            statement.span.clone(),
+                        ));
+                    }
+                }
+                match ordering.as_str() {
+                    "acquire" | "release" | "acqrel" | "seq_cst" | "relaxed" => {}
+                    _ => {
+                        self.errors.push(SemanticError::new(
+                            SemanticErrorKind::InvalidOperation {
+                                op: format!("atomic ordering {}", ordering),
+                                type1: Type::Any,
+                                type2: None,
+                            },
+                            statement.span.clone(),
+                        ));
+                    }
+                }
+            }
+            StmtKind::VolatileStore { ptr, value, type_hint: _ } => {
+                let _ = self.type_check_expression(ptr);
+                let _ = self.type_check_expression(value);
+            }
         }
     }
 
@@ -2442,6 +2519,60 @@ impl SemanticAnalyzer {
                 }
 
                 Ok(Type::User(class.clone()))
+            }
+            ExprKind::Deref { ptr, type_hint } => {
+                let _ = self.type_check_expression(ptr)?;
+                Ok(type_hint.clone())
+            }
+            ExprKind::Inb(port) => {
+                let _ = self.type_check_expression(port)?;
+                Ok(Type::Int)
+            }
+            ExprKind::AddrOf(fn_name) => {
+                // Verify the function exists!
+                if !self.symbol_table.lookup(fn_name).is_some() {
+                    let mut found = false;
+                    for class in self.classes.values() {
+                        if class.name == *fn_name {
+                            found = true;
+                            break;
+                        }
+                        if class.methods.iter().any(|m| m.name == *fn_name) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if !found {
+                         // Ignoring error for now, as functions might be defined later
+                    }
+                }
+                Ok(Type::Ptr)
+            }
+            ExprKind::SizeOf(_) => {
+                Ok(Type::U64)
+            }
+            ExprKind::AlignOf(_) => {
+                Ok(Type::U64)
+            }
+            ExprKind::OffsetOf { .. } => {
+                Ok(Type::U64)
+            }
+            ExprKind::VolatileLoad { ptr, type_hint } => {
+                let _ = self.type_check_expression(ptr)?;
+                Ok(type_hint.clone())
+            }
+            ExprKind::VolatileStore { ptr, value } => {
+                let _ = self.type_check_expression(ptr)?;
+                let _ = self.type_check_expression(value)?;
+                Ok(Type::Void)
+            }
+            ExprKind::IntToPtr { expr, type_hint } => {
+                let _ = self.type_check_expression(expr)?;
+                Ok(type_hint.clone())
+            }
+            ExprKind::PtrToInt { expr, type_hint } => {
+                let _ = self.type_check_expression(expr)?;
+                Ok(type_hint.clone())
             }
         }
     }

@@ -1,0 +1,141 @@
+// Emulador CPU WDC 65C816 (16-bit)
+import "memory_bus"
+
+// Registradores do 65c816 mapeados no ponteiro `cpu`:
+// 0: A low (AL)
+// 1: A high (AH)
+// 2: X low
+// 3: X high
+// 4: Y low
+// 5: Y high
+// 6: SP low
+// 7: SP high
+// 8: PC low
+// 9: PC high
+// 10: DB
+// 11: PB
+// 12: P (Status)
+// 13: E (Emulation mode bit - 0 = Native, 1 = Emulation)
+
+// Utilidades de memoria e registradores
+fun get_pc(cpu: ptr) : int
+    @unsafe:
+        let low = as_i64(mem_read_u8(cpu, 8))
+        let high = as_i64(mem_read_u8(cpu, 9))
+        return low + (high * 256)
+
+fun set_pc(cpu: ptr, val: int) : bool
+    @unsafe:
+        mem_write_u8(cpu, 8, as_u8(val % 256))
+        mem_write_u8(cpu, 9, as_u8((val / 256) % 256))
+    return true
+
+fun get_pb(cpu: ptr) : int
+    @unsafe:
+        return as_i64(mem_read_u8(cpu, 11))
+
+fun fetch_u8(cpu: ptr, bus: ptr) : u8
+    let pc = get_pc(cpu)
+    let pb = get_pb(cpu)
+    let addr = (pb * 65536) + pc
+    let val = memory_bus::bus_read_u8(bus, addr)
+    set_pc(cpu, pc + 1)
+    return val
+
+fun fetch_u16(cpu: ptr, bus: ptr) : u16
+    let lo = fetch_u8(cpu, bus)
+    let hi = fetch_u8(cpu, bus)
+    return as_u16(lo) | (as_u16(hi) << 8)
+
+// Modos de Endereçamento Base
+fun addr_immediate_8(cpu: ptr, bus: ptr) : int
+    let pc = get_pc(cpu)
+    let pb = get_pb(cpu)
+    set_pc(cpu, pc + 1)
+    return (pb * 65536) + pc
+
+fun addr_absolute(cpu: ptr, bus: ptr) : int
+    let addr_u16 = fetch_u16(cpu, bus)
+    mut db = 0
+    @unsafe:
+        db = mem_read_u8(cpu, 10)
+    return (as_i64(db) * 65536) + as_i64(addr_u16)
+
+// Funcao base para executar instrucoes da CPU
+fun cpu_step(cpu: ptr, bus: ptr) : bool
+    let opcode = fetch_u8(cpu, bus)
+    
+    // NOP (0xEA)
+    if opcode == 234
+        return true
+    
+    // SEI - Set Interrupt Disable (0x78)
+    if opcode == 120
+        @unsafe:
+            mut p = mem_read_u8(cpu, 12)
+            p = p | 4 // Flag I
+            mem_write_u8(cpu, 12, p)
+        return true
+            
+    // CLC - Clear Carry (0x18)
+    if opcode == 24
+        @unsafe:
+            mut p = mem_read_u8(cpu, 12)
+            p = p & 254 // Limpa a flag C
+            mem_write_u8(cpu, 12, p)
+        return true
+
+    // XCE - Exchange Carry and Emulation bit (0xFB)
+    if opcode == 251
+        @unsafe:
+            mut p = mem_read_u8(cpu, 12)
+            let c_flag = p & 1
+            let e_flag = mem_read_u8(cpu, 13)
+            mem_write_u8(cpu, 13, c_flag)
+            p = (p & 254) | e_flag
+            mem_write_u8(cpu, 12, p)
+        return true
+            
+    // JMP Absolute (0x4C)
+    if opcode == 76
+        let addr = addr_absolute(cpu, bus)
+        let new_pc = addr % 65536
+        set_pc(cpu, new_pc)
+        return true
+        
+    // LDA Immediate 8-bit (0xA9)
+    if opcode == 169
+        let addr = addr_immediate_8(cpu, bus)
+        let val = memory_bus::bus_read_u8(bus, addr)
+        @unsafe:
+            mem_write_u8(cpu, 0, val) // Salva em A (Low)
+        return true
+        
+    // STA Absolute (0x8D)
+    if opcode == 141
+        let addr = addr_absolute(cpu, bus)
+        mut a_low = 0
+        @unsafe:
+            a_low = mem_read_u8(cpu, 0)
+        memory_bus::bus_write_u8(bus, addr, a_low)
+        return true
+
+    // BNE Relative (0xD0)
+    if opcode == 208
+        let rel = as_i64(fetch_u8(cpu, bus))
+        mut offset_jump = rel
+        if rel >= 128
+            offset_jump = rel - 256
+            
+        mut p_status = 0
+        @unsafe:
+            p_status = mem_read_u8(cpu, 12)
+            
+        if (p_status & 2) == 0 // Z flag not set (Nao eh zero)
+            let current_pc = get_pc(cpu)
+            set_pc(cpu, current_pc + offset_jump)
+        return true
+
+    // Opcode não implementado
+        
+    return true

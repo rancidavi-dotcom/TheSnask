@@ -115,17 +115,19 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
     inject_features(&mut program, options.features.clone());
     pb.inc(1);
 
-    // Auto-import stdlib modules
-    let loc = Location { line: 0, column: 0 };
-    let span = loc.to_span();
-    program.push(Stmt::with_span(
-        StmtKind::Import("stdio".to_string()),
-        loc,
-        span,
-    ));
+    // Auto-import stdlib modules se nao for baremetal
+    if options.profile != BuildProfile::Baremetal {
+        let loc = Location { line: 0, column: 0 };
+        let span = loc.to_span();
+        program.push(Stmt::with_span(
+            StmtKind::Import("stdio".to_string()),
+            loc,
+            span,
+        ));
+    }
 
     // Validate entrypoint
-    validate_entrypoint(&program)?;
+    validate_entrypoint(&program, &options)?;
 
     pb.set_message("Resolving imports");
     let mut resolved_program = Vec::new();
@@ -154,9 +156,6 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
                 &restrictions,
             ));
         }
-
-        pb.finish_and_clear();
-        return Err("error[S8002]: `baremetal` profile is recognized, but the freestanding backend is not implemented yet\n\nhelp: use `--profile systems` while no_std/no_runtime, custom entrypoints and linker scripts are being implemented.".to_string());
     }
 
     // Determine runtime linking strategy
@@ -185,7 +184,7 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
 
     pb.set_message("Generating LLVM IR");
     let context = Context::create();
-    let mut generator = LLVMGenerator::new(&context, file_path);
+    let mut generator = LLVMGenerator::new(&context, file_path, options.profile == BuildProfile::Baremetal);
     generator.set_om_contracts(load_om_contracts(&resolved_program)?);
     let ir = generator.generate(resolved_program.clone())?;
     pb.inc(1);
@@ -401,7 +400,11 @@ fn inject_features(program: &mut Program, features: BTreeMap<String, SnifFeature
     program.splice(0..0, feature_stmts);
 }
 
-fn validate_entrypoint(program: &Program) -> Result<(), String> {
+fn validate_entrypoint(program: &Program, options: &BuildOptions) -> Result<(), String> {
+    if options.profile == BuildProfile::Baremetal {
+        return Ok(());
+    }
+
     for stmt in program {
         if let StmtKind::ClassDeclaration(class) = &stmt.kind {
             if class.name == "main" {
@@ -669,6 +672,14 @@ fn collect_baremetal_stmt_restrictions(stmt: &Stmt, restrictions: &mut Vec<Barem
             }
         }
         StmtKind::Promote { .. } | StmtKind::Entangle { .. } => {}
+        StmtKind::Asm(_) => {}
+        StmtKind::WritePtr { .. } => {}
+        StmtKind::Outb { .. } => {}
+        StmtKind::GlobalAsm(_) => {}
+        StmtKind::StructDeclaration(_) => {}
+        StmtKind::Fence { .. } => {}
+        StmtKind::AtomicRmw { .. } => {}
+        StmtKind::VolatileStore { .. } => {}
     }
 }
 
@@ -722,6 +733,18 @@ fn collect_baremetal_expr_restrictions(expr: &Expr, restrictions: &mut Vec<Barem
             }
         }
         ExprKind::Literal(_) | ExprKind::Variable(_) => {}
+        ExprKind::Deref { ptr, .. } => {
+            collect_baremetal_expr_restrictions(ptr, restrictions);
+        }
+        ExprKind::Inb(_) => {}
+        ExprKind::AddrOf(_) => {}
+        ExprKind::SizeOf(_) => {}
+        ExprKind::AlignOf(_) => {}
+        ExprKind::OffsetOf { .. } => {}
+        ExprKind::VolatileLoad { .. } => {}
+        ExprKind::VolatileStore { .. } => {}
+        ExprKind::IntToPtr { .. } => {}
+        ExprKind::PtrToInt { .. } => {}
     }
 }
 
@@ -812,7 +835,7 @@ fn render_baremetal_restrictions(
 mod tests {
     use super::{
         find_baremetal_restrictions, namespace_imported_module, render_baremetal_restrictions,
-        render_parser_diagnostics, render_semantic_diagnostics, validate_entrypoint,
+        render_parser_diagnostics, render_semantic_diagnostics, validate_entrypoint, BuildOptions,
     };
     use crate::ast::{ClassDecl, Location, Stmt, StmtKind};
     use crate::parser::Parser;
@@ -830,7 +853,7 @@ mod tests {
     #[test]
     fn validate_entrypoint_rejects_missing_main_class() {
         let program = Vec::new();
-        let err = validate_entrypoint(&program).expect_err("missing main must fail");
+        let err = validate_entrypoint(&program, &BuildOptions::default()).expect_err("missing main must fail");
         assert!(err.contains("class main"));
         assert!(err.contains("at least one method"));
     }
@@ -848,7 +871,7 @@ mod tests {
             span(),
         )];
 
-        let err = validate_entrypoint(&program).expect_err("empty main must fail");
+        let err = validate_entrypoint(&program, &BuildOptions::default()).expect_err("empty main must fail");
         assert!(err.contains("at least one method"));
     }
 
@@ -979,6 +1002,8 @@ pub fn link_binary(
     let lld = toolchain::ld_lld();
     let clang_path = toolchain::clang();
     let llc_path = toolchain::llc();
+    let has_linker_ld = options.profile == BuildProfile::Baremetal
+        && std::path::Path::new("linker.ld").exists();
 
     let have_lld = size_link
         && lld
@@ -1026,61 +1051,108 @@ pub fn link_binary(
             format!("{}/.snask/lib/runtime.bc", home)
         };
 
-        let mut clang = Command::new(&clang_path);
-        clang.arg(&clang_opt).arg("-flto=thin");
-        if have_lld {
-            if let Some(path) = &lld {
-                clang.arg(format!("-fuse-ld={}", path.to_string_lossy()));
+        if has_linker_ld {
+            // baremetal + linker.ld: compile IR to .o with clang -c, then link with ld
+            let obj_file = "temp_snask.o";
+            let mut compile = Command::new(&clang_path);
+            compile.arg(&clang_opt).arg("-c").arg("-flto=thin");
+            if have_lld {
+                if let Some(path) = &lld {
+                    compile.arg(format!("-fuse-ld={}", path.to_string_lossy()));
+                }
             }
-        }
-        if extreme_obj.is_some() {
-            clang.arg("-nostdlib").arg("-static");
-        }
-        if let Some(t) = &options.target {
-            clang.arg(format!("--target={}", t));
-        }
-        if let Some(p) = &extreme_obj {
-            clang.arg(p);
-        }
-
-        let lib_snask = format!("{}/.snask/lib/libsnask.a", home);
-
-        let mut args = vec![ir_file.to_string()];
-        if options.extreme {
-            // extreme doesn't need runtime bc
-        } else if options.tiny {
-            args.push(lib_snask);
+            compile.arg("-ffreestanding").arg("-nostdlib").arg("-static").arg("-mno-red-zone");
+            if let Some(t) = &options.target {
+                compile.arg(format!("--target={}", t));
+            }
+            compile.arg(ir_file).arg("-o").arg(obj_file);
+            let status = compile.status().map_err(|e| e.to_string())?;
+            if !status.success() {
+                return Err("Compilation to object file failed (LTO path).".to_string());
+            }
+            let ld_path = lld.as_ref().map(|p| p.as_path()).unwrap_or_else(|| std::path::Path::new("ld"));
+            let mut link = Command::new(ld_path);
+            let target_flag = if let Some(t) = &options.target {
+                if t.contains("x86_64") { Some("-melf_x86_64") }
+                else if t.contains("i386") || t.contains("i686") { Some("-melf_i386") }
+                else { None }
+            } else { Some("-melf_x86_64") };
+            if let Some(emul) = target_flag {
+                link.arg(emul);
+            }
+            let status = link
+                .arg("-T").arg("linker.ld")
+                .arg(obj_file)
+                .arg("-o").arg(&final_output)
+                .status()
+                .map_err(|e| e.to_string())?;
+            if !status.success() {
+                return Err("Link step failed (LTO path).".to_string());
+            }
         } else {
-            args.push(runtime_path);
-        }
+            let mut clang = Command::new(&clang_path);
+            clang.arg(&clang_opt).arg("-flto=thin");
+            if have_lld {
+                if let Some(path) = &lld {
+                    clang.arg(format!("-fuse-ld={}", path.to_string_lossy()));
+                }
+            }
+            if extreme_obj.is_some() {
+                clang.arg("-nostdlib").arg("-static");
+            }
+            if options.profile == BuildProfile::Baremetal {
+                clang.arg("-ffreestanding").arg("-nostdlib").arg("-static").arg("-mno-red-zone");
+            }
+            if let Some(t) = &options.target {
+                clang.arg(format!("--target={}", t));
+            }
+            if let Some(p) = &extreme_obj {
+                clang.arg(p);
+            }
 
-        let status = clang
-            .args(&args)
-            .arg("-o")
-            .arg(&final_output)
-            .args(&extra_libs)
-            .args(if options.extreme {
-                vec![]
+            let lib_snask = format!("{}/.snask/lib/libsnask.a", home);
+
+            let mut args = vec![ir_file.to_string()];
+            if options.extreme {
+                // extreme doesn't need runtime bc
+            } else if options.profile == BuildProfile::Baremetal {
+                // baremetal doesn't need runtime bc
             } else if options.tiny {
-                vec!["-lc".to_string(), "-lgcc".to_string()]
+                args.push(lib_snask);
             } else {
-                vec!["-ldl".to_string()]
-            })
-            .args(if link_tiny_runtime {
-                vec![]
-            } else {
-                vec!["-lm".to_string()]
-            })
-            .args(get_link_flags(size_link, have_lld))
-            .args(get_runtime_linkargs_for(
-                options.target.as_deref(),
-                link_tiny_runtime,
-            ))
-            .status()
-            .map_err(|e| e.to_string())?;
+                args.push(runtime_path);
+            }
 
-        if !status.success() {
-            return Err("Final link step failed (LTO path).".to_string());
+            let status = clang
+                .args(&args)
+                .arg("-o")
+                .arg(&final_output)
+                .args(&extra_libs)
+                .args(if options.extreme {
+                    vec![]
+                } else if options.profile == BuildProfile::Baremetal {
+                    vec![] // baremetal skips libc/libgcc
+                } else if options.tiny {
+                    vec!["-lc".to_string(), "-lgcc".to_string()]
+                } else {
+                    vec!["-ldl".to_string()]
+                })
+                .args(if link_tiny_runtime || options.profile == BuildProfile::Baremetal {
+                    vec![]
+                } else {
+                    vec!["-lm".to_string()]
+                })
+                .args(get_link_flags(size_link, have_lld))
+                .args(get_runtime_linkargs_for(
+                    options.target.as_deref(),
+                    link_tiny_runtime,
+                ))
+                .status()
+                .map_err(|e| e.to_string())?;
+
+            if !status.success() {
+                return Err("Final link step failed (LTO path).".to_string());
+            }
         }
         if std::env::var("SNASK_KEEP_TEMPS").ok().as_deref() != Some("1") {
             fs::remove_file(ir_file).ok();
@@ -1105,80 +1177,107 @@ pub fn link_binary(
             .status()
             .map_err(|e| e.to_string())?;
 
-        pb.set_message(format!(
-            "Linking ({})",
-            toolchain::tool_display(&clang_path)
-        ));
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let link_display = if has_linker_ld { "ld".to_string() } else { toolchain::tool_display(&clang_path) };
+        pb.set_message(format!("Linking ({})", link_display));
 
-        let mut runtime_path = if let Some(t) = &options.target {
-            if options.tiny {
-                format!("{}/.snask/lib/{}/runtime_nano.o", home, t)
+        if has_linker_ld {
+            // baremetal + linker.ld: use ld directly with the linker script
+            let ld_path = lld.as_ref().map(|p| p.as_path()).unwrap_or_else(|| std::path::Path::new("ld"));
+            let mut link = Command::new(ld_path);
+            let target_flag = if let Some(t) = &options.target {
+                if t.contains("x86_64") { Some("-melf_x86_64") }
+                else if t.contains("i386") || t.contains("i686") { Some("-melf_i386") }
+                else { None }
+            } else { Some("-melf_x86_64") };
+            if let Some(emul) = target_flag {
+                link.arg(emul);
+            }
+            let status = link
+                .arg("-T").arg("linker.ld")
+                .arg(obj_file)
+                .arg("-o").arg(&final_output)
+                .status()
+                .map_err(|e| e.to_string())?;
+            if !status.success() {
+                return Err("Link step failed (linker.ld).".to_string());
+            }
+        } else {
+            let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+
+            let mut runtime_path = if let Some(t) = &options.target {
+                if options.tiny {
+                    format!("{}/.snask/lib/{}/runtime_nano.o", home, t)
+                } else if link_tiny_runtime {
+                    format!("{}/.snask/lib/{}/runtime_tiny.o", home, t)
+                } else {
+                    format!("{}/.snask/lib/{}/runtime.o", home, t)
+                }
+            } else if options.tiny {
+                format!("{}/.snask/lib/runtime_nano.o", home)
             } else if link_tiny_runtime {
-                format!("{}/.snask/lib/{}/runtime_tiny.o", home, t)
+                format!("{}/.snask/lib/runtime_tiny.o", home)
             } else {
-                format!("{}/.snask/lib/{}/runtime.o", home, t)
+                format!("{}/.snask/lib/runtime.o", home)
+            };
+
+            // APT Support: Check for global installation paths
+            let global_runtime = "/usr/lib/snask/runtime/runtime.o";
+            if !std::path::Path::new(&runtime_path).exists()
+                && std::path::Path::new(global_runtime).exists()
+            {
+                runtime_path = global_runtime.to_string();
             }
-        } else if options.tiny {
-            format!("{}/.snask/lib/runtime_nano.o", home)
-        } else if link_tiny_runtime {
-            format!("{}/.snask/lib/runtime_tiny.o", home)
-        } else {
-            format!("{}/.snask/lib/runtime.o", home)
-        };
 
-        // APT Support: Check for global installation paths
-        let global_runtime = "/usr/lib/snask/runtime/runtime.o";
-        if !std::path::Path::new(&runtime_path).exists()
-            && std::path::Path::new(global_runtime).exists()
-        {
-            runtime_path = global_runtime.to_string();
-        }
-
-        let mut clang = Command::new(&clang_path);
-        clang.arg(&clang_opt);
-        if have_lld {
-            if let Some(path) = &lld {
-                clang.arg(format!("-fuse-ld={}", path.to_string_lossy()));
+            let mut clang = Command::new(&clang_path);
+            clang.arg(&clang_opt);
+            if have_lld {
+                if let Some(path) = &lld {
+                    clang.arg(format!("-fuse-ld={}", path.to_string_lossy()));
+                }
             }
-        }
-        if extreme_obj.is_some() {
-            clang.arg("-nostdlib").arg("-static");
-        }
-        if let Some(t) = &options.target {
-            clang.arg(format!("--target={}", t));
-        }
-        if let Some(p) = &extreme_obj {
-            clang.arg(p);
-        }
+            if extreme_obj.is_some() {
+                clang.arg("-nostdlib").arg("-static");
+            }
+            if options.profile == BuildProfile::Baremetal {
+                clang.arg("-ffreestanding").arg("-nostdlib").arg("-static").arg("-mno-red-zone");
+            }
+            if let Some(t) = &options.target {
+                clang.arg(format!("--target={}", t));
+            }
+            if let Some(p) = &extreme_obj {
+                clang.arg(p);
+            }
 
-        let mut lib_snask = format!("{}/.snask/lib/libsnask.a", home);
-        let global_lib = "/usr/lib/snask/libsnask.a";
-        if !std::path::Path::new(&lib_snask).exists() && std::path::Path::new(global_lib).exists() {
-            lib_snask = global_lib.to_string();
-        }
+            let mut lib_snask = format!("{}/.snask/lib/libsnask.a", home);
+            let global_lib = "/usr/lib/snask/libsnask.a";
+            if !std::path::Path::new(&lib_snask).exists() && std::path::Path::new(global_lib).exists() {
+                lib_snask = global_lib.to_string();
+            }
 
-        let mut args = vec![obj_file.to_string()];
-        if options.extreme {
-        } else if options.tiny {
-            args.push(lib_snask);
-        } else {
-            args.push(runtime_path);
-        }
+            let mut args = vec![obj_file.to_string()];
+            if options.extreme {
+            } else if options.profile == BuildProfile::Baremetal {
+            } else if options.tiny {
+                args.push(lib_snask);
+            } else {
+                args.push(runtime_path);
+            }
 
-        let status = clang
-            .args(&args)
+            let status = clang
+                .args(&args)
             .arg("-o")
             .arg(&final_output)
             .args(&extra_libs)
             .args(if options.extreme {
+                vec![]
+            } else if options.profile == BuildProfile::Baremetal {
                 vec![]
             } else if options.tiny {
                 vec!["-lc".to_string(), "-lgcc".to_string()]
             } else {
                 vec!["-ldl".to_string()]
             })
-            .args(if link_tiny_runtime {
+            .args(if link_tiny_runtime || options.profile == BuildProfile::Baremetal {
                 vec![]
             } else {
                 vec!["-lm".to_string()]
@@ -1193,6 +1292,7 @@ pub fn link_binary(
 
         if !status.success() {
             return Err("Final link step failed.".to_string());
+        }
         }
         if std::env::var("SNASK_KEEP_TEMPS").ok().as_deref() != Some("1") {
             fs::remove_file(ir_file).ok();

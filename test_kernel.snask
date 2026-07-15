@@ -1,0 +1,12 @@
+struct Point
+    volatile x: I32
+    volatile y: I32
+
+@raw fun add(a: I32, b: I32) : I32
+    return a + b
+
+@raw fun kmain() : I32
+    let x: I32 = add(40, 2)
+    let sz: U64 = sizeof(x)
+    let al: U64 = alignof(x)
+    return x

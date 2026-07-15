@@ -1,0 +1,7 @@
+@global_asm(".set ALIGN,    1<<0\n.set MEMINFO,  1<<1\n.set FLAGS,    ALIGN | MEMINFO\n.set MAGIC,    0x1BADB002\n.set CHECKSUM, -(MAGIC + FLAGS)\n\n.section .multiboot\n.align 4\n.long MAGIC\n.long FLAGS\n.long CHECKSUM\n\n.section .text\n.globl _start\n_start:\n    call f_main\n    hlt\n")
+
+fun main() {
+    @outb(0x3f8, 65)
+    let p = @addr(main)
+    let b = @inb(0x3f8)
+}

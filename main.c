@@ -5,33 +5,38 @@ typedef struct CPU
     unsigned char PC;
 }CPU;
 
-int main(){
-    int opcode;
-    unsigned char memory[256];
-    CPU cpu;
-    cpu.A = 0;
-    cpu.PC = 0;
-    memory[0] = 1;
-    memory[1] = 50;
-    memory[2] = 2;
-    memory[3] = 0;
-    opcode = memory[cpu.PC];
-    printf("Opcode: %d\n", opcode);
-    switch (opcode)
-    { case 1:
-        printf("carregar valor");
-        cpu.A = memory[cpu.PC + 1];
-        cpu.PC += 2;
-        break;
-    case 2:
-        printf("imprimir valor");
-        printf("Valor: %d\n", cpu.A);
-        break;
-    case 0:
-        printf("parar execução");
-        break;
-     default:
-        printf("opcode desconhecido");
+#include <stdio.h>
+#include <stdint.h>
+
+// Struct interna simples para simular o SnaskValue String da linguagem
+typedef struct {
+    uint8_t type_tag;
+    char* data;
+} SnaskString;
+
+// Binding para a funcao print() do Snask
+void s_print(SnaskString* str) {
+    if (str && str->data) {
+        printf("%s", str->data);
     }
+}
+
+// Binding para println()
+void s_println(SnaskString* str) {
+    if (str && str->data) {
+        printf("%s\n", str->data);
     }
+}
+
+// Dummy snaskgui functions para evitar erro de linkage, caso algum resto tenha ficado
+void snaskgui_init() {}
+void snaskgui_window() {}
+void snaskgui_should_close() {}
+void snaskgui_present_rgba() {}
+void snaskgui_poll() {}
+
+int main() {
+    printf("Snask Runtime inicializado para TUI!\n");
+    return 0;
+}
       

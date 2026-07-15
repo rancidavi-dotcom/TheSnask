@@ -1,6 +1,7 @@
 use crate::ast::{
     BinaryOp, ConditionalStmt, ConstDecl, Expr, ExprKind, FuncDecl, IfBlock, LiteralValue,
-    Location, LoopStmt, MemoryStrategy, MutDecl, Program, Stmt, StmtKind, UnaryOp, VarDecl,
+    Location, LoopStmt, MemoryStrategy, MutDecl, Program, Stmt, StmtKind, StructDecl,
+    StructMember, UnaryOp, VarDecl,
 };
 use crate::span::{Position, Span};
 use crate::types::Type;
@@ -84,6 +85,13 @@ pub enum Token {
     Or(Location),
     Not(Location),
     Unsafe(Location),
+    Struct(Location),
+    Fence(Location),
+    Atomic(Location),
+    Volatile(Location),
+    SizeOf(Location),
+    AlignOf(Location),
+    OffsetOf(Location),
     At(Location),
 
     // Indentation
@@ -176,7 +184,14 @@ impl Token {
             | Token::And(loc)
             | Token::Or(loc)
             | Token::Not(loc)
-            | Token::Unsafe(loc)
+            |             Token::Unsafe(loc)
+            | Token::Struct(loc)
+            | Token::Fence(loc)
+            | Token::Atomic(loc)
+            | Token::Volatile(loc)
+            | Token::SizeOf(loc)
+            | Token::AlignOf(loc)
+            | Token::OffsetOf(loc)
             | Token::At(loc)
             | Token::Indent(loc)
             | Token::Dedent(loc)
@@ -259,6 +274,13 @@ impl Token {
             Token::Or(_) => "'or'".to_string(),
             Token::Not(_) => "'not'".to_string(),
             Token::Unsafe(_) => "'unsafe'".to_string(),
+            Token::Struct(_) => "'struct'".to_string(),
+            Token::Fence(_) => "'fence'".to_string(),
+            Token::Atomic(_) => "'atomic'".to_string(),
+            Token::Volatile(_) => "'volatile'".to_string(),
+            Token::SizeOf(_) => "'sizeof'".to_string(),
+            Token::AlignOf(_) => "'alignof'".to_string(),
+            Token::OffsetOf(_) => "'offsetof'".to_string(),
             Token::At(_) => "'@'".to_string(),
             Token::Indent(_) => "indent".to_string(),
             Token::Dedent(_) => "dedent".to_string(),
@@ -643,6 +665,13 @@ impl<'a> Tokenizer<'a> {
             "or" => Token::Or(loc),
             "not" => Token::Not(loc),
             "unsafe" => Token::Unsafe(loc),
+            "struct" => Token::Struct(loc),
+            "fence" => Token::Fence(loc),
+            "atomic" => Token::Atomic(loc),
+            "volatile" => Token::Volatile(loc),
+            "sizeof" => Token::SizeOf(loc),
+            "alignof" => Token::AlignOf(loc),
+            "offsetof" => Token::OffsetOf(loc),
             _ => Token::Identifier(ident, loc),
         }
     }
@@ -1227,6 +1256,9 @@ impl<'a> Parser<'a> {
             Token::For(_) => self.parse_for_statement(),
             Token::Fun(_) => self.parse_fun_declaration(),
             Token::Class(_) => self.parse_class_declaration(),
+            Token::Struct(_) => self.parse_struct_declaration(),
+            Token::Fence(_) => self.parse_fence_statement(),
+            Token::Atomic(_) => self.parse_atomic_statement(),
             Token::Return(_) => self.parse_return_statement(),
             Token::Import(_) => self.parse_import_statement(),
             Token::ImportCOm(_) => self.parse_import_c_om_statement(),
@@ -1326,31 +1358,251 @@ impl<'a> Parser<'a> {
                     .consume_token(&Token::At(Location { line: 0, column: 0 }))?
                     .get_location()
                     .clone();
-                self.consume_token(&Token::Unsafe(Location { line: 0, column: 0 }))?;
 
-                if matches!(self.current_token, Token::Fun(_)) {
-                    let mut stmt = self.parse_fun_declaration()?;
-                    if let StmtKind::FuncDeclaration(ref mut func) = stmt.kind {
-                        func.is_unsafe = true;
+                match self.current_token.clone() {
+                    Token::Unsafe(_) => {
+                        self.consume_token(&Token::Unsafe(Location { line: 0, column: 0 }))?;
+
+                        if matches!(self.current_token, Token::Fun(_)) {
+                            let mut stmt = self.parse_fun_declaration()?;
+                            if let StmtKind::FuncDeclaration(ref mut func) = stmt.kind {
+                                func.is_unsafe = true;
+                            }
+                            Ok(stmt)
+                        } else {
+                            let body = if matches!(
+                                self.current_token,
+                                Token::Colon(_)
+                                    | Token::LeftBrace(_)
+                                    | Token::Newline(_)
+                                    | Token::Indent(_)
+                            ) {
+                                self.parse_block()?
+                            } else {
+                                vec![self.parse_statement()?]
+                            };
+                            let mut span = Self::span1(&loc);
+                            if let Some(last) = body.last() {
+                                span = span.merge(&last.span);
+                            }
+                            Ok(Stmt::with_span(StmtKind::UnsafeBlock(body), loc, span))
+                        }
                     }
-                    Ok(stmt)
-                } else {
-                    let body = if matches!(
-                        self.current_token,
-                        Token::Colon(_)
-                            | Token::LeftBrace(_)
-                            | Token::Newline(_)
-                            | Token::Indent(_)
-                    ) {
-                        self.parse_block()?
-                    } else {
-                        vec![self.parse_statement()?]
-                    };
-                    let mut span = Self::span1(&loc);
-                    if let Some(last) = body.last() {
-                        span = span.merge(&last.span);
+                    Token::Identifier(ref id, _) if id == "raw" => {
+                        self.consume_identifier()?;
+                        if !matches!(self.current_token, Token::Fun(_)) {
+                            return Err(ParseError::new("SNASK-PARSE-RAW", "@raw must be followed by 'fun'".to_string(), Self::span1(&loc)));
+                        }
+                        let mut stmt = self.parse_fun_declaration()?;
+                        if let StmtKind::FuncDeclaration(ref mut func) = stmt.kind {
+                            func.is_raw = true;
+                            func.is_unsafe = true;
+                        }
+                        Ok(stmt)
                     }
-                    Ok(Stmt::with_span(StmtKind::UnsafeBlock(body), loc, span))
+                    Token::Identifier(ref id, _) if id == "extern" => {
+                        self.consume_identifier()?;
+                        if !matches!(self.current_token, Token::Fun(_)) {
+                            return Err(ParseError::new("SNASK-PARSE-EXTERN", "@extern must be followed by 'fun'".to_string(), Self::span1(&loc)));
+                        }
+                        // Parse extern function declaration (signature only, no body)
+                        let fun_loc = self.consume_token(&Token::Fun(Location { line: 0, column: 0 }))?
+                            .get_location().clone();
+                        let (name, _) = self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let mut params = Vec::new();
+                        if !matches!(self.current_token, Token::RightParen(_)) {
+                            loop {
+                                let (param_name, _) = self.consume_identifier()?;
+                                let param_type = self.parse_type_annotation()?;
+                                params.push((param_name, param_type.unwrap_or(Type::I32)));
+                                if !matches!(self.current_token, Token::Comma(_)) {
+                                    break;
+                                }
+                                self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                                if matches!(self.current_token, Token::RightParen(_)) {
+                                    break;
+                                }
+                            }
+                        }
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        let return_type = self.parse_type_annotation()?;
+                        self.consume_end_of_statement()?;
+                        Ok(Stmt::with_span(
+                            StmtKind::FuncDeclaration(FuncDecl {
+                                name,
+                                params,
+                                return_type,
+                                body: vec![],
+                                is_unsafe: true,
+                                is_interrupt: false,
+                                is_raw: true,
+                                is_extern: true,
+                                is_naked: false,
+                            }),
+                            fun_loc.clone(),
+                            Self::span1(&fun_loc),
+                        ))
+                    }
+                    Token::Identifier(ref id, _) if id == "interrupt" => {
+                        self.consume_identifier()?;
+                        let mut stmt = self.parse_fun_declaration()?;
+                        if let StmtKind::FuncDeclaration(ref mut func) = stmt.kind {
+                            func.is_interrupt = true;
+                        }
+                        Ok(stmt)
+                    }
+                    Token::Identifier(ref id, _) if id == "naked" => {
+                        self.consume_identifier()?;
+                        // Parse function signature manually (like @extern) for optional body
+                        let fun_loc = self.consume_token(&Token::Fun(Location { line: 0, column: 0 }))?
+                            .get_location().clone();
+                        let (name, _) = self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let mut params = Vec::new();
+                        if !matches!(self.current_token, Token::RightParen(_)) {
+                            loop {
+                                let (param_name, _) = self.consume_identifier()?;
+                                let param_type = self.parse_type_annotation()?;
+                                let param_type_resolved = match param_type {
+                                    Some(t) => t,
+                                    None => Type::Any,
+                                };
+                                params.push((param_name, param_type_resolved));
+                                if !matches!(self.current_token, Token::Comma(_)) {
+                                    break;
+                                }
+                                self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                                if matches!(self.current_token, Token::RightParen(_)) {
+                                    break;
+                                }
+                            }
+                        }
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        let return_type = self.parse_type_annotation()?;
+                        // Naked functions may have an empty body
+                        let body = if matches!(self.current_token,
+                            Token::Colon(_) | Token::LeftBrace(_) | Token::Newline(_) | Token::Indent(_)
+                        ) {
+                            self.parse_block()?
+                        } else {
+                            self.consume_end_of_statement()?;
+                            vec![]
+                        };
+                        let mut span = Self::span1(&fun_loc);
+                        if let Some(last) = body.last() {
+                            span = span.merge(&last.span);
+                        }
+                        Ok(Stmt::with_span(
+                            StmtKind::FuncDeclaration(FuncDecl {
+                                name,
+                                params,
+                                return_type,
+                                body,
+                                is_unsafe: true,
+                                is_interrupt: false,
+                                is_raw: true,
+                                is_extern: false,
+                                is_naked: true,
+                            }),
+                            fun_loc,
+                            span,
+                        ))
+                    }
+                    Token::Identifier(ref id, _) if id == "asm" => {
+                        self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let asm_str = match self.current_token.clone() {
+                            Token::String(s, _) => {
+                                self.consume_token(&Token::String("".to_string(), Location { line: 0, column: 0 }))?;
+                                s
+                            }
+                            _ => return Err(ParseError::new("SNASK-PARSE-ASM", "Expected string literal in @asm".to_string(), Self::span1(&loc))),
+                        };
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        self.consume_end_of_statement()?;
+                        Ok(Stmt::with_span(StmtKind::Asm(asm_str), loc.clone(), Self::span1(&loc)))
+                    }
+                    Token::Identifier(ref id, _) if id == "write" => {
+                        self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let ptr = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                        let value = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                        let type_hint = self.parse_type_name()?;
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        self.consume_end_of_statement()?;
+                        Ok(Stmt::with_span(StmtKind::WritePtr { ptr, value, type_hint }, loc.clone(), Self::span1(&loc)))
+                    }
+                    Token::Identifier(ref id, _) if id == "outb" => {
+                        self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let port = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                        let value = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        self.consume_end_of_statement()?;
+                        Ok(Stmt::with_span(StmtKind::Outb { port, value }, loc.clone(), Self::span1(&loc)))
+                    }
+                    Token::Volatile(_) => {
+                        self.consume_token(&Token::Volatile(Location { line: 0, column: 0 }))?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let ptr_expr = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                        let type_hint = self.parse_type_name()?;
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        self.consume_end_of_statement()?;
+                        let expr = Expr::with_span(
+                            ExprKind::VolatileLoad {
+                                ptr: Box::new(ptr_expr),
+                                type_hint,
+                            },
+                            loc.clone(),
+                            Self::span1(&loc),
+                        );
+                        Ok(Stmt::with_span(StmtKind::Expression(expr), loc.clone(), Self::span1(&loc)))
+                    }
+                    Token::Identifier(ref id, _) if id == "store" => {
+                        self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let ptr_expr = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                        let value_expr = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        self.consume_end_of_statement()?;
+                        let expr = Expr::with_span(
+                            ExprKind::VolatileStore {
+                                ptr: Box::new(ptr_expr),
+                                value: Box::new(value_expr),
+                            },
+                            loc.clone(),
+                            Self::span1(&loc),
+                        );
+                        Ok(Stmt::with_span(StmtKind::Expression(expr), loc.clone(), Self::span1(&loc)))
+                    }
+                    Token::Identifier(ref id, _) if id == "global_asm" => {
+                        self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let asm_str = match self.current_token.clone() {
+                            Token::String(s, _) => {
+                                self.consume_token(&Token::String("".to_string(), Location { line: 0, column: 0 }))?;
+                                s
+                            }
+                            _ => return Err(ParseError::new("SNASK-PARSE-GASM", "Expected string literal in @global_asm".to_string(), Self::span1(&loc))),
+                        };
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        self.consume_end_of_statement()?;
+                        Ok(Stmt::with_span(StmtKind::GlobalAsm(asm_str), loc.clone(), Self::span1(&loc)))
+                    }
+                    _ => {
+                        let found = self.current_token.clone();
+                        Err(ParseError::new(
+                            "SNASK-PARSE-AT",
+                            format!("Unexpected token after '@': {}", found.friendly_name()),
+                            Self::token_span(&found),
+                        ))
+                    }
                 }
             }
             _ => {
@@ -1759,6 +2011,181 @@ impl<'a> Parser<'a> {
             span,
         ))
     }
+    fn parse_struct_declaration(&mut self) -> ParseResult<Stmt> {
+        let loc = self
+            .consume_token(&Token::Struct(Location { line: 0, column: 0 }))?
+            .get_location()
+            .clone();
+
+        let is_repr_c = if let Token::Identifier(ref id, _) = self.current_token {
+            if id == "repr" {
+                self.consume_identifier()?;
+                let (attr, _) = self.consume_identifier()?;
+                if attr != "C" && attr != "c" {
+                    return Err(ParseError::new(
+                        "SNASK-PARSE-STRUCT-REPR",
+                        format!("Unknown repr attribute '{}'. Expected 'repr(C)'.", attr),
+                        Self::span1(&loc),
+                    ));
+                }
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        let (name, _) = self.consume_identifier()?;
+        self.skip_newlines_only()?;
+
+        let mut members = Vec::new();
+
+        let is_braced = matches!(self.current_token, Token::LeftBrace(_));
+        if is_braced {
+            self.consume_token(&Token::LeftBrace(Location { line: 0, column: 0 }))?;
+        } else {
+            self.consume_token(&Token::Indent(Location { line: 0, column: 0 }))?;
+        }
+
+        while (is_braced && !matches!(self.current_token, Token::RightBrace(_)))
+            || (!is_braced && !matches!(self.current_token, Token::Dedent(_)))
+        {
+            if self.at_end() {
+                break;
+            }
+
+            match self.current_token {
+                Token::Newline(_) | Token::Indent(_) | Token::Dedent(_) => {
+                    self.advance()?;
+                }
+                Token::Identifier(_, _) | Token::Volatile(_) => {
+                    let is_volatile = matches!(self.current_token, Token::Volatile(_));
+                    if is_volatile {
+                        self.consume_token(&Token::Volatile(Location { line: 0, column: 0 }))?;
+                    }
+                    let (member_name, _) = self.consume_identifier()?;
+                    self.consume_token(&Token::Colon(Location { line: 0, column: 0 }))?;
+                    let mut member_type = self.parse_type_name()?;
+                    if is_volatile {
+                        member_type = Type::Volatile(Box::new(member_type));
+                    }
+                    self.consume_end_of_statement()?;
+                    members.push(StructMember {
+                        name: member_name,
+                        var_type: member_type,
+                    });
+                }
+                _ => {
+                    let found = self.current_token.clone();
+                    return Err(ParseError::new(
+                        "SNASK-PARSE-STRUCT",
+                        format!("Unexpected token in struct: {}.", found.friendly_name()),
+                        Self::token_span(&found),
+                    ));
+                }
+            }
+        }
+
+        if is_braced {
+            self.consume_token(&Token::RightBrace(Location { line: 0, column: 0 }))?;
+        } else if !self.at_end() {
+            self.consume_token(&Token::Dedent(Location { line: 0, column: 0 }))?;
+        }
+
+        Ok(Stmt::with_span(
+            StmtKind::StructDeclaration(StructDecl {
+                name,
+                members,
+                repr_c: is_repr_c,
+            }),
+            loc.clone(),
+            Self::span1(&loc),
+        ))
+    }
+
+    fn parse_fence_statement(&mut self) -> ParseResult<Stmt> {
+        let loc = self
+            .consume_token(&Token::Fence(Location { line: 0, column: 0 }))?
+            .get_location()
+            .clone();
+        let (ordering, _) = self.consume_identifier()?;
+        match ordering.as_str() {
+            "acquire" | "release" | "acqrel" | "seq_cst" => {}
+            _ => {
+                return Err(ParseError::new(
+                    "SNASK-PARSE-FENCE",
+                    format!(
+                        "Invalid fence ordering '{}'. Expected: acquire, release, acqrel, seq_cst.",
+                        ordering
+                    ),
+                    Self::span1(&loc),
+                ));
+            }
+        }
+        self.consume_end_of_statement()?;
+        Ok(Stmt::with_span(
+            StmtKind::Fence { ordering },
+            loc.clone(),
+            Self::span1(&loc),
+        ))
+    }
+
+    fn parse_atomic_statement(&mut self) -> ParseResult<Stmt> {
+        let loc = self
+            .consume_token(&Token::Atomic(Location { line: 0, column: 0 }))?
+            .get_location()
+            .clone();
+        let (op, _) = self.consume_identifier()?;
+        if op != "rmw" {
+            return Err(ParseError::new(
+                "SNASK-PARSE-ATOMIC",
+                format!("Unknown atomic operation '{}'. Expected 'rmw'.", op),
+                Self::span1(&loc),
+            ));
+        }
+        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+        let (rmw_op, _) = self.consume_identifier()?;
+        match rmw_op.as_str() {
+            "add" | "sub" | "or" | "and" | "xor" | "xchg" => {}
+            _ => {
+                return Err(ParseError::new(
+                    "SNASK-PARSE-ATOMIC-RMW",
+                    format!("Invalid atomic rmw op '{}'.", rmw_op),
+                    Self::span1(&loc),
+                ));
+            }
+        }
+        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+        let ptr = self.parse_expression(Precedence::Assignment)?;
+        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+        let value = self.parse_expression(Precedence::Assignment)?;
+        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+        let (ordering, _) = self.consume_identifier()?;
+        match ordering.as_str() {
+            "acquire" | "release" | "acqrel" | "seq_cst" | "relaxed" => {}
+            _ => {
+                return Err(ParseError::new(
+                    "SNASK-PARSE-ATOMIC-ORDER",
+                    format!("Invalid memory ordering '{}'.", ordering),
+                    Self::span1(&loc),
+                ));
+            }
+        }
+        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+        self.consume_end_of_statement()?;
+        Ok(Stmt::with_span(
+            StmtKind::AtomicRmw {
+                ptr,
+                op: rmw_op,
+                value,
+                ordering,
+            },
+            loc.clone(),
+            Self::span1(&loc),
+        ))
+    }
+
     fn parse_if_statement(&mut self) -> ParseResult<Stmt> {
         let loc = self
             .consume_token(&Token::If(Location { line: 0, column: 0 }))?
@@ -1894,6 +2321,10 @@ impl<'a> Parser<'a> {
                 return_type,
                 body,
                 is_unsafe: false,
+                is_interrupt: false,
+                is_raw: false,
+                is_extern: false,
+                is_naked: false,
             }),
             loc,
             span,
@@ -1981,7 +2412,14 @@ impl<'a> Parser<'a> {
                 .with_help("Only list<T> and dict<K, V> are supported today.".to_string())),
             }
         } else {
-            Ok(Type::from_str(normalized.as_str()).unwrap_or(Type::User(type_name)))
+            let base = Type::from_str(normalized.as_str()).unwrap_or(Type::User(type_name));
+            // Support pointer types: Type*
+            if matches!(self.current_token, Token::Star(_)) {
+                self.consume_token(&Token::Star(Location { line: 0, column: 0 }))?;
+                Ok(Type::Ptr)
+            } else {
+                Ok(base)
+            }
         }
     }
 
@@ -2315,6 +2753,144 @@ impl<'a> Parser<'a> {
                     span,
                 ))
             }
+            Token::At(_) => {
+                self.consume_token(&Token::At(Location { line: 0, column: 0 }))?;
+                match self.current_token.clone() {
+                    Token::Identifier(ref id, _) if id == "deref" => {
+                        self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let ptr_expr = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                        let type_hint = self.parse_type_name()?;
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        let span = Self::span1(&loc);
+                        Ok(Expr::with_span(
+                            ExprKind::Deref {
+                                ptr: Box::new(ptr_expr),
+                                type_hint,
+                            },
+                            loc,
+                            span,
+                        ))
+                    }
+                    Token::Identifier(ref id, _) if id == "inb" => {
+                        self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let port_expr = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        let span = Self::span1(&loc);
+                        Ok(Expr::with_span(
+                            ExprKind::Inb(Box::new(port_expr)),
+                            loc,
+                            span,
+                        ))
+                    }
+                    Token::Identifier(ref id, _) if id == "addr" => {
+                        self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let fn_name = match self.current_token.clone() {
+                            Token::Identifier(name, _) => {
+                                self.consume_identifier()?;
+                                name
+                            }
+                            _ => return Err(ParseError::new("SNASK-PARSE-ADDR", "Expected function name in @addr".to_string(), Self::span1(&loc))),
+                        };
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        let span = Self::span1(&loc);
+                        Ok(Expr::with_span(
+                            ExprKind::AddrOf(fn_name),
+                            loc,
+                            span,
+                        ))
+                    }
+                    Token::Identifier(ref id, _) if id == "volatile" => {
+                        self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let ptr_expr = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                        let type_hint = self.parse_type_name()?;
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        let span = Self::span1(&loc);
+                        Ok(Expr::with_span(
+                            ExprKind::VolatileLoad {
+                                ptr: Box::new(ptr_expr),
+                                type_hint,
+                            },
+                            loc,
+                            span,
+                        ))
+                    }
+                    Token::Volatile(_) => {
+                        self.consume_token(&Token::Volatile(Location { line: 0, column: 0 }))?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let ptr_expr = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                        let type_hint = self.parse_type_name()?;
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        let span = Self::span1(&loc);
+                        Ok(Expr::with_span(
+                            ExprKind::VolatileLoad {
+                                ptr: Box::new(ptr_expr),
+                                type_hint,
+                            },
+                            loc,
+                            span,
+                        ))
+                    }
+                    Token::Identifier(ref id, _) if id == "store" => {
+                        self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let ptr_expr = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                        let value_expr = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        let span = Self::span1(&loc);
+                        Ok(Expr::with_span(
+                            ExprKind::VolatileStore {
+                                ptr: Box::new(ptr_expr),
+                                value: Box::new(value_expr),
+                            },
+                            loc,
+                            span,
+                        ))
+                    }
+                    Token::Identifier(ref id, _) if id == "inttoptr" => {
+                        self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let expr = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                        let type_hint = self.parse_type_name()?;
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        let span = Self::span1(&loc);
+                        Ok(Expr::with_span(
+                            ExprKind::IntToPtr {
+                                expr: Box::new(expr),
+                                type_hint,
+                            },
+                            loc,
+                            span,
+                        ))
+                    }
+                    Token::Identifier(ref id, _) if id == "ptrtoint" => {
+                        self.consume_identifier()?;
+                        self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                        let expr = self.parse_expression(Precedence::Assignment)?;
+                        self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                        let type_hint = self.parse_type_name()?;
+                        self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                        let span = Self::span1(&loc);
+                        Ok(Expr::with_span(
+                            ExprKind::PtrToInt {
+                                expr: Box::new(expr),
+                                type_hint,
+                            },
+                            loc,
+                            span,
+                        ))
+                    }
+                    _ => Err(ParseError::new("SNASK-PARSE-AT-EXPR", "Unexpected token after @ in expression".to_string(), Self::span1(&loc))),
+                }
+            }
             Token::Not(_) => {
                 self.consume_token(&Token::Not(loc.clone()))?;
                 let expr = self.parse_expression(Precedence::Unary)?;
@@ -2349,6 +2925,47 @@ impl<'a> Parser<'a> {
             }
             Token::LeftBracket(_) => self.parse_list_literal(),
             Token::LeftBrace(_) => self.parse_dict_literal(),
+            Token::SizeOf(_) => {
+                self.consume_token(&Token::SizeOf(Location { line: 0, column: 0 }))?;
+                self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                let expr = self.parse_expression(Precedence::Assignment)?;
+                self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                let span = Self::span1(&loc);
+                Ok(Expr::with_span(
+                    ExprKind::SizeOf(Box::new(expr)),
+                    loc,
+                    span,
+                ))
+            }
+            Token::AlignOf(_) => {
+                self.consume_token(&Token::AlignOf(Location { line: 0, column: 0 }))?;
+                self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                let expr = self.parse_expression(Precedence::Assignment)?;
+                self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                let span = Self::span1(&loc);
+                Ok(Expr::with_span(
+                    ExprKind::AlignOf(Box::new(expr)),
+                    loc,
+                    span,
+                ))
+            }
+            Token::OffsetOf(_) => {
+                self.consume_token(&Token::OffsetOf(Location { line: 0, column: 0 }))?;
+                self.consume_token(&Token::LeftParen(Location { line: 0, column: 0 }))?;
+                let expr = self.parse_expression(Precedence::Assignment)?;
+                self.consume_token(&Token::Comma(Location { line: 0, column: 0 }))?;
+                let (field_name, _) = self.consume_identifier()?;
+                self.consume_token(&Token::RightParen(Location { line: 0, column: 0 }))?;
+                let span = Self::span1(&loc);
+                Ok(Expr::with_span(
+                    ExprKind::OffsetOf {
+                        expr: Box::new(expr),
+                        field: field_name,
+                    },
+                    loc,
+                    span,
+                ))
+            }
             Token::New(_) => {
                 let loc = self
                     .consume_token(&Token::New(Location { line: 0, column: 0 }))?

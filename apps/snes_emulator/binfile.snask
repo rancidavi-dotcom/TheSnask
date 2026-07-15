@@ -1,0 +1,7 @@
+// Binary file helpers for systems Snask code.
+
+fun size(path: str) : int
+    return as_i64(binfile_size(path))
+
+fun read_into(path: str, dst: ptr, max_bytes: int) : int
+    return as_i64(binfile_read_into(path, dst, max_bytes))

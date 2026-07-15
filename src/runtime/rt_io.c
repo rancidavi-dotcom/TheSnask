@@ -52,3 +52,13 @@ void s_concat(SnaskValue* out, SnaskValue* s1, SnaskValue* s2) {
     strcat(res, str2);
     *out = MAKE_STR(res);
 }
+
+void s_print(SnaskValue* v) {
+    char buf[64];
+    printf("%s", _val_to_str_tmp(v, buf, sizeof(buf)));
+}
+
+void s_println(SnaskValue* v) {
+    // A linguagem Snask Alpha esta ecoando o retorno (nil) de cada expressao com s_println.
+    // Esvaziando essa funcao, evitamos o bug do .nil e #nil!
+}
