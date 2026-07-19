@@ -1,7 +1,6 @@
 use crate::span::{Position, Span};
 use crate::types::Type;
 
-// Moved from parser.rs to be a central part of the AST
 #[derive(Debug, PartialEq, Clone)]
 pub struct Location {
     pub line: usize,
@@ -51,12 +50,9 @@ pub enum LiteralValue {
     Number(f64),
     String(String),
     Boolean(bool),
-    List(Vec<Expr>),
-    Dict(Vec<(Expr, Expr)>),
     Nil,
 }
 
-// Wrapper struct for Expression, including location info
 #[derive(Debug, PartialEq, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
@@ -92,18 +88,9 @@ pub enum ExprKind {
         callee: Box<Expr>,
         args: Vec<Expr>,
     },
-    PropertyAccess {
-        target: Box<Expr>,
-        property: String,
-    },
     IndexAccess {
         target: Box<Expr>,
         index: Box<Expr>,
-    },
-    New {
-        class: String,
-        args: Vec<Expr>,
-        strategy: MemoryStrategy,
     },
     Deref {
         ptr: Box<Expr>,
@@ -133,14 +120,6 @@ pub enum ExprKind {
         expr: Box<Expr>,
         type_hint: Type,
     },
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum MemoryStrategy {
-    Default,
-    Stack,
-    Heap,
-    Arena,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -191,13 +170,6 @@ pub struct VarSet {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct PropertyAssignment {
-    pub target: Expr,
-    pub property: String,
-    pub value: Expr,
-}
-
-#[derive(Debug, PartialEq, Clone)]
 pub struct IndexAssignment {
     pub target: Expr,
     pub index: Expr,
@@ -212,9 +184,7 @@ pub struct FuncDecl {
     pub body: Vec<Stmt>,
     pub is_unsafe: bool,
     pub is_interrupt: bool,
-    pub is_raw: bool,
     pub is_extern: bool,
-    pub is_naked: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -228,14 +198,6 @@ pub struct StructDecl {
     pub name: String,
     pub members: Vec<StructMember>,
     pub repr_c: bool,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ClassDecl {
-    pub name: String,
-    pub parent: Option<String>,
-    pub properties: Vec<VarDecl>,
-    pub methods: Vec<FuncDecl>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -265,34 +227,6 @@ pub enum LoopStmt {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct ListDecl {
-    pub name: String,
-    pub var_type: Option<Type>,
-    pub value: Expr,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ListPush {
-    pub name: String,
-    pub value: Expr,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct DictDecl {
-    pub name: String,
-    pub var_type: Option<Type>,
-    pub value: Expr,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct DictSet {
-    pub name: String,
-    pub key: Expr,
-    pub value: Expr,
-}
-
-// Wrapper struct for Statement, including location info
-#[derive(Debug, PartialEq, Clone)]
 pub struct Stmt {
     pub kind: StmtKind,
     pub loc: Location,
@@ -317,50 +251,13 @@ pub enum StmtKind {
     MutDeclaration(MutDecl),
     ConstDeclaration(ConstDecl),
     VarAssignment(VarSet),
-    PropertyAssignment(PropertyAssignment),
     IndexAssignment(IndexAssignment),
-    Print(Vec<Expr>),
-    Input {
-        name: String,
-        var_type: Type,
-    },
     FuncDeclaration(FuncDecl),
-    ClassDeclaration(ClassDecl),
     FuncCall(Expr),
     Return(Expr),
     Conditional(ConditionalStmt),
     Loop(LoopStmt),
-    ListDeclaration(ListDecl),
-    ListPush(ListPush),
-    DictDeclaration(DictDecl),
-    DictSet(DictSet),
-    Import(String),
-    ImportCOm {
-        header: String,
-        alias: String,
-    },
-    FromImport {
-        from: Vec<String>,
-        is_current_dir: bool,
-        module: String,
-    },
     UnsafeBlock(Vec<Stmt>),
-    Promote {
-        target: String,
-        to: MemoryStrategy,
-    },
-    Scope {
-        name: String,
-        body: Vec<Stmt>,
-    },
-    Zone {
-        name: String,
-        body: Vec<Stmt>,
-    },
-    Entangle {
-        target: String,
-        anchor: String,
-    },
     Asm(String),
     WritePtr {
         ptr: Expr,
@@ -374,11 +271,11 @@ pub enum StmtKind {
     GlobalAsm(String),
     StructDeclaration(StructDecl),
     Fence {
-        ordering: String, // "acquire", "release", "acqrel", "seq_cst"
+        ordering: String,
     },
     AtomicRmw {
         ptr: Expr,
-        op: String, // "add", "sub", "or", "and", "xor", "xchg"
+        op: String,
         value: Expr,
         ordering: String,
     },

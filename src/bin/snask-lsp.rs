@@ -239,24 +239,7 @@ impl Backend {
                         });
                     }
                 }
-                StmtKind::ClassDeclaration(c) => out.symbols.push(Symbol {
-                    name: c.name.clone(),
-                    kind: SymbolKind::Class,
-                    span: stmt.span.clone(),
-                    uri: uri.clone(),
-                }),
-                StmtKind::Import(path) => out.symbols.push(Symbol {
-                    name: path.clone(),
-                    kind: SymbolKind::Import,
-                    span: stmt.span.clone(),
-                    uri: uri.clone(),
-                }),
-                StmtKind::FromImport { module, .. } => out.symbols.push(Symbol {
-                    name: module.clone(),
-                    kind: SymbolKind::Module,
-                    span: stmt.span.clone(),
-                    uri: uri.clone(),
-                }),
+
                 _ => {}
             }
         }
@@ -1009,11 +992,7 @@ impl LanguageServer for Backend {
                 SnaskToken::Let(_) => (3, Some(0)),
                 SnaskToken::Mut(_) => (3, Some(0)),
                 SnaskToken::Const(_) => (5, Some(0)),
-                SnaskToken::Print(_) => (5, Some(0)),
-                SnaskToken::Input(_) => (5, Some(0)),
                 SnaskToken::Fun(_) => (3, Some(0)),
-                SnaskToken::Class(_) => (5, Some(0)),
-                SnaskToken::SelfKw(_) => (4, Some(0)),
                 SnaskToken::Return(_) => (6, Some(0)),
                 SnaskToken::If(_) => (2, Some(0)),
                 SnaskToken::Elif(_) => (4, Some(0)),
@@ -1021,8 +1000,7 @@ impl LanguageServer for Backend {
                 SnaskToken::While(_) => (5, Some(0)),
                 SnaskToken::For(_) => (3, Some(0)),
                 SnaskToken::In(_) => (2, Some(0)),
-                SnaskToken::Import(_) => (6, Some(0)),
-                SnaskToken::From(_) => (4, Some(0)),
+
                 SnaskToken::True(_) => (4, Some(0)),
                 SnaskToken::False(_) => (5, Some(0)),
                 SnaskToken::Nil(_) => (3, Some(0)),
@@ -1075,17 +1053,17 @@ impl LanguageServer for Backend {
                 | SnaskToken::Dedent(_)
                 | SnaskToken::Newline(_)
                 | SnaskToken::Eof(_) => (0, None),
-                SnaskToken::List(_) | SnaskToken::Dict(_) => (4, Some(0)),
+
                 _ => (1, None),
             };
 
             // Update "expect next identifier" state based on current token
             match t {
                 SnaskToken::Fun(_) => expect_ident_as = Some(1), // function
-                SnaskToken::Class(_) => expect_ident_as = Some(3), // type
+
                 SnaskToken::Let(_) | SnaskToken::Mut(_) => expect_ident_as = Some(2), // variable
                 SnaskToken::Const(_) => expect_ident_as = Some(2),
-                SnaskToken::From(_) | SnaskToken::Import(_) => expect_ident_as = Some(7), // namespace/module-ish
+
                 _ => {}
             }
 

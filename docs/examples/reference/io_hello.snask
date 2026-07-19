@@ -1,5 +1,0 @@
-class main {
-    fun start() {
-        print("Ola, documentacao Snask!\n")
-    }
-}

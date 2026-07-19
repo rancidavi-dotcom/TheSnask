@@ -1,269 +1,580 @@
 <p align="center">
-  <img src="Snask.png" alt="Snask" width="120" style="border-radius: 24px;" />
+  <img src="Snask.png" alt="Snask Logo" width="150"/>
 </p>
 
-<h1 align="center">Snask v0.4.1-alpha</h1>
-
-<p align="center">
-  <strong>Performance de sistemas. Ergonomia humana.</strong>
-</p>
+<h1 align="center">Snask v0.5.0-baremetal</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/license-MIT-brightgreen" alt="MIT" />
-  <img src="https://img.shields.io/badge/rust-1.85+-orange" alt="Rust" />
-  <img src="https://img.shields.io/badge/LLVM-18-blue" alt="LLVM 18" />
-  <img src="https://img.shields.io/badge/status-alpha-yellow" alt="Alpha" />
-  <img src="https://img.shields.io/badge/platform-linux-lightgrey" alt="Linux" />
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
+  <img src="https://img.shields.io/badge/Rust-1.85+-orange.svg" alt="Rust 1.85+">
+  <img src="https://img.shields.io/badge/LLVM-18-red.svg" alt="LLVM 18">
+  <img src="https://img.shields.io/badge/status-alpha-yellow.svg" alt="Status: Alpha">
+  <img src="https://img.shields.io/badge/platform-linux-brightgreen.svg" alt="Platform: Linux">
 </p>
 
-<p align="center">
-  <a href="#-instalação">Instalação</a> •
-  <a href="#-hello-world">Hello World</a> •
-  <a href="#-exemplos">Exemplos</a> •
-  <a href="#-perfis">Perfis</a> •
-  <a href="#-om-memory-system">OM</a> •
-  <a href="#-documentação">Docs</a>
-</p>
+![Snask Banner](docs/banner.jpg)
 
 ---
 
-Snask é uma linguagem compilada AOT para binários nativos via **LLVM 18**. O objetivo é unir uma superfície humana para apps, CLI e DX com uma base de sistemas capaz de rodar runtimes, emuladores e interop nativa — sem transformar o usuário em gerenciador manual de memória.
+## O que é Snask
 
-> *Em vez de você escrever o contrato, o Snask deve deduzir o contrato.*
+Snask é uma linguagem de programação compilada AOT via **LLVM 18**, projetada exclusivamente para desenvolvimento baremetal: sistemas operacionais, kernels, drivers de hardware, emuladores e firmware. Não há classes, garbage collector, strings gerenciadas, listas ou dicionários. Cada instrução no código-fonte mapeia diretamente para instruções de máquina sem overhead invisível.
+
+Uma string literal como `"hello"` compila para um ponteiro cru (`Ptr`) apontando para bytes terminados em nulo na seção `.rodata`. Números compilam para inteiros de máquina. Funções geram código nativo sem prólogos invisíveis. O que você escreve é o que a CPU executa.
+
+O compilador é escrito em Rust e gera LLVM IR, aproveitando as otimizações do backend LLVM 18 para produzir binários eficientes para x86, x86_64, ARM e RISC-V.
 
 ---
 
-## 🚀 Instalação
+## Filosofia
+
+**"O hardware dita as regras."**
+
+- **Zero overhead oculto:** nenhuma alocação implícita, nenhuma inicialização invisível.
+- **Controle explícito:** operações perigosas exigem `@unsafe` e intrínsecos nomeados.
+- **Interop C simples:** structs com `repr_c` e ponteiros brutos para falar com código externo.
+
+**Snask vs C:** Snask moderniza a sintaxe do C, substituindo macros obscuras por intrínsecos claros (`@inb`, `@outb`, `@volatile`). A separação entre código seguro e unsafe é explícita na gramática.
+
+**Snask vs Rust:** Snask não impõe borrow checker. Em baremetal, aliasing de ponteiros MMIO é intencional e frequente. Snask exige responsabilidade do programador ao invés de restringi-lo.
+
+**Snask vs Zig:** Zig oferece metaprogramação complexa com `comptime`. Snask prefere manter a linguagem enxuta e previsível, sem camadas extras de abstração.
+
+---
+
+## Instalação
+
+### Compilação Manual (Recomendado)
+
+Requisitos: **Rust 1.85+** e **LLVM 18**.
 
 ```bash
-# Via instalador universal (Linux)
-curl -fsSL https://raw.githubusercontent.com/rancidavi-dotcom/TheSnask/main/install.sh | bash
-```
-
-```bash
-# Via AUR (Arch Linux)
-yay -S snask
-```
-
-```bash
-# Via .deb (Ubuntu/Debian)
-curl -fsSL https://github.com/rancidavi-dotcom/TheSnask/releases/latest/download/snask-amd64.deb -o snask.deb
-sudo dpkg -i snask.deb
-```
-
-```bash
-# Compilação manual
 git clone https://github.com/rancidavi-dotcom/TheSnask.git
 cd TheSnask
+
+# Instalar LLVM 18 (Debian/Ubuntu)
+sudo apt-get install llvm-18 llvm-18-dev
+
+# Compilar
 cargo build --release
-./target/release/snask doctor
+
+# Adicionar ao PATH
+export PATH=$PATH:$(pwd)/target/release
 ```
 
----
+Se o Cargo reclamar do `llvm-config`, exporte: `LLVM_SYS_180_PREFIX=/usr/lib/llvm-18`.
 
-## 💻 Hello World
-
-```snask
-class main {
-    fun start() {
-        print("Olá, Snask!\n")
-    }
-}
-```
+### Via AUR (Arch Linux)
 
 ```bash
-snask build hello.snask --output hello
-./hello
-# → Olá, Snask!
+yay -S snask-git
+```
+
+### Via .deb (Debian/Ubuntu)
+
+```bash
+wget https://github.com/rancidavi-dotcom/TheSnask/releases/download/v0.5.0/snask_0.5.0_amd64.deb
+sudo dpkg -i snask_0.5.0_amd64.deb
 ```
 
 ---
 
-## 🔥 Exemplos
+## Sintaxe Básica
 
-### SDL2 com gerenciamento automático (OM)
-
-```snask
-import_c_om "SDL2/SDL.h" as sdl2
-
-class main {
-    fun start() {
-        zone "sdl" {
-            sdl2.init(sdl2.INIT_VIDEO)
-            let window = sdl2.create_window(
-                "Snask SDL2", 100, 100, 640, 480, 0
-            )
-            let renderer = sdl2.create_renderer(window, -1, 0)
-            sdl2.set_render_draw_color(renderer, 20, 120, 220, 255)
-            sdl2.render_clear(renderer)
-            sdl2.render_present(renderer)
-            sdl2.delay(3000)
-            sdl2.quit()
-        } // window e renderer destruídos automaticamente
-    }
-}
-```
-
-### Memória crua (perfil Systems)
+Snask usa **indentação** para blocos (sem `{ }`). Funções usam `fun`, retorno com `:` (não `->`). Variáveis são declaradas com `let` (imutável), `mut` (mutável) ou `const` (compile-time).
 
 ```snask
-class main {
-    fun start() {
-        @unsafe {
-            let mem: ptr = mem_alloc_zero(65536)  // 64KB
-            mem_write_u8(mem, 0xFFFC, 0x00)
-            mem_write_u8(mem, 0xFFFD, 0x80)
-            let pc: u16 = mem_read_u16(mem, 0xFFFC)
-            mem_free(mem)
-        }
-    }
-}
+fun add(a: I32, b: I32) : I32
+    return a + b
+
+fun main() : I32
+    let x: I32 = add(40, 2)
+    return x
 ```
 
-### Interface gráfica nativa
+Compilar e executar:
 
-```snask
-gui_init()
-let win = gui_window("Snask App", 400, 300)
-let vbox = gui_vbox()
-let label = gui_label("Clique no botão!")
-let btn = gui_button("Clique Aqui")
-gui_on_click(btn, fun() { gui_set_text(label, "Clicou!") })
-gui_add(vbox, label)
-gui_add(vbox, btn)
-gui_add(win, vbox)
-gui_show_all(win)
-gui_run()
-```
-
-### Projeto SPS
-
-```snif
-[project]
-name = "meu_app"
-version = "0.1.0"
-main = "src/main.snask"
-
-[dependencies]
-json = "1.0.0"
-
-[build]
-profile = "humane"
-target = "native"
+```bash
+snask build main.snask --output main
+./main
 ```
 
 ---
 
-## ⚡ Perfis
+## Exemplos
 
-Snask tem dois perfis principais que coexistem na mesma linguagem:
-
-| Perfil | Uso | Características |
-|--------|-----|-----------------|
-| `humane` | apps, CLI, aprendizado | Runtime completo, zonas automáticas, produtividade máxima |
-| `systems` | emuladores, parsers, memória crua | `@unsafe`, ponteiros, primitivas NES/CPU, controle total |
-
-Build explícito: `snask build --profile systems`
-
-> No perfil **Humane** você nunca vê um `malloc`. No perfil **Systems** você controla cada byte — e o OM continua gerenciando seus recursos C.
-
----
-
-## 🧠 OM Memory System
-
-O **OM (Orquestrador de Memória)** é o coração do Snask. Ele unifica:
-
-- **Zonas** — escopos nominados com liberação automática
-- **Arenas** — alocação linear O(1) para processamento em lote
-- **Recursos externos** — handles C com destrutores registrados
-- **Contratos C** — bindings deduzidos automaticamente de headers, com patch `.om.snif` opcional
+### 1. Constantes e Variáveis
 
 ```snask
-zone "request" {
-    let dados = read_file("config.json")
-    let parsed = json_parse(dados)
-    processar(parsed)
-} // tudo liberado aqui
+const VGA_ADDR: U64 = 0xB8000
+const VGA_WIDTH: I32 = 80
+const VGA_HEIGHT: I32 = 25
+
+mut counter: U64 = 0
+let message: Ptr = "Snask Kernel"
 ```
 
-🔗 [Documentação completa do OM](docs/systems/OM_SNASK_SYSTEM.md) • [Tutorial .om.snif](docs/site/systems/om.html#modulo-5-tutorial-om-snif)
+### 2. Structs e Layout de Memória
+
+```snask
+struct GdtEntry
+    limit_low: U16
+    base_low: U16
+    base_middle: U8
+    access: U8
+    granularity: U8
+    base_high: U8
+
+struct Point
+    volatile x: I32
+    volatile y: I32
+```
+
+Campos com `volatile` garantem que leituras/escritas não sejam otimizadas pelo LLVM.
+
+### 3. Funções e Modificadores
+
+```snask
+// Função normal
+fun soma(a: I32, b: I32) : I32
+    return a + b
+
+// Função unsafe — pode acessar hardware
+@unsafe fun write_vga(addr: U64, val: I32)
+    @store(addr, val)
+
+// Função interrupt — gera iret no epilogo (para ISRs)
+@naked fun isr_handler()
+    @asm("iretq")
+
+// Função extern — símbolo resolvido no linker
+@extern fun putchar(c: I32) : I32
+```
+
+### 4. Escrevendo no VGA Buffer (Kernel Baremetal)
+
+```snask
+@global_asm(".section .text")
+@global_asm(".global _start")
+@global_asm("_start: call kmain")
+@global_asm("hlt_loop: hlt")
+@global_asm("jmp hlt_loop")
+
+const VGA: U64 = 0xB8000
+
+@unsafe fun kmain() : I32
+    // Escreve 'O' branco na primeira posição VGA
+    @store(VGA, 0x0F4F)
+    // Escreve 'K' na segunda posição
+    @store(VGA + 2, 0x0F4B)
+    return 0
+```
+
+### 5. Port I/O — Leitura do Teclado PS/2
+
+```snask
+const PS2_DATA: U16 = 0x60
+const PIC_CMD: U16 = 0x20
+const PIC_EOI: U8 = 0x20
+
+@unsafe fun read_keyboard() : U8
+    let scancode: U8 = @inb(PS2_DATA)
+    return scancode
+
+@unsafe fun ack_pic()
+    @outb(PIC_CMD, PIC_EOI)
+```
+
+### 6. Timer PIT (Programmable Interval Timer)
+
+```snask
+const PIT_CMD: U16 = 0x43
+const PIT_DATA: U16 = 0x40
+
+@unsafe fun init_pit(hz: U32)
+    let divisor: U32 = 1193180 / hz
+    @outb(PIT_CMD, 0x36)
+    @outb(PIT_DATA, divisor & 0xFF)
+    @outb(PIT_DATA, (divisor >> 8) & 0xFF)
+
+mut global_ticks: U64 = 0
+
+@naked fun timer_isr()
+    @asm("iretq")
+```
+
+### 7. Intrínsecos de Tipo e Memória
+
+```snask
+struct Packet
+    src: U32
+    dst: U32
+    len: U16
+
+fun struct_info() : U64
+    let sz: U64 = sizeof(Packet)
+    let al: U64 = alignof(Packet)
+    let off: U64 = offsetof(Packet, len)
+    return sz + al + off
+```
+
+### 8. Ponteiros, IntToPtr e PtrToInt
+
+```snask
+@unsafe fun ptr_demo() : U64
+    let p: U64 = @inttoptr(0xB8000, U64)
+    let addr: U64 = @ptrtoint(p, U64)
+    return addr
+
+@unsafe fun deref_demo(ptr: U64) : I32
+    let val: I32 = @deref(ptr, I32)
+    return val
+
+@unsafe fun addr_demo() : U64
+    mut x: I32 = 42
+    let a: U64 = @addr(x)
+    return a
+```
+
+### 9. Operações Atômicas e Barreiras de Memória
+
+```snask
+@unsafe fun spinlock_acquire(lock: U64)
+    fence seq_cst
+    atomic rmw(xchg, lock, 1, seq_cst)
+
+@unsafe fun spinlock_release(lock: U64)
+    atomic rmw(xchg, lock, 0, seq_cst)
+    fence acqrel
+```
+
+### 10. Blocos Unsafe e Assembly Inline
+
+```snask
+@unsafe fun disable_interrupts()
+    @asm("cli")
+
+@unsafe fun enable_interrupts()
+    @asm("sti")
+
+@unsafe fun halt()
+    @asm("hlt")
+
+fun idle_loop()
+    while true
+        @unsafe
+            @asm("hlt")
+```
+
+### 11. Serial UART COM1 Inicialização
+
+![Serial UART](docs/serial_uart.png)
+
+```snask
+const COM1: U16 = 0x3F8
+
+@unsafe fun init_serial() : Bool
+    @outb(COM1 + 1, 0x00)
+    @outb(COM1 + 3, 0x80)
+    @outb(COM1 + 0, 0x03)
+    @outb(COM1 + 1, 0x00)
+    @outb(COM1 + 3, 0x03)
+    @outb(COM1 + 2, 0xC7)
+    @outb(COM1 + 4, 0x0B)
+    @outb(COM1 + 4, 0x1E)
+    @outb(COM1 + 0, 0xAE)
+    if @inb(COM1) != 0xAE
+        return false
+    @outb(COM1 + 4, 0x0F)
+    return true
+
+@unsafe fun serial_write(byte: U8)
+    @outb(COM1, byte)
+```
+
+### 12. CMOS RTC — Leitura de Hora
+
+```snask
+const CMOS_ADDR: U16 = 0x70
+const CMOS_DATA: U16 = 0x71
+
+@unsafe fun rtc_read(reg: U8) : U8
+    @outb(CMOS_ADDR, reg)
+    return @inb(CMOS_DATA)
+
+@unsafe fun get_seconds() : U8
+    return rtc_read(0x00)
+
+@unsafe fun get_minutes() : U8
+    return rtc_read(0x02)
+
+@unsafe fun get_hours() : U8
+    return rtc_read(0x04)
+```
 
 ---
 
-## 📂 Estrutura do projeto
+## Pipeline de Compilação
+
+![Pipeline do Compilador Snask](docs/pipeline.jpg)
+
+O compilador Snask transforma código-fonte em binários nativos através de 6 estágios:
+
+| Estágio | Módulo | Função |
+|---------|--------|--------|
+| 1. Lexer | `parser.rs` | Converte texto em tokens (keywords, literais, operadores) |
+| 2. Parser | `parser.rs` | Constrói a AST (Abstract Syntax Tree) a partir dos tokens |
+| 3. Análise Semântica | `semantic_analyzer.rs` | Verifica tipos, mutabilidade, escopo e valida a AST |
+| 4. Geração LLVM IR | `llvm_generator.rs` | Traduz a AST em LLVM IR usando `inkwell` |
+| 5. Otimização | LLVM 18 | Aplica passes de otimização (DCE, inlining, constant folding) |
+| 6. Code Generation | LLVM 18 | Emite código de máquina nativo (ELF, objeto, flat binary) |
+
+---
+
+## Sistema de Tipos
+
+Todos os tipos mapeiam diretamente para tipos de máquina. Não há boxing, coerção implícita ou tipos dinâmicos.
+
+| Tipo | Tamanho | Descrição |
+|------|---------|-----------|
+| `Bool` | 8 bits | Verdadeiro/falso |
+| `Void` | 0 bits | Sem retorno |
+| `I8` | 8 bits | Inteiro com sinal (-128 a 127) |
+| `I16` | 16 bits | Inteiro com sinal |
+| `I32` | 32 bits | Inteiro com sinal (padrão) |
+| `I64` | 64 bits | Inteiro com sinal longo |
+| `U8` | 8 bits | Byte sem sinal (0 a 255) |
+| `U16` | 16 bits | Sem sinal (portas I/O, VGA) |
+| `U32` | 32 bits | Sem sinal (registradores hardware) |
+| `U64` | 64 bits | Sem sinal (endereços, paginação) |
+| `Usize` | arch | Tamanho de ponteiro (32 ou 64 bits) |
+| `Isize` | arch | Offset com sinal |
+| `Ptr` | arch | Ponteiro bruto (equivale a `void*` em C) |
+| `F32` | 32 bits | Ponto flutuante IEEE 754 |
+| `F64` | 64 bits | Ponto flutuante dupla precisão |
+
+Tipos compostos: `struct Nome`, arrays `[T; N]`, `volatile T`, ponteiros de função `fun(T) : T`.
+
+---
+
+## Intrínsecos
+
+Intrínsecos são prefixados com `@` e compilam diretamente para instruções de máquina ou nós LLVM IR.
+
+| Intrínseco | Descrição | Exemplo |
+|------------|-----------|---------|
+| `@asm("...")` | Assembly inline | `@asm("cli")` |
+| `@global_asm("...")` | Assembly global (bootloaders) | `@global_asm(".global _start")` |
+| `@unsafe` | Bloco ou modificador unsafe | `@unsafe fun f()` |
+| `@store(ptr, val)` | Escrita volátil na memória | `@store(0xB8000, 0x0F41)` |
+| `@write(ptr, val, type)` | Escrita tipada na memória | `@write(addr, val, U16)` |
+| `@deref(ptr, type)` | Leitura tipada da memória | `@deref(addr, I32)` |
+| `@volatile(ptr, type)` | Leitura volátil (MMIO) | `@volatile(mmio_reg, U32)` |
+| `@inb(port)` | Leitura de porta I/O x86 | `@inb(0x60)` |
+| `@outb(port, val)` | Escrita em porta I/O x86 | `@outb(0x20, 0x20)` |
+| `@inttoptr(val, type)` | Inteiro → ponteiro | `@inttoptr(0xB8000, U64)` |
+| `@ptrtoint(ptr, type)` | Ponteiro → inteiro | `@ptrtoint(p, U64)` |
+| `@addr(var)` | Endereço de variável | `@addr(minha_var)` |
+| `sizeof(type)` | Tamanho em bytes | `sizeof(Point)` |
+| `alignof(type)` | Alinhamento em bytes | `alignof(Point)` |
+| `offsetof(struct, field)` | Offset de campo | `offsetof(Point, y)` |
+| `fence ordering` | Barreira de memória | `fence seq_cst` |
+| `atomic rmw(op, ptr, val, ord)` | Read-modify-write atômico | `atomic rmw(add, p, 1, seq_cst)` |
+
+---
+
+## Modelo de Memória
+
+![Memory Model](docs/memory_model.png)
+
+Snask não possui garbage collector nem alocador automático. A memória é organizada nas seções padrão ELF:
+
+| Seção | Conteúdo |
+|-------|----------|
+| `.text` | Código das funções |
+| `.rodata` | Strings literais e constantes (somente leitura) |
+| `.data` | Variáveis globais mutáveis inicializadas |
+| `.bss` | Variáveis globais não-inicializadas (zeradas no boot) |
+| Stack | Variáveis locais e frames de chamada |
+| Heap | Não existe nativamente — requer alocador manual |
+
+Toda alocação dinâmica é responsabilidade do programador. Strings literais são ponteiros `Ptr` para dados na `.rodata`.
+
+---
+
+## Operadores
+
+### Aritméticos
+`+`, `-`, `*`, `/` (divisão real), `//` (divisão inteira), `%` (módulo)
+
+### Comparação
+`==`, `===` (estrita), `!=`, `>`, `<`, `>=`, `<=`
+
+### Lógicos
+`and`, `or`, `not`
+
+### Bitwise
+`&` (AND), `|` (OR), `^` (XOR), `<<` (shift left), `>>` (shift right), `~` (NOT bit-a-bit)
+
+### Precedência (maior para menor)
+1. Acesso: `[]`, `()`, `.`
+2. Unários: `not`, `~`, `-`
+3. Multiplicativos: `*`, `/`, `//`, `%`
+4. Aditivos: `+`, `-`
+5. Shifts: `<<`, `>>`
+6. Bitwise: `&`, `^`, `|`
+7. Comparação: `<`, `>`, `<=`, `>=`, `==`, `!=`, `===`
+8. Lógicos: `and`, `or`
+
+---
+
+## Controle de Fluxo
+
+```snask
+// if / elif / else
+if temp < 50
+    set_fan(0)
+elif temp < 80
+    set_fan(1500)
+else
+    set_fan(5000)
+
+// while
+mut i: I32 = 0
+while i < 100
+    process(i)
+    i = i + 1
+
+// for ... in
+for b in bytes
+    @outb(0x3F8, b)
+```
+
+---
+
+## Tabela de Features
+
+![Page Frame Allocator](docs/page_frame.png)
+
+| Feature | Status |
+|---------|--------|
+| `let`, `mut`, `const`, `if`, `while`, `for in` | ✅ Estável |
+| Funções tipadas (`fun`, `return`) | ✅ Estável |
+| Structs e `repr_c` | ✅ Estável |
+| `@unsafe` gate | ✅ Estável |
+| Assembly inline (`@asm`, `@global_asm`) | ✅ Estável |
+| Port I/O (`@inb`, `@outb`) | ✅ Estável |
+| Ponteiros (`@inttoptr`, `@ptrtoint`, `@addr`) | ✅ Estável |
+| Memória (`@store`, `@write`, `@deref`, `@volatile`) | ✅ Estável |
+| Introspection (`sizeof`, `alignof`, `offsetof`) | ✅ Estável |
+| Atômicos (`fence`, `atomic rmw`) | ✅ Estável |
+| Operadores bitwise (`&`, `\|`, `^`, `<<`, `>>`, `~`) | ✅ Estável |
+| Operadores compostos (`+=`, `-=`, `*=`, `/=`) | ✅ Estável |
+| LSP (Language Server Protocol) | 🔶 Parcial |
+| `for in` sobre arrays | 🔶 Beta |
+
+---
+
+## Estrutura do Projeto
 
 ```
-├── src/                  # Compilador (Rust)
-│   ├── bin/snask.rs      # CLI principal
-│   ├── bin/snask-lsp.rs  # Servidor LSP
-│   └── ...               # Parser, semântico, codegen LLVM
+├── src/
+│   ├── main.rs               # CLI principal (snask build, run, etc.)
+│   ├── parser.rs              # Lexer + Parser → AST
+│   ├── ast.rs                 # Definições da AST
+│   ├── types.rs               # Sistema de tipos
+│   ├── semantic_analyzer.rs   # Verificação semântica e de tipos
+│   ├── llvm_generator.rs      # Geração de LLVM IR via inkwell
+│   ├── compiler.rs            # Orquestrador de compilação
+│   └── bin/snask-lsp.rs       # Servidor LSP
 ├── docs/
-│   ├── site/             # Site publicado (GitHub Pages)
-│   │   ├── systems/om.html    # OM tutorial completo
-│   │   ├── showcase.html      # Galeria visual
-│   │   └── learn/             # 9 capítulos do zero ao expert
-│   └── systems/          # Documentação técnica
-├── apps/
-│   ├── nes_emulator/     # Emulador NES em Snask puro
-│   ├── snask_store/      # App GUI experimental
-│   └── snask_vault/      # App de storage
-├── Testes/               # Testes de integração OM
-└── scripts/              # Utilitários
+│   └── reference/BAREMETAL.md # Referência completa da linguagem
+├── examples/                  # Programas de exemplo
+└── Testes/                    # Testes de integração
 ```
 
 ---
 
-## 📊 Status das features
+## Tutorial: Mini Kernel x86
 
-| Área | Status |
-|------|--------|
-| Core: `let`, `mut`, `if`, `while`, `for in`, funções tipadas | ✅ estável |
-| Classes nominais com herança | ✅ estável |
-| Coleções genéricas `list<T>`, `dict<K,V>` | ✅ estável |
-| `@unsafe` gate + memória crua | ✅ estável |
-| Primitivas NES/CPU (bits, flags, overflow) | ✅ estável |
-| OM: zonas, recursos, scanner C | ✅ estável |
-| Patch `.om.snif` | ✅ estável |
-| C interop universal | 🔶 experimental |
-| GUI nativa | 🔶 experimental |
-| LSP | 🔶 parcial |
-| Borrow checker estático | 🔄 planejado |
+![PIC Cascade](docs/pic_cascade.png)
 
----
+Passo a passo para compilar um kernel mínimo que escreve "OK" no VGA:
 
-## 📖 Documentação
+```snask
+// kernel.snask
+@global_asm(".section .text")
+@global_asm(".global _start")
+@global_asm("_start: call kmain")
+@global_asm("_hlt: hlt")
+@global_asm("jmp _hlt")
 
-- [🌐 Site oficial](docs/site/index.html) — documentação visual publicada
-- [🔥 Showcase](docs/site/showcase.html) — galeria de tecnologia
-- [📚 Aprender Snask](docs/reference/LEARN_SNASK.md) — do zero ao expert (9 capítulos)
-- [📘 Referência da linguagem](docs/reference/LANGUAGE_REFERENCE.md)
-- [⚙️ OM-Snask-System](docs/systems/OM_SNASK_SYSTEM.md)
-- [🔧 CLI Reference](docs/site/tooling/cli.html)
-- [📋 Feature status](docs/reference/FEATURE_STATUS.md)
+const VGA: U64 = 0xB8000
 
----
+@unsafe fun kmain() : I32
+    @store(VGA, 0x0F4F)       // 'O' branco em fundo preto
+    @store(VGA + 2, 0x0F4B)   // 'K'
+    return 0
+```
 
-## 🏆 Benchmark & orgulho técnico
-
-O NES emulator em `apps/nes_emulator/` executa ROMs NROM reais em Snask puro — um laboratório vivo do perfil **Systems**.
+Compilar:
 
 ```bash
-cargo build --release
-./target/release/snask build apps/nes_emulator/nes_master.snask --profile systems --output nes
-./nes
+snask build kernel.snask --profile baremetal --output kernel
 ```
 
-Veja benchmarks em [docs/benchmarks/](docs/benchmarks/).
+Para criar um binário bootável, use um linker script e GRUB/Limine:
+
+```bash
+ld -T linker.ld -o kernel.elf kernel.o
+```
 
 ---
 
-## 🤝 Contribuição
+## Compilação e Targets
+
+```bash
+# Build padrão (Linux nativo)
+snask build main.snask --output main
+
+# Build baremetal (sem runtime, freestanding)
+snask build kernel.snask --profile baremetal --output kernel
+
+# Gerar LLVM IR para inspeção
+snask build main.snask --emit-llvm
+
+# Build com otimização agressiva
+snask build main.snask --release --lto
+```
+
+Profiles disponíveis:
+
+| Profile | Descrição |
+|---------|-----------|
+| `baremetal` | Sem runtime, sem libc, freestanding |
+| `systems` | Runtime mínimo, link com libc |
+
+---
+
+## LSP e Editor
+
+O Snask inclui um servidor LSP básico em `src/bin/snask-lsp.rs` que provê:
+
+- Syntax highlighting via semantic tokens
+- Diagnósticos de erro em tempo real
+- Símbolos do documento (funções, variáveis, structs)
+
+Extensão para VS Code disponível em `vscode_extension/`.
+
+---
+
+## Contribuição
 
 Snask está em alpha. Issues, PRs e discussões são bem-vindos.
 
-- Reporte bugs: [GitHub Issues](https://github.com/rancidavi-dotcom/TheSnask/issues)
-- Discussões de design: abra uma issue com tag `discussion`
-- Documentação: PRs em `docs/` e `docs/site/`
+- Bugs: [GitHub Issues](https://github.com/rancidavi-dotcom/TheSnask/issues)
+- Discussões: abra uma issue com tag `discussion`
+- Documentação: PRs em `docs/`
 
 ---
 

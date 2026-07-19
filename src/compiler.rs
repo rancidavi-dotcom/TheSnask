@@ -6,20 +6,15 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::ast::{
-    ClassDecl, ConditionalStmt, ConstDecl, DictDecl, DictSet, Expr, ExprKind, FuncDecl, IfBlock,
-    IndexAssignment, ListDecl, ListPush, LiteralValue, Location, LoopStmt, MutDecl, Program,
-    PropertyAssignment, Stmt, StmtKind, VarDecl, VarSet,
+    ConditionalStmt, ConstDecl, Expr, ExprKind, FuncDecl, IfBlock, IndexAssignment,
+    LiteralValue, Location, LoopStmt, MutDecl, Program, Stmt, StmtKind, VarDecl, VarSet,
 };
 use crate::diagnostics::{humane_code, Annotation, Diagnostic, DiagnosticBag};
 use crate::llvm_generator::LLVMGenerator;
-use crate::modules::is_native_module;
-use crate::om_contract::{load_builtin_om_contract, load_om_contract, OmContract};
-use crate::om_scan::{scan_header, ScanOptions};
 use crate::parser::{ParseError, Parser};
 use crate::semantic_analyzer::{SemanticAnalyzer, SemanticError};
 use crate::sps::SnifFeatureValue;
 use crate::toolchain;
-use crate::tools::{get_pkg_cflags, get_pkg_libs, has_pkg};
 use crate::types::Type;
 
 /// Options for the compiler build process.
@@ -115,35 +110,10 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
     inject_features(&mut program, options.features.clone());
     pb.inc(1);
 
-    // Auto-import stdlib modules se nao for baremetal
-    if options.profile != BuildProfile::Baremetal {
-        let loc = Location { line: 0, column: 0 };
-        let span = loc.to_span();
-        program.push(Stmt::with_span(
-            StmtKind::Import("stdio".to_string()),
-            loc,
-            span,
-        ));
-    }
-
     // Validate entrypoint
     validate_entrypoint(&program, &options)?;
 
-    pb.set_message("Resolving imports");
-    let mut resolved_program = Vec::new();
-    let mut resolved_modules = HashSet::new();
-    resolved_modules.insert(file_path.to_string());
-    let entry_dir = Path::new(file_path).parent().unwrap_or(Path::new("."));
-    resolve_imports(
-        &mut program,
-        entry_dir,
-        &mut resolved_program,
-        &mut resolved_modules,
-    )?;
-    pb.inc(1);
-
-    pb.set_message("Expanding inheritance");
-    expand_inheritance(&mut resolved_program)?;
+    let resolved_program = program;
     pb.inc(1);
 
     if options.profile == BuildProfile::Baremetal {
@@ -158,15 +128,7 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
         }
     }
 
-    // Determine runtime linking strategy
-    let needs_full_runtime = uses_full_runtime(&resolved_program);
-    if options.min_runtime && needs_full_runtime {
-        pb.finish_and_clear();
-        return Err(
-            "`--min-runtime` cannot be used with GUI/SQLite/Skia/Web imports.\n".to_string(),
-        );
-    }
-    let link_tiny_runtime = options.tiny || (options.min_runtime && !needs_full_runtime);
+    let link_tiny_runtime = options.tiny || options.min_runtime;
 
     pb.set_message("Semantic analysis");
     let mut analyzer = SemanticAnalyzer::new();
@@ -185,195 +147,19 @@ pub fn build_file(file_path: &str, options: BuildOptions) -> Result<(), String> 
     pb.set_message("Generating LLVM IR");
     let context = Context::create();
     let mut generator = LLVMGenerator::new(&context, file_path, options.profile == BuildProfile::Baremetal);
-    generator.set_om_contracts(load_om_contracts(&resolved_program)?);
     let ir = generator.generate(resolved_program.clone())?;
     pb.inc(1);
 
-    let extra_pkgs = get_imported_pkgs(&resolved_program);
     link_binary(
         file_path,
         ir.into_bytes(),
         options,
         link_tiny_runtime,
         &pb,
-        extra_pkgs,
     )?;
 
     pb.finish_with_message("OK");
     Ok(())
-}
-
-fn get_imported_pkgs(program: &[Stmt]) -> Vec<String> {
-    let mut pkgs = Vec::new();
-    let mut seen = HashSet::new();
-    for stmt in program {
-        match &stmt.kind {
-            StmtKind::Import(module_name) => {
-                if (module_name == "sqlite" || module_name == "zlib")
-                    && seen.insert(module_name.clone())
-                {
-                    pkgs.push(resolve_pkg_name(module_name));
-                } else if !is_native_module(module_name) {
-                    let pkg = resolve_pkg_name(module_name);
-                    if has_pkg(&pkg) && seen.insert(pkg.clone()) {
-                        pkgs.push(pkg);
-                    }
-                }
-            }
-            StmtKind::ImportCOm { alias, .. } => {
-                if seen.insert(alias.clone()) {
-                    pkgs.push(alias.clone());
-                }
-            }
-            _ => {}
-        }
-    }
-    pkgs
-}
-
-fn load_om_contracts(program: &[Stmt]) -> Result<Vec<OmContract>, String> {
-    let mut contracts = Vec::new();
-    let mut seen = HashSet::new();
-
-    for stmt in program {
-        match &stmt.kind {
-            StmtKind::Import(module_name) => {
-                if (module_name == "sqlite" || module_name == "zlib")
-                    && seen.insert(module_name.clone())
-                {
-                    contracts.push(load_builtin_om_contract(module_name)?);
-                } else if !is_native_module(module_name) {
-                    let pkg = resolve_pkg_name(module_name);
-                    if has_pkg(&pkg) && seen.insert(module_name.clone()) {
-                        contracts.push(load_or_generate_auto_om_contract(&pkg, module_name)?);
-                    }
-                }
-            }
-            StmtKind::ImportCOm { header, alias } => {
-                if seen.insert(alias.clone()) {
-                    contracts.push(load_or_generate_om_contract(header, alias)?);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    Ok(contracts)
-}
-
-fn resolve_pkg_name(name: &str) -> String {
-    if name == "sqlite" && has_pkg("sqlite3") && !has_pkg("sqlite") {
-        return "sqlite3".to_string();
-    }
-    name.to_string()
-}
-
-fn find_header_for_pkg(pkg_name: &str) -> Result<String, String> {
-    match pkg_name {
-        "zlib" => Ok("zlib.h".to_string()),
-        "sqlite3" | "sqlite" => Ok("sqlite3.h".to_string()),
-        "sdl2" => Ok("SDL2/SDL.h".to_string()),
-        "raylib" => Ok("raylib.h".to_string()),
-        "gl" => Ok("GL/gl.h".to_string()),
-        "libpng" | "png" => Ok("png.h".to_string()),
-        "libuv" | "uv" => Ok("uv.h".to_string()),
-        "freetype2" => Ok("ft2build.h".to_string()),
-        "gtk+-3.0" | "gtk3" => Ok("gtk/gtk.h".to_string()),
-        _ => {
-            // Default pattern
-            Ok(format!("{}.h", pkg_name))
-        }
-    }
-}
-
-fn load_or_generate_auto_om_contract(pkg_name: &str, alias: &str) -> Result<OmContract, String> {
-    let header = find_header_for_pkg(pkg_name)?;
-    let cflags = get_pkg_cflags(pkg_name).unwrap_or_default();
-    let generated = scan_header(ScanOptions {
-        header,
-        lib: alias.to_string(),
-        output: None,
-        extra_cflags: cflags,
-    })
-    .map_err(|e| format!("OM-Snask-System scan failed for package `{pkg_name}`: {e}"))?;
-
-    merge_om_override_if_present(generated, alias)
-}
-
-fn load_or_generate_om_contract(header: &str, alias: &str) -> Result<OmContract, String> {
-    let generated = scan_header(ScanOptions {
-        header: header.to_string(),
-        lib: alias.to_string(),
-        output: None,
-        extra_cflags: get_pkg_cflags(alias).unwrap_or_default(),
-    })
-    .map_err(|e| format!("import_c_om failed while scanning `{header}` as `{alias}`: {e}"))?;
-
-    merge_om_override_if_present(generated, alias)
-}
-
-fn merge_om_override_if_present(
-    mut generated: OmContract,
-    alias: &str,
-) -> Result<OmContract, String> {
-    let Some(path) = find_om_contract_override(alias) else {
-        return Ok(generated);
-    };
-
-    let override_contract = load_om_contract(&path)?;
-
-    for override_constant in override_contract.constants {
-        if let Some(existing) = generated
-            .constants
-            .iter_mut()
-            .find(|constant| constant.surface == override_constant.surface)
-        {
-            *existing = override_constant;
-        } else {
-            generated.constants.push(override_constant);
-        }
-    }
-
-    for override_resource in override_contract.resources {
-        if let Some(existing) = generated
-            .resources
-            .iter_mut()
-            .find(|resource| resource.surface_type == override_resource.surface_type)
-        {
-            *existing = override_resource;
-        } else {
-            generated.resources.push(override_resource);
-        }
-    }
-
-    for mut override_function in override_contract.functions {
-        if let Some(existing) = generated
-            .functions
-            .iter_mut()
-            .find(|function| function.surface == override_function.surface)
-        {
-            if override_function.c_return_type.is_none() {
-                override_function.c_return_type = existing.c_return_type.clone();
-            }
-            if override_function.c_param_types.is_empty() {
-                override_function.c_param_types = existing.c_param_types.clone();
-            }
-            *existing = override_function;
-        } else {
-            generated.functions.push(override_function);
-        }
-    }
-
-    Ok(generated)
-}
-
-fn find_om_contract_override(alias: &str) -> Option<std::path::PathBuf> {
-    [
-        Path::new("contracts").join(format!("{alias}.om.snif")),
-        Path::new(&format!("{alias}.om.snif")).to_path_buf(),
-    ]
-    .into_iter()
-    .find(|path| path.exists())
 }
 
 fn inject_features(program: &mut Program, features: BTreeMap<String, SnifFeatureValue>) {
@@ -400,114 +186,8 @@ fn inject_features(program: &mut Program, features: BTreeMap<String, SnifFeature
     program.splice(0..0, feature_stmts);
 }
 
-fn validate_entrypoint(program: &Program, options: &BuildOptions) -> Result<(), String> {
-    if options.profile == BuildProfile::Baremetal {
-        return Ok(());
-    }
-
-    for stmt in program {
-        if let StmtKind::ClassDeclaration(class) = &stmt.kind {
-            if class.name == "main" {
-                if class.methods.is_empty() {
-                    return Err(
-                        "Error: `class main` must declare at least one method. `start()` is preferred, but Snask will also accept the first method as the entrypoint.".to_string(),
-                    );
-                }
-                return Ok(());
-            }
-        }
-    }
-
-    Err(
-        "Error: every Snask program must contain a `class main` with at least one method. `start()` is preferred, but Snask will also accept the first method as the entrypoint.".to_string(),
-    )
-}
-
-fn expand_inheritance(program: &mut Program) -> Result<(), String> {
-    let mut classes: std::collections::HashMap<String, crate::ast::ClassDecl> =
-        std::collections::HashMap::new();
-    for stmt in program.iter() {
-        if let StmtKind::ClassDeclaration(class) = &stmt.kind {
-            classes.insert(class.name.clone(), class.clone());
-        }
-    }
-
-    let class_names: Vec<String> = classes.keys().cloned().collect();
-    let mut changed = true;
-    let mut iterations = 0;
-    while changed && iterations < 100 {
-        changed = false;
-        iterations += 1;
-        for name in &class_names {
-            let mut current = classes.get(name).unwrap().clone();
-            if let Some(parent_name) = &current.parent {
-                let parent = classes.get(parent_name).ok_or_else(|| {
-                    format!(
-                        "Parent class '{}' not found for class '{}'.",
-                        parent_name, name
-                    )
-                })?;
-
-                let mut modified = false;
-                for p_prop in &parent.properties {
-                    if !current.properties.iter().any(|p| p.name == p_prop.name) {
-                        current.properties.push(p_prop.clone());
-                        modified = true;
-                    }
-                }
-                for p_meth in &parent.methods {
-                    if !current.methods.iter().any(|m| m.name == p_meth.name) {
-                        current.methods.push(p_meth.clone());
-                        modified = true;
-                    }
-                }
-
-                if modified {
-                    classes.insert(name.clone(), current);
-                    changed = true;
-                }
-            }
-        }
-    }
-
-    if iterations >= 100 {
-        return Err("Circular inheritance or too deep hierarchy detected (max 100).".to_string());
-    }
-
-    for stmt in program.iter_mut() {
-        if let StmtKind::ClassDeclaration(class) = &mut stmt.kind {
-            if let Some(expanded) = classes.get(&class.name) {
-                *class = expanded.clone();
-            }
-        }
-    }
+fn validate_entrypoint(_program: &Program, _options: &BuildOptions) -> Result<(), String> {
     Ok(())
-}
-
-fn uses_full_runtime(program: &[Stmt]) -> bool {
-    fn is_heavy_module(name: &str) -> bool {
-        matches!(
-            name,
-            "gui" | "sqlite" | "zlib" | "snask_skia" | "blaze" | "blaze_auth" | "auth"
-        )
-    }
-    for st in program {
-        match &st.kind {
-            StmtKind::Import(m) => {
-                if is_heavy_module(m) {
-                    return true;
-                }
-            }
-            StmtKind::ImportCOm { .. } => return true,
-            StmtKind::FromImport { module, .. } => {
-                if is_heavy_module(module) {
-                    return true;
-                }
-            }
-            _ => {}
-        }
-    }
-    false
 }
 
 #[derive(Debug, Clone)]
@@ -529,57 +209,14 @@ fn find_baremetal_restrictions(program: &[Stmt]) -> Vec<BaremetalRestriction> {
 
 fn collect_baremetal_stmt_restrictions(stmt: &Stmt, restrictions: &mut Vec<BaremetalRestriction>) {
     match &stmt.kind {
-        StmtKind::Print(exprs) => {
-            restrictions.push(BaremetalRestriction {
-                span: stmt.span,
-                message: "print requires std runtime".to_string(),
-                annotation: "std output is not available in baremetal".to_string(),
-                help: "use a serial/VGA driver or build with `--profile humane`".to_string(),
-                note: Some(
-                    "`baremetal` starts without Snask std/runtime services by default.".to_string(),
-                ),
-            });
-            for expr in exprs {
-                collect_baremetal_expr_restrictions(expr, restrictions);
-            }
-        }
-        StmtKind::Import(lib) => {
-            if baremetal_runtime_module(lib) {
-                restrictions.push(BaremetalRestriction {
-                    span: stmt.span,
-                    message: format!("import `{lib}` requires std runtime"),
-                    annotation: "runtime-backed import".to_string(),
-                    help: "use a baremetal driver/module, or build with `--profile humane`"
-                        .to_string(),
-                    note: Some(
-                        "Baremetal code cannot assume OS, libc, GUI or filesystem services."
-                            .to_string(),
-                    ),
-                });
-            }
-        }
-        StmtKind::ImportCOm { alias, .. } => restrictions.push(BaremetalRestriction {
-            span: stmt.span,
-            message: format!("import_c_om `{alias}` requires std runtime"),
-            annotation: "OM C interop needs the native runtime/link pipeline".to_string(),
-            help: "use `--profile systems` for native C interop while baremetal support matures"
-                .to_string(),
-            note: None,
-        }),
         StmtKind::Expression(expr)
         | StmtKind::FuncCall(expr)
         | StmtKind::Return(expr)
         | StmtKind::VarDeclaration(VarDecl { value: expr, .. })
         | StmtKind::MutDeclaration(MutDecl { value: expr, .. })
         | StmtKind::ConstDeclaration(ConstDecl { value: expr, .. })
-        | StmtKind::VarAssignment(VarSet { value: expr, .. })
-        | StmtKind::ListDeclaration(ListDecl { value: expr, .. })
-        | StmtKind::ListPush(ListPush { value: expr, .. }) => {
+        | StmtKind::VarAssignment(VarSet { value: expr, .. }) => {
             collect_baremetal_expr_restrictions(expr, restrictions);
-        }
-        StmtKind::PropertyAssignment(PropertyAssignment { target, value, .. }) => {
-            collect_baremetal_expr_restrictions(target, restrictions);
-            collect_baremetal_expr_restrictions(value, restrictions);
         }
         StmtKind::IndexAssignment(IndexAssignment {
             target,
@@ -591,26 +228,9 @@ fn collect_baremetal_stmt_restrictions(stmt: &Stmt, restrictions: &mut Vec<Barem
             collect_baremetal_expr_restrictions(index, restrictions);
             collect_baremetal_expr_restrictions(value, restrictions);
         }
-        StmtKind::DictDeclaration(DictDecl { value, .. }) => {
-            collect_baremetal_expr_restrictions(value, restrictions);
-        }
-        StmtKind::DictSet(DictSet { key, value, .. }) => {
-            collect_baremetal_expr_restrictions(key, restrictions);
-            collect_baremetal_expr_restrictions(value, restrictions);
-        }
         StmtKind::FuncDeclaration(func) => {
             for child in &func.body {
                 collect_baremetal_stmt_restrictions(child, restrictions);
-            }
-        }
-        StmtKind::ClassDeclaration(class) => {
-            for property in &class.properties {
-                collect_baremetal_expr_restrictions(&property.value, restrictions);
-            }
-            for method in &class.methods {
-                for child in &method.body {
-                    collect_baremetal_stmt_restrictions(child, restrictions);
-                }
             }
         }
         StmtKind::Conditional(cond) => {
@@ -644,34 +264,11 @@ fn collect_baremetal_stmt_restrictions(stmt: &Stmt, restrictions: &mut Vec<Barem
                 }
             }
         },
-        StmtKind::UnsafeBlock(body)
-        | StmtKind::Scope { body, .. }
-        | StmtKind::Zone { body, .. } => {
+        StmtKind::UnsafeBlock(body) => {
             for child in body {
                 collect_baremetal_stmt_restrictions(child, restrictions);
             }
         }
-        StmtKind::Input { .. } => restrictions.push(BaremetalRestriction {
-            span: stmt.span,
-            message: "input requires std runtime".to_string(),
-            annotation: "stdin is not available in baremetal".to_string(),
-            help: "read from a device driver, serial port, or build with `--profile humane`"
-                .to_string(),
-            note: None,
-        }),
-        StmtKind::FromImport { module, .. } => {
-            if baremetal_runtime_module(module) {
-                restrictions.push(BaremetalRestriction {
-                    span: stmt.span,
-                    message: format!("import `{module}` requires std runtime"),
-                    annotation: "runtime-backed import".to_string(),
-                    help: "use a baremetal driver/module, or build with `--profile humane`"
-                        .to_string(),
-                    note: None,
-                });
-            }
-        }
-        StmtKind::Promote { .. } | StmtKind::Entangle { .. } => {}
         StmtKind::Asm(_) => {}
         StmtKind::WritePtr { .. } => {}
         StmtKind::Outb { .. } => {}
@@ -709,28 +306,9 @@ fn collect_baremetal_expr_restrictions(expr: &Expr, restrictions: &mut Vec<Barem
             collect_baremetal_expr_restrictions(left, restrictions);
             collect_baremetal_expr_restrictions(right, restrictions);
         }
-        ExprKind::PropertyAccess { target, .. } => {
-            collect_baremetal_expr_restrictions(target, restrictions);
-        }
         ExprKind::IndexAccess { target, index } => {
             collect_baremetal_expr_restrictions(target, restrictions);
             collect_baremetal_expr_restrictions(index, restrictions);
-        }
-        ExprKind::New { args, .. } => {
-            for arg in args {
-                collect_baremetal_expr_restrictions(arg, restrictions);
-            }
-        }
-        ExprKind::Literal(LiteralValue::List(items)) => {
-            for item in items {
-                collect_baremetal_expr_restrictions(item, restrictions);
-            }
-        }
-        ExprKind::Literal(LiteralValue::Dict(pairs)) => {
-            for (key, value) in pairs {
-                collect_baremetal_expr_restrictions(key, restrictions);
-                collect_baremetal_expr_restrictions(value, restrictions);
-            }
         }
         ExprKind::Literal(_) | ExprKind::Variable(_) => {}
         ExprKind::Deref { ptr, .. } => {
@@ -751,14 +329,6 @@ fn collect_baremetal_expr_restrictions(expr: &Expr, restrictions: &mut Vec<Barem
 fn baremetal_runtime_call_name(callee: &Expr) -> Option<String> {
     match &callee.kind {
         ExprKind::Variable(name) if baremetal_runtime_builtin(name) => Some(name.clone()),
-        ExprKind::PropertyAccess { target, property } => {
-            if let ExprKind::Variable(module) = &target.kind {
-                if baremetal_runtime_module(module) {
-                    return Some(format!("{module}.{property}"));
-                }
-            }
-            None
-        }
         _ => None,
     }
 }
@@ -834,10 +404,10 @@ fn render_baremetal_restrictions(
 #[cfg(test)]
 mod tests {
     use super::{
-        find_baremetal_restrictions, namespace_imported_module, render_baremetal_restrictions,
-        render_parser_diagnostics, render_semantic_diagnostics, validate_entrypoint, BuildOptions,
+        render_baremetal_restrictions, render_parser_diagnostics, render_semantic_diagnostics,
+        validate_entrypoint, BuildOptions,
     };
-    use crate::ast::{ClassDecl, Location, Stmt, StmtKind};
+    use crate::ast::{Location, Stmt, StmtKind};
     use crate::parser::Parser;
     use crate::semantic_analyzer::{SemanticError, SemanticErrorKind};
     use crate::span::{Position, Span};
@@ -851,48 +421,27 @@ mod tests {
     }
 
     #[test]
-    fn validate_entrypoint_rejects_missing_main_class() {
+    fn validate_entrypoint_always_succeeds_for_baremetal() {
         let program = Vec::new();
-        let err = validate_entrypoint(&program, &BuildOptions::default()).expect_err("missing main must fail");
-        assert!(err.contains("class main"));
-        assert!(err.contains("at least one method"));
-    }
-
-    #[test]
-    fn validate_entrypoint_rejects_empty_main_class() {
-        let program = vec![Stmt::with_span(
-            StmtKind::ClassDeclaration(ClassDecl {
-                name: "main".to_string(),
-                parent: None,
-                properties: Vec::new(),
-                methods: Vec::new(),
-            }),
-            loc(),
-            span(),
-        )];
-
-        let err = validate_entrypoint(&program, &BuildOptions::default()).expect_err("empty main must fail");
-        assert!(err.contains("at least one method"));
+        validate_entrypoint(&program, &BuildOptions::default()).expect("should always succeed");
     }
 
     #[test]
     fn humane_parser_diagnostic_points_to_missing_paren() {
-        let source = "class main\n    fun start()\n        print(\"Hello\"\n";
+        let source = "fun start()\n    let x = (1 + 2\n";
         let mut parser = Parser::new(source).expect("source should tokenize");
         let (_program, errors) = parser.parse_program_recovering(10);
         let rendered = render_parser_diagnostics("hello.snask", source, &errors);
 
         assert!(rendered.contains("error[S1002]: missing closing `)`"));
-        assert!(rendered.contains("print(\"Hello\""));
         assert!(rendered.contains("^ expected `)` here"));
         assert!(!rendered.contains("ParseError"));
     }
 
     #[test]
     fn humane_semantic_diagnostic_uses_snippet_and_suggestion() {
-        let source =
-            "class main\n    fun start()\n        let message = \"Hello\"\n        print(mesage)\n";
-        let span = Span::new(Position::new(4, 15, 0), Position::new(4, 21, 0));
+        let source = "fun start()\n    let message = 42\n    let x = mesage\n";
+        let span = Span::new(Position::new(3, 13, 0), Position::new(3, 19, 0));
         let error = SemanticError::new(
             SemanticErrorKind::VariableNotFound("mesage".to_string()),
             span,
@@ -902,7 +451,6 @@ mod tests {
         let rendered = render_semantic_diagnostics("name.snask", source, &[error]);
 
         assert!(rendered.contains("error[S2002]: variable `mesage` was not found"));
-        assert!(rendered.contains("print(mesage)"));
         assert!(rendered.contains("^^^^^^ unknown name"));
         assert!(rendered.contains("help: Did you mean 'message'?"));
         assert!(!rendered.contains("SemanticError"));
@@ -910,63 +458,20 @@ mod tests {
 
     #[test]
     fn humane_semantic_type_mismatch_uses_public_type_names() {
-        let source = "class main\n    fun start()\n        let age: int = \"18\"\n";
-        let span = Span::new(Position::new(3, 24, 0), Position::new(3, 28, 0));
+        let source = "fun start()\n    let age: i64 = true\n";
+        let span = Span::new(Position::new(2, 22, 0), Position::new(2, 26, 0));
         let error = SemanticError::new(
             SemanticErrorKind::TypeMismatch {
-                expected: crate::types::Type::Int,
-                found: crate::types::Type::String,
+                expected: crate::types::Type::I64,
+                found: crate::types::Type::Bool,
             },
             span,
         );
 
         let rendered = render_semantic_diagnostics("types.snask", source, &[error]);
 
-        assert!(rendered.contains("error[S2010]: expected `int`, found `str`"));
+        assert!(rendered.contains("error[S2010]: expected `i64`, found `bool`"));
         assert!(rendered.contains("type mismatch here"));
-        assert!(!rendered.contains("String"));
-    }
-
-    #[test]
-    fn imported_module_namespace_keeps_parameters_local() {
-        let source = "fun largura() : int\n    return 1\n\nfun area(largura: int, altura: int) : int\n    return largura * altura\n";
-        let mut parser = Parser::new(source).expect("source should tokenize");
-        let (program, errors) = parser.parse_program_recovering(10);
-        assert!(errors.is_empty(), "unexpected parse errors: {errors:?}");
-        let mut program = program.expect("program should parse");
-
-        namespace_imported_module(&mut program, "tupi");
-
-        let area = program
-            .iter()
-            .find_map(|stmt| match &stmt.kind {
-                StmtKind::FuncDeclaration(func) if func.name == "tupi::area" => Some(func),
-                _ => None,
-            })
-            .expect("area function should be namespaced");
-
-        if let StmtKind::Return(expr) = &area.body[0].kind {
-            let rendered = format!("{:?}", expr.kind);
-            assert!(rendered.contains("Variable(\"largura\")"));
-            assert!(rendered.contains("Variable(\"altura\")"));
-            assert!(!rendered.contains("tupi::largura"));
-        } else {
-            panic!("area body should return an expression");
-        }
-    }
-
-    #[test]
-    fn baremetal_diagnostic_explains_std_runtime_requirement() {
-        let source = "class main\n    fun start()\n        print(\"Hello\")\n";
-        let mut parser = Parser::new(source).expect("source should tokenize");
-        let program = parser.parse_program().expect("source should parse");
-        let restrictions = find_baremetal_restrictions(&program);
-        let rendered = render_baremetal_restrictions("kernel.snask", source, &restrictions);
-
-        assert!(rendered.contains("error[S8001]: print requires std runtime"));
-        assert!(rendered.contains("print(\"Hello\")"));
-        assert!(rendered.contains("std output is not available in baremetal"));
-        assert!(rendered.contains("help: use a serial/VGA driver or build with `--profile humane`"));
     }
 }
 
@@ -976,7 +481,6 @@ pub fn link_binary(
     options: BuildOptions,
     link_tiny_runtime: bool,
     pb: &ProgressBar,
-    extra_pkgs: Vec<String>,
 ) -> Result<(), String> {
     let ir_file = "temp_snask.ll";
     fs::write(ir_file, ir).map_err(|e| e.to_string())?;
@@ -991,13 +495,6 @@ pub fn link_binary(
     } else {
         format!("-O{}", options.opt_level)
     };
-
-    let mut extra_libs = Vec::new();
-    for pkg in extra_pkgs {
-        if let Ok(libs) = get_pkg_libs(&pkg) {
-            extra_libs.extend(libs);
-        }
-    }
 
     let lld = toolchain::ld_lld();
     let clang_path = toolchain::clang();
@@ -1127,7 +624,6 @@ pub fn link_binary(
                 .args(&args)
                 .arg("-o")
                 .arg(&final_output)
-                .args(&extra_libs)
                 .args(if options.extreme {
                     vec![]
                 } else if options.profile == BuildProfile::Baremetal {
@@ -1267,7 +763,6 @@ pub fn link_binary(
                 .args(&args)
             .arg("-o")
             .arg(&final_output)
-            .args(&extra_libs)
             .args(if options.extreme {
                 vec![]
             } else if options.profile == BuildProfile::Baremetal {
@@ -1388,68 +883,11 @@ fn strip_binary(path: &str) {
 
 pub fn resolve_imports(
     program: &mut Program,
-    entry_dir: &Path,
+    _entry_dir: &Path,
     resolved_program: &mut Program,
-    resolved_modules: &mut HashSet<String>,
+    _resolved_modules: &mut HashSet<String>,
 ) -> Result<(), String> {
-    for stmt in program.drain(..) {
-        match stmt.kind {
-            StmtKind::Import(ref module_name) => {
-                if is_native_module(module_name) {
-                    resolved_program.push(stmt);
-                    continue;
-                }
-                match resolve_module_path(entry_dir, module_name) {
-                    Ok(module_path) => {
-                        if !resolved_modules.contains(&module_path) {
-                            resolved_modules.insert(module_path.clone());
-                            let source = fs::read_to_string(&module_path).map_err(|e| {
-                                format!("Failed to read module {}: {}", module_name, e)
-                            })?;
-                            let mut parser = Parser::new(&source)
-                                .map_err(|e| render_parser_diagnostic(&module_path, &source, &e))?;
-                            let (module_program, errors) = parser.parse_program_recovering(10);
-                            if !errors.is_empty() {
-                                return Err(render_parser_diagnostics(
-                                    &module_path,
-                                    &source,
-                                    &errors,
-                                ));
-                            }
-                            if let Some(mut prog) = module_program {
-                                let prefix = Path::new(module_name)
-                                    .file_stem()
-                                    .and_then(|stem| stem.to_str())
-                                    .unwrap_or_else(|| {
-                                        module_name.split('/').last().unwrap_or(module_name)
-                                    });
-                                if prefix != "prelude" {
-                                    namespace_imported_module(&mut prog, prefix);
-                                }
-                                resolve_imports(
-                                    &mut prog,
-                                    Path::new(&module_path).parent().unwrap(),
-                                    resolved_program,
-                                    resolved_modules,
-                                )?;
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        // If not found as .snask, check if it's a C package
-                        let pkg = resolve_pkg_name(module_name);
-                        if has_pkg(&pkg) {
-                            resolved_program.push(stmt);
-                            continue;
-                        }
-                        return Err(e);
-                    }
-                }
-            }
-            StmtKind::ImportCOm { .. } => resolved_program.push(stmt),
-            _ => resolved_program.push(stmt),
-        }
-    }
+    resolved_program.extend(program.drain(..));
     Ok(())
 }
 
@@ -1458,7 +896,6 @@ fn namespace_imported_module(program: &mut Program, prefix: &str) {
         .iter()
         .filter_map(|stmt| match &stmt.kind {
             StmtKind::FuncDeclaration(f) => Some(f.name.clone()),
-            StmtKind::ClassDeclaration(c) => Some(c.name.clone()),
             StmtKind::VarDeclaration(v) => Some(v.name.clone()),
             StmtKind::MutDeclaration(v) => Some(v.name.clone()),
             StmtKind::ConstDeclaration(v) => Some(v.name.clone()),
@@ -1470,7 +907,6 @@ fn namespace_imported_module(program: &mut Program, prefix: &str) {
         rewrite_stmt_for_namespace(stmt, prefix, &local_symbols);
         match &mut stmt.kind {
             StmtKind::FuncDeclaration(f) => f.name = namespaced(prefix, &f.name),
-            StmtKind::ClassDeclaration(c) => c.name = namespaced(prefix, &c.name),
             StmtKind::VarDeclaration(v) => v.name = namespaced(prefix, &v.name),
             StmtKind::MutDeclaration(v) => v.name = namespaced(prefix, &v.name),
             StmtKind::ConstDeclaration(v) => v.name = namespaced(prefix, &v.name),
@@ -1490,17 +926,14 @@ fn namespaced(prefix: &str, name: &str) -> String {
 fn rewrite_type_for_namespace(ty: &mut Type, prefix: &str, local_symbols: &HashSet<String>) {
     match ty {
         Type::User(name) if local_symbols.contains(name) => *name = namespaced(prefix, name),
-        Type::ListOf(inner) => rewrite_type_for_namespace(inner, prefix, local_symbols),
-        Type::DictOf(key, value) => {
-            rewrite_type_for_namespace(key, prefix, local_symbols);
-            rewrite_type_for_namespace(value, prefix, local_symbols);
-        }
         Type::Function(params, ret) => {
             for p in params {
                 rewrite_type_for_namespace(p, prefix, local_symbols);
             }
             rewrite_type_for_namespace(ret, prefix, local_symbols);
         }
+        Type::Array(inner, _) => rewrite_type_for_namespace(inner, prefix, local_symbols),
+        Type::Volatile(inner) => rewrite_type_for_namespace(inner, prefix, local_symbols),
         _ => {}
     }
 }
@@ -1567,12 +1000,6 @@ fn collect_stmt_local_names(stmts: &[Stmt], names: &mut HashSet<String>) {
             StmtKind::ConstDeclaration(v) => {
                 names.insert(v.name.clone());
             }
-            StmtKind::ListDeclaration(v) => {
-                names.insert(v.name.clone());
-            }
-            StmtKind::DictDeclaration(v) => {
-                names.insert(v.name.clone());
-            }
             StmtKind::Conditional(c) => {
                 collect_stmt_local_names(&c.if_block.body, names);
                 for block in &c.elif_blocks {
@@ -1587,31 +1014,11 @@ fn collect_stmt_local_names(stmts: &[Stmt], names: &mut HashSet<String>) {
                 names.insert(iterator.clone());
                 collect_stmt_local_names(body, names);
             }
-            StmtKind::UnsafeBlock(body)
-            | StmtKind::Scope { body, .. }
-            | StmtKind::Zone { body, .. } => {
+            StmtKind::UnsafeBlock(body) => {
                 collect_stmt_local_names(body, names);
             }
             _ => {}
         }
-    }
-}
-
-fn rewrite_class_decl_for_namespace(
-    c: &mut ClassDecl,
-    prefix: &str,
-    local_symbols: &HashSet<String>,
-) {
-    if let Some(parent) = &mut c.parent {
-        if local_symbols.contains(parent) {
-            *parent = namespaced(prefix, parent);
-        }
-    }
-    for p in &mut c.properties {
-        rewrite_var_decl_for_namespace(p, prefix, local_symbols);
-    }
-    for m in &mut c.methods {
-        rewrite_func_decl_for_namespace(m, prefix, local_symbols);
     }
 }
 
@@ -1658,25 +1065,12 @@ fn rewrite_stmt_for_namespace(stmt: &mut Stmt, prefix: &str, local_symbols: &Has
             }
             rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols)
         }
-        StmtKind::PropertyAssignment(a) => {
-            rewrite_expr_for_namespace(&mut a.target, prefix, local_symbols);
-            rewrite_expr_for_namespace(&mut a.value, prefix, local_symbols);
-        }
         StmtKind::IndexAssignment(a) => {
             rewrite_expr_for_namespace(&mut a.target, prefix, local_symbols);
             rewrite_expr_for_namespace(&mut a.index, prefix, local_symbols);
             rewrite_expr_for_namespace(&mut a.value, prefix, local_symbols);
         }
-        StmtKind::Print(exprs) => {
-            for e in exprs {
-                rewrite_expr_for_namespace(e, prefix, local_symbols);
-            }
-        }
-        StmtKind::Input { var_type, .. } => {
-            rewrite_type_for_namespace(var_type, prefix, local_symbols);
-        }
         StmtKind::FuncDeclaration(f) => rewrite_func_decl_for_namespace(f, prefix, local_symbols),
-        StmtKind::ClassDeclaration(c) => rewrite_class_decl_for_namespace(c, prefix, local_symbols),
         StmtKind::Conditional(c) => rewrite_conditional_for_namespace(c, prefix, local_symbols),
         StmtKind::Loop(LoopStmt::While { condition, body }) => {
             rewrite_expr_for_namespace(condition, prefix, local_symbols);
@@ -1686,30 +1080,7 @@ fn rewrite_stmt_for_namespace(stmt: &mut Stmt, prefix: &str, local_symbols: &Has
             rewrite_expr_for_namespace(iterable, prefix, local_symbols);
             rewrite_stmts_for_namespace(body, prefix, local_symbols);
         }
-        StmtKind::ListDeclaration(v) => {
-            rewrite_opt_type_for_namespace(&mut v.var_type, prefix, local_symbols);
-            rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols);
-        }
-        StmtKind::ListPush(v) => {
-            if local_symbols.contains(&v.name) {
-                v.name = namespaced(prefix, &v.name);
-            }
-            rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols);
-        }
-        StmtKind::DictDeclaration(v) => {
-            rewrite_opt_type_for_namespace(&mut v.var_type, prefix, local_symbols);
-            rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols);
-        }
-        StmtKind::DictSet(v) => {
-            if local_symbols.contains(&v.name) {
-                v.name = namespaced(prefix, &v.name);
-            }
-            rewrite_expr_for_namespace(&mut v.key, prefix, local_symbols);
-            rewrite_expr_for_namespace(&mut v.value, prefix, local_symbols);
-        }
-        StmtKind::UnsafeBlock(body)
-        | StmtKind::Scope { body, .. }
-        | StmtKind::Zone { body, .. } => {
+        StmtKind::UnsafeBlock(body) => {
             rewrite_stmts_for_namespace(body, prefix, local_symbols);
         }
         _ => {}
@@ -1717,24 +1088,10 @@ fn rewrite_stmt_for_namespace(stmt: &mut Stmt, prefix: &str, local_symbols: &Has
 }
 
 fn rewrite_literal_for_namespace(
-    lit: &mut LiteralValue,
-    prefix: &str,
-    local_symbols: &HashSet<String>,
+    _lit: &mut LiteralValue,
+    _prefix: &str,
+    _local_symbols: &HashSet<String>,
 ) {
-    match lit {
-        LiteralValue::List(items) => {
-            for item in items {
-                rewrite_expr_for_namespace(item, prefix, local_symbols);
-            }
-        }
-        LiteralValue::Dict(items) => {
-            for (k, v) in items {
-                rewrite_expr_for_namespace(k, prefix, local_symbols);
-                rewrite_expr_for_namespace(v, prefix, local_symbols);
-            }
-        }
-        _ => {}
-    }
 }
 
 fn rewrite_expr_for_namespace(expr: &mut Expr, prefix: &str, local_symbols: &HashSet<String>) {
@@ -1754,71 +1111,32 @@ fn rewrite_expr_for_namespace(expr: &mut Expr, prefix: &str, local_symbols: &Has
                 rewrite_expr_for_namespace(arg, prefix, local_symbols);
             }
         }
-        ExprKind::PropertyAccess { target, .. } => {
-            rewrite_expr_for_namespace(target, prefix, local_symbols);
-        }
         ExprKind::IndexAccess { target, index } => {
             rewrite_expr_for_namespace(target, prefix, local_symbols);
             rewrite_expr_for_namespace(index, prefix, local_symbols);
         }
-        ExprKind::New { class, args, .. } => {
-            if local_symbols.contains(class) {
-                *class = namespaced(prefix, class);
-            }
-            for arg in args {
-                rewrite_expr_for_namespace(arg, prefix, local_symbols);
-            }
+        ExprKind::Deref { ptr, .. } => rewrite_expr_for_namespace(ptr, prefix, local_symbols),
+        ExprKind::SizeOf(e) | ExprKind::AlignOf(e) => {
+            rewrite_expr_for_namespace(e, prefix, local_symbols);
+        }
+        ExprKind::OffsetOf { expr, .. } => {
+            rewrite_expr_for_namespace(expr, prefix, local_symbols);
+        }
+        ExprKind::VolatileLoad { ptr, .. } => {
+            rewrite_expr_for_namespace(ptr, prefix, local_symbols);
+        }
+        ExprKind::VolatileStore { ptr, value } => {
+            rewrite_expr_for_namespace(ptr, prefix, local_symbols);
+            rewrite_expr_for_namespace(value, prefix, local_symbols);
+        }
+        ExprKind::IntToPtr { expr, .. } | ExprKind::PtrToInt { expr, .. } => {
+            rewrite_expr_for_namespace(expr, prefix, local_symbols);
         }
         _ => {}
     }
 }
 
-fn resolve_module_path(entry_dir: &Path, module_name: &str) -> Result<String, String> {
-    let name_with_ext = if module_name.ends_with(".snask") {
-        module_name.to_string()
-    } else {
-        format!("{}.snask", module_name)
-    };
-
-    // 1. Local path
-    let local = entry_dir.join(&name_with_ext);
-    if local.exists() {
-        return Ok(local.to_string_lossy().to_string());
-    }
-
-    // Try raw module_name if it's a direct path
-    let raw = entry_dir.join(module_name);
-    if raw.exists() {
-        return Ok(raw.to_string_lossy().to_string());
-    }
-
-    // 2. Compiler stdlib path (src/stdlib/)
-    let stdlib = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("src/stdlib")
-        .join(&name_with_ext);
-    if stdlib.exists() {
-        return Ok(stdlib.to_string_lossy().to_string());
-    }
-
-    // 3. Stdlib / Packages (MVP: check both direct and nested structure)
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let pkg_direct = Path::new(&home)
-        .join(".snask/packages")
-        .join(&name_with_ext);
-    if pkg_direct.exists() {
-        return Ok(pkg_direct.to_string_lossy().to_string());
-    }
-    let pkg_nested = Path::new(&home)
-        .join(".snask/packages")
-        .join(module_name)
-        .join(&name_with_ext);
-    if pkg_nested.exists() {
-        return Ok(pkg_nested.to_string_lossy().to_string());
-    }
-    Err(format!("Module '{}' not found.", module_name))
-}
-
-pub fn render_parser_diagnostic(filename: &str, source: &str, err: &ParseError) -> String {
+fn render_parser_diagnostic(filename: &str, source: &str, err: &ParseError) -> String {
     render_parser_diagnostics(filename, source, std::slice::from_ref(err))
 }
 
